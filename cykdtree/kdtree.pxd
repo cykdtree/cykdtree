@@ -17,8 +17,10 @@ cdef extern from "c_kdtree.hpp":
         double split
         Node* less
         Node* greater
-        vector[Node*]* left_neighbors
-        vector[Node*]* right_neighbors
+        vector[bool] periodic_left
+        vector[bool] periodic_right
+        vector[vector[uint32_t]] left_neighbors
+        vector[vector[uint32_t]] right_neighbors
     cdef cppclass KDTree:
         double* all_pts
         uint64_t npts
@@ -30,7 +32,6 @@ cdef extern from "c_kdtree.hpp":
         double* domain_maxs
         vector[Node*] leaves
         Node* root
-        # KDTree()
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
                double *left_edge, double *right_edge)
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
@@ -42,9 +43,9 @@ cdef class PyKDTree:
     cdef uint64_t npts
     cdef uint32_t ndim
     cdef readonly uint32_t leafsize
-    cdef double* left_edge
-    cdef double* right_edge
-    cdef double* domain_width
+    cdef object left_edge
+    cdef object right_edge
+    cdef object domain_width
     cdef bool periodic
     cdef readonly object leaves
-    # cdef readonly int num_leaves
+    cdef readonly uint32_t num_leaves

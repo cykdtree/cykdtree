@@ -23,6 +23,7 @@ def test_PyKDTree():
                               leafsize=leafsize, periodic=True)
     tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, 
                               leafsize=leafsize, periodic=True)
+    assert_raises(ValueError, cykdtree.PyKDTree, pts2, left_edge2, right_edge2, leafsize=1)
     
 def test_search():
     # 2D
@@ -36,17 +37,16 @@ def test_search():
         leaf3 = tree3.get(pos)
     assert_raises(ValueError, tree3.get, right_edge3)
 
-def test_kdtree():
-    leaves2 = cykdtree.kdtree(pts2, left_edge2, right_edge2, leafsize)
-    leaves3 = cykdtree.kdtree(pts3, left_edge3, right_edge3, leafsize)
-    assert_raises(ValueError, cykdtree.kdtree, pts2, left_edge2, right_edge2, 1)
+def test_search_periodic():
+    # 2D
+    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize, periodic=True)
+    for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
+        leaf2 = tree2.get(pos)
+    # 3D
+    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize, periodic=True)
+    for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
+        leaf3 = tree3.get(pos)
 
-def test_leaves():
-    leaves2 = cykdtree.leaves('kdtree', pts2, left_edge2, right_edge2, False, leafsize)
-    leaves3 = cykdtree.leaves('kdtree', pts3, left_edge3, right_edge3, False, leafsize)
-    assert_raises(ValueError, cykdtree.leaves, 'invalid', pts2, left_edge2, right_edge2, False)
-    # TODO: Value testing of leaf neighbors
-    # assert_raises(NotImplementedError, cykdtree.leaves, 
-    #               'kdtree', pts2, left_edge2, right_edge2, True, leafsize)
-    # assert_raises(NotImplementedError, cykdtree.leaves, 
-    #               'kdtree', pts3, left_edge3, right_edge3, True, leafsize)
+def test_neighbors():
+    # TODO
+    pass

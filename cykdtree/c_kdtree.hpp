@@ -19,8 +19,8 @@ public:
   uint64_t children;
   std::vector<bool> periodic_left;
   std::vector<bool> periodic_right;
-  std::vector<std::vector<Node*>> left_neighbors;
-  std::vector<std::vector<Node*>> right_neighbors;
+  std::vector<std::vector<uint32_t>> left_neighbors;
+  std::vector<std::vector<uint32_t>> right_neighbors;
   // innernode parameters
   uint32_t split_dim;
   double split;
@@ -48,8 +48,8 @@ public:
       periodic_right.push_back(true);
     }
 
-    left_neighbors = std::vector<std::vector<Node*>>(ndim);
-    right_neighbors = std::vector<std::vector<Node*>>(ndim);
+    left_neighbors = std::vector<std::vector<uint32_t>>(ndim);
+    right_neighbors = std::vector<std::vector<uint32_t>>(ndim);
   }
   // leafnode constructor
   Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, 
@@ -69,8 +69,8 @@ public:
       periodic_right.push_back(true);
     }
 
-    left_neighbors = std::vector<std::vector<Node*>>(ndim);
-    right_neighbors = std::vector<std::vector<Node*>>(ndim);
+    left_neighbors = std::vector<std::vector<uint32_t>>(ndim);
+    right_neighbors = std::vector<std::vector<uint32_t>>(ndim);
   }
 };
 
@@ -172,20 +172,20 @@ public:
 	if (match) {
 	  for (d = 0; d < ndim; d++) {
 	    if (isEqual(leaf->left_edge[d], prev->right_edge[d])) {
-	      leaf->left_neighbors[d].push_back(prev);
-	      prev->right_neighbors[d].push_back(leaf);
+	      leaf->left_neighbors[d].push_back(prev->leafid);
+	      prev->right_neighbors[d].push_back(leaf->leafid);
 	    } else if (isEqual(leaf->right_edge[d], prev->left_edge[d])) {
-	      leaf->right_neighbors[d].push_back(prev);
-	      prev->left_neighbors[d].push_back(leaf);
+	      leaf->right_neighbors[d].push_back(prev->leafid);
+	      prev->left_neighbors[d].push_back(leaf->leafid);
 	    }
 	    if (periodic) {
 	      if (leaf->periodic_right[d] && prev->periodic_left[d]) {
-		leaf->right_neighbors[d].push_back(prev);
-		prev->left_neighbors[d].push_back(leaf);
+		leaf->right_neighbors[d].push_back(prev->leafid);
+		prev->left_neighbors[d].push_back(leaf->leafid);
 	      }
 	      if (prev->periodic_right[d] && leaf->periodic_left[d]) {
-		leaf->left_neighbors[d].push_back(prev);
-		prev->right_neighbors[d].push_back(leaf);
+		leaf->left_neighbors[d].push_back(prev->leafid);
+		prev->right_neighbors[d].push_back(leaf->leafid);
 	      }
 	    }		
 	  }
@@ -321,13 +321,6 @@ public:
       }
     }
     return out;
-  }
-
-  void find_neighbors(Node* leaf, std::vector<std::vector<Node*>> left, 
-		      std::vector<std::vector<Node*>> right) 
-  {
-    
-
   }
 
 };

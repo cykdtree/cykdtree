@@ -22,9 +22,6 @@ cdef class PyKDTree:
         leafsize (int, optional): The maximum number of points that should be in 
             a leaf. Defaults to 10000.
         
-    Returns:
-        list of :class:`domain_decomp.Leaf`s: Leaves in the KDTree.
-
     Raises:
         ValueError: If `leafsize < 2`. This currectly segfaults.
 
@@ -38,35 +35,60 @@ cdef class PyKDTree:
             # This is here to prevent segfault. The cpp code needs modified to 
             # support leafsize = 1
             raise ValueError("'leafsize' cannot be smaller than 2.")
-        cdef uint32_t k,i
+        cdef uint32_t k,i,j
         self.npts = <uint64_t>pts.shape[0]
         self.ndim = <uint32_t>pts.shape[1]
         self.leafsize = leafsize
-        cdef np.ndarray[np.float64_t] domain_width = right_edge - left_edge
-        self.left_edge = &left_edge[0]
-        self.right_edge = &right_edge[0]
-        self.domain_width = &domain_width[0]
+        self.left_edge = left_edge
+        self.right_edge = right_edge
+        self.domain_width = right_edge - left_edge
+        self.periodic = periodic
         cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
-        self._tree = new KDTree(&pts[0,0], &idx[0], self.npts, self.ndim, 
-                                    <uint32_t>leafsize, 
-                                    &left_edge[0], &right_edge[0], periodic)
-        # Create list of leaves
-        self.leaves = [None for _ in xrange(self._tree.leaves.size())]
+        self._tree = new KDTree(&pts[0,0], &idx[0], self.npts, self.ndim, <uint32_t>leafsize, 
+                                &left_edge[0], &right_edge[0], periodic)
+        # Create list of Python leaves
+        self.num_leaves = <uint32_t>self._tree.leaves.size()
+        self.leaves = [None for _ in xrange(self.num_leaves)]
         cdef Node* leafnode
         cdef np.ndarray[np.float64_t] leaf_left_edge = np.zeros(self.ndim, 'float64')
         cdef np.ndarray[np.float64_t] leaf_right_edge = np.zeros(self.ndim, 'float64')
-        print(self._tree.leaves.size())
-        for k in xrange(<uint32_t>self._tree.leaves.size()):
+        cdef np.ndarray[np.uint8_t] leaf_periodic_left = np.zeros(self.ndim, 'uint8')
+        cdef np.ndarray[np.uint8_t] leaf_periodic_right = np.zeros(self.ndim, 'uint8')
+        cdef object leaf_neighbors = None
+        for k in xrange(self.num_leaves):
             leafnode = self._tree.leaves[k]
+            assert(leafnode.leafid == k)
+            # Index
             leaf_idx = idx[leafnode.left_idx:(leafnode.left_idx + leafnode.children)] 
             assert(len(leaf_idx) == <int>leafnode.children)
+            # Bounds & periodicity
             for i in range(self.ndim):
                 leaf_left_edge[i] = leafnode.left_edge[i]
                 leaf_right_edge[i] = leafnode.right_edge[i]
-            print(leafnode.leafid, k)
-            # self.leaves[leafnode.leafid] = Leaf(k, leaf_idx, leaf_left_edge, leaf_right_edge)
-            assert(leafnode.leafid == k)
-            self.leaves.append(Leaf(k, leaf_idx, leaf_left_edge, leaf_right_edge))
+                leaf_periodic_left[i] = <np.uint8_t>leafnode.periodic_left[i]
+                leaf_periodic_right[i] = <np.uint8_t>leafnode.periodic_right[i]
+            # Neighbors
+            leaf_neighbors = [
+                {'left':[],'left_periodic':[],
+                 'right':[],'right_periodic':[]} for i in range(self.ndim)]
+            for i in range(self.ndim):
+                if leaf_periodic_left[i]:
+                    leaf_neighbors[i]['left_periodic'] = \
+                      [leafnode.left_neighbors[i][j] for j in range(leafnode.left_neighbors[i].size())]
+                else:
+                    leaf_neighbors[i]['left'] = \
+                      [leafnode.left_neighbors[i][j] for j in range(leafnode.left_neighbors[i].size())]
+                if leaf_periodic_right[i]:
+                    leaf_neighbors[i]['right_periodic'] = \
+                      [leafnode.right_neighbors[i][j] for j in range(leafnode.right_neighbors[i].size())]
+                else:
+                    leaf_neighbors[i]['right'] = \
+                      [leafnode.right_neighbors[i][j] for j in range(leafnode.right_neighbors[i].size())]
+            # Add leaf
+            self.leaves.append(Leaf(k, leaf_idx, leaf_left_edge, leaf_right_edge,
+                                    periodic_left = leaf_periodic_left.astype('bool'),
+                                    periodic_right = leaf_periodic_right.astype('bool'),
+                                    neighbors = leaf_neighbors, num_leaves = self.num_leaves))
 
     def get(self, np.ndarray[double, ndim=1] pos):
         r"""Return the leaf containing a given position.
@@ -81,52 +103,15 @@ cdef class PyKDTree:
             ValueError: If pos is not contained withing the KDTree.
 
         """
-        cdef Node *leafnode = self._tree.search(&pos[0])
+        assert(<uint32_t>len(pos) == self.ndim)
+        cdef np.ndarray[double, ndim=1] wrapped_pos = pos
+        cdef np.uint32_t i
+        # Wrap positions for periodic domains to make search easier
+        if self.periodic:
+            wrapped_pos = self.left_edge + ((pos - self.left_edge) % self.domain_width)
+        # Search
+        cdef Node *leafnode = self._tree.search(&wrapped_pos[0])
         if leafnode == NULL:
             raise ValueError("Position is not within the kdtree root node.")
         return self.leaves[leafnode.leafid]
 
-def kdtree(np.ndarray[double, ndim=2] pts,
-           np.ndarray[double, ndim=1] left_edge, 
-           np.ndarray[double, ndim=1] right_edge, 
-           int leafsize = 10000):
-    r"""Get the leaves in a KDTree constructed for a set of points.
-
-    Args:
-        pts (np.ndarray of double): (n,m) array of n coordinates in a 
-            m-dimensional domain.
-        left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
-        right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
-        leafsize (int, optional): The maximum number of points that should be in 
-            a leaf. Defaults to 10000.
-        
-    Returns:
-        list of :class:`domain_decomp.Leaf`s: Leaves in the KDTree.
-
-    Raises:
-        ValueError: If `leafsize < 2`. This currectly segfaults.
-
-    """
-    if (leafsize < 2):
-        # This is here to prevent segfault. The cpp code needs modified to 
-        # support leafsize = 1
-        raise ValueError("'leafsize' cannot be smaller than 2.")
-    cdef uint32_t k,i
-    cdef uint64_t npts = <uint64_t>pts.shape[0]
-    cdef uint32_t ndim = <uint32_t>pts.shape[1]
-    cdef np.ndarray[np.uint64_t] idx = np.arange(npts).astype('uint64')
-    cdef KDTree* tree = new KDTree(&pts[0,0], &idx[0], npts, ndim, 
-                                   <uint32_t>leafsize, 
-                                   &left_edge[0], &right_edge[0])
-    cdef object leaves = []
-    cdef np.ndarray[np.float64_t] leaf_left_edge = np.zeros(ndim, 'float64')
-    cdef np.ndarray[np.float64_t] leaf_right_edge = np.zeros(ndim, 'float64')
-    for k in xrange(tree.leaves.size()):
-        leafnode = tree.leaves[k]
-        leaf_idx = idx[leafnode.left_idx:(leafnode.left_idx + leafnode.children)] 
-        assert(len(leaf_idx) == <int>leafnode.children)
-        for i in range(ndim):
-            leaf_left_edge[i] = leafnode.left_edge[i]
-            leaf_right_edge[i] = leafnode.right_edge[i]
-        leaves.append(Leaf(k, leaf_idx, leaf_left_edge, leaf_right_edge))
-    return leaves
