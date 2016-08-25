@@ -11,6 +11,7 @@ class Node
 {
 public:
   bool is_leaf;
+  uint32_t leafid;
   uint32_t ndim;
   std::vector<double> left_edge;
   std::vector<double> right_edge;
@@ -26,6 +27,7 @@ public:
        uint32_t sdim0, double split0, Node *lnode, Node *gnode)
   {
     is_leaf = false;
+    leafid = 4294967295;
     ndim = ndim0;
     left_edge = le;
     right_edge = re;
@@ -39,9 +41,10 @@ public:
   }
   // leafnode constructor
   Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, 
-       uint64_t Lidx, uint64_t n)
+       uint64_t Lidx, uint64_t n, int leafid0)
   {
     is_leaf = true;
+    leafid = leafid0;
     ndim = ndim0;
     left_edge = le;
     right_edge = re;
@@ -63,6 +66,7 @@ public:
   double* domain_right_edge;
   double* domain_mins;
   double* domain_maxs;
+  uint32_t num_leaves;
   std::vector<Node*> leaves;
   Node* root;
 
@@ -77,6 +81,7 @@ public:
     leafsize = leafsize0;
     domain_left_edge = left_edge;
     domain_right_edge = right_edge;
+    num_leaves = 0;
 
     domain_mins = min_pts(pts, n, m);
     domain_maxs = max_pts(pts, n, m);
@@ -107,7 +112,8 @@ public:
 	      std::vector<double> mins, std::vector<double> maxes)
   {
     if (n < leafsize) {
-      Node* out = new Node(ndim, LE, RE, Lidx, n);
+      Node* out = new Node(ndim, LE, RE, Lidx, n, num_leaves);
+      num_leaves++;
       leaves.push_back(out);
       return out;
     } else {
@@ -119,7 +125,8 @@ public:
 	  dmax = d;
       if (maxes[dmax] == mins[dmax]) {
 	// all points singular
-	Node* out = new Node(ndim, LE, RE, Lidx, n);
+	Node* out = new Node(ndim, LE, RE, Lidx, n, num_leaves);
+	num_leaves++;
 	leaves.push_back(out);
 	return out;
       }
@@ -167,6 +174,68 @@ public:
       return out;
     } 
   }	 
+
+  Node* search(double* pos)
+  {
+    uint32_t i;
+    bool thisChild;
+    Node* out;
+    // Ensure that pos is in root, return NULL if it's not
+    thisChild = true;
+    for (i = 0; i < ndim; i++) {
+      if (pos[i] < root->left_edge[i]) {
+	thisChild = false;
+	break;
+      }
+      if (pos[i] >= root->right_edge[i]) {
+	thisChild = false;
+	break;
+      }
+    }
+    if (thisChild) {
+      out = root;
+    } else {
+      out = NULL;
+      return out;
+    }
+    // Traverse tree looking for leaf containing pos
+    while (!(out->is_leaf)) {
+      // Less
+      thisChild = true;
+      for (i = 0; i < ndim; i++) {
+	if (pos[i] < out->less->left_edge[i]) {
+	  thisChild = false;
+	  break;
+	}
+	if (pos[i] >= out->less->right_edge[i]) {
+	  thisChild = false;
+	  break;
+	}
+      }
+      if (thisChild) {
+	out = out->less;
+	continue;
+      }
+      // Greater
+      thisChild = true;
+      for (i = 0; i < ndim; i++) {
+	if (pos[i] < out->greater->left_edge[i]) {
+	  thisChild = false;
+	  break;
+	}
+	if (pos[i] >= out->greater->right_edge[i]) {
+	  thisChild = false;
+	  break;
+	}
+      }
+      if (thisChild) {
+	out = out->greater;
+	continue;
+      }
+    }
+    return out;
+  }
+
 };
 
 

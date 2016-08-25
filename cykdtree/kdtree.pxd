@@ -7,6 +7,7 @@ from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 cdef extern from "c_kdtree.hpp":
     cdef cppclass Node:
         bool is_leaf
+        uint32_t leafid
         uint32_t ndim
         vector[double] left_edge
         vector[double] right_edge
@@ -30,15 +31,16 @@ cdef extern from "c_kdtree.hpp":
         # KDTree()
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
                double *left_edge, double *right_edge)
+        Node* search(double* pos)
 
 cdef class PyKDTree:
+    cdef KDTree *_tree
     cdef uint64_t npts
     cdef uint32_t ndim
     cdef readonly uint32_t leafsize
     cdef double* left_edge
     cdef double* right_edge
     cdef double* domain_width
-    cdef KDTree* tree
-    cdef bool periodic
+    # cdef bool periodic
     cdef readonly object leaves
-    cdef readonly int num_leaves
+    # cdef readonly int num_leaves

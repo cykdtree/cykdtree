@@ -53,7 +53,7 @@ class Leaf(object):
         self.neighbors = neighbors
         self.num_leaves = num_leaves
 
-from kdtree import kdtree
+from kdtree import kdtree, PyKDTree
 
 def leaves(method, pts, left_edge, right_edge, periodic, *args, **kwargs):
     r"""Get list of leaves for a given domain decomposition.
@@ -140,5 +140,5 @@ def leaves(method, pts, left_edge, right_edge, periodic, *args, **kwargs):
     # Return leaves
     return leaves
 
-__all__ = ["Leaf", "leaves", "kdtree"]
+__all__ = ["Leaf", "leaves", "kdtree", "PyKDTree"]
 

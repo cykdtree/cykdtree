@@ -16,6 +16,22 @@ def test_Leaf():
     leaf2 = cykdtree.Leaf(0, np.arange(N), left_edge2, right_edge2)
     leaf3 = cykdtree.Leaf(0, np.arange(N), left_edge3, right_edge3)
 
+def test_PyKDTree():
+    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize)
+    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize)
+    
+def test_search():
+    # 2D
+    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize)
+    for pos in [left_edge2, (left_edge2+right_edge2)/2.]:
+        leaf2 = tree2.get(pos)
+    assert_raises(ValueError, tree2.get, right_edge2)
+    # 3D
+    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize)
+    for pos in [left_edge3, (left_edge3+right_edge3)/2.]:
+        leaf3 = tree3.get(pos)
+    assert_raises(ValueError, tree3.get, right_edge3)
+
 def test_kdtree():
     leaves2 = cykdtree.kdtree(pts2, left_edge2, right_edge2, leafsize)
     leaves3 = cykdtree.kdtree(pts3, left_edge3, right_edge3, leafsize)
