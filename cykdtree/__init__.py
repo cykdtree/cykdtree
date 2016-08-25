@@ -46,6 +46,7 @@ class Leaf(object):
         self.id = leafid
         self.idx = idx
         self.ndim = len(left_edge)
+        self.npts = len(idx)
         self.left_edge = left_edge
         self.right_edge = right_edge
         self.periodic_left = periodic_left
