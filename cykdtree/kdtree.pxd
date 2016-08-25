@@ -23,6 +23,7 @@ cdef extern from "c_kdtree.hpp":
         vector[vector[uint32_t]] right_neighbors
     cdef cppclass KDTree:
         double* all_pts
+        uint64_t* all_idx
         uint64_t npts
         uint32_t ndim
         uint32_t leafsize
@@ -42,10 +43,11 @@ cdef class PyKDTree:
     cdef KDTree *_tree
     cdef uint64_t npts
     cdef uint32_t ndim
-    cdef readonly uint32_t leafsize
+    cdef uint32_t num_leaves
+    cdef uint32_t leafsize
+    cdef object leaves
+    cdef object idx
     cdef object left_edge
     cdef object right_edge
     cdef object domain_width
     cdef bool periodic
-    cdef readonly object leaves
-    cdef readonly uint32_t num_leaves

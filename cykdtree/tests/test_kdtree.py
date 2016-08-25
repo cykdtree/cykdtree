@@ -12,12 +12,6 @@ pts3 = np.random.rand(N,3).astype('float64')
 left_edge3 = np.zeros(3, 'float64')
 right_edge3 = np.ones(3, 'float64')
 
-def test_Leaf():
-    leaf2 = cykdtree.Leaf(0, np.arange(N), left_edge2, right_edge2)
-    leaf3 = cykdtree.Leaf(0, np.arange(N), left_edge3, right_edge3)
-    assert(len(leaf2.all_neighbors) == 0)
-    assert(len(leaf3.all_neighbors) == 0)
-
 def test_PyKDTree():
     tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
     tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
@@ -44,12 +38,12 @@ def test_search_periodic():
     tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize, periodic=True)
     for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
         leaf2 = tree2.get(pos)
-        neigh2 = leaf2.all_neighbors
+        neigh2 = leaf2.neighbors
     # 3D
     tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize, periodic=True)
     for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
         leaf3 = tree3.get(pos)
-        neigh3 = leaf3.all_neighbors
+        neigh3 = leaf3.neighbors
 
 def test_neighbors():
     # TODO: Answer testing neighbors
