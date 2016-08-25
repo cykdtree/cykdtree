@@ -52,5 +52,5 @@ def test_search_periodic():
         neigh3 = leaf3.all_neighbors
 
 def test_neighbors():
-    # TODO
+    # TODO: Answer testing neighbors
     pass

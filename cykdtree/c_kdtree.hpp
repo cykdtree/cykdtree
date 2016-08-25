@@ -265,60 +265,21 @@ public:
   Node* search(double* pos)
   {
     uint32_t i;
-    bool thisChild;
-    Node* out;
-    // Ensure that pos is in root, return NULL if it's not
-    thisChild = true;
+    Node* out = NULL;
+    // Ensure that pos is in root, early return NULL if it's not
     for (i = 0; i < ndim; i++) {
-      if (pos[i] < root->left_edge[i]) {
-	thisChild = false;
-	break;
-      }
-      if (pos[i] >= root->right_edge[i]) {
-	thisChild = false;
-	break;
-      }
+      if (pos[i] < root->left_edge[i]) 
+	return out;
+      if (pos[i] >= root->right_edge[i]) 
+	return out;
     }
-    if (thisChild) {
-      out = root;
-    } else {
-      out = NULL;
-      return out;
-    }
+    out = root;
     // Traverse tree looking for leaf containing pos
     while (!(out->is_leaf)) {
-      // Less
-      thisChild = true;
-      for (i = 0; i < ndim; i++) {
-	if (pos[i] < out->less->left_edge[i]) {
-	  thisChild = false;
-	  break;
-	}
-	if (pos[i] >= out->less->right_edge[i]) {
-	  thisChild = false;
-	  break;
-	}
-      }
-      if (thisChild) {
+      if (pos[out->split_dim] < out->split)
 	out = out->less;
-	continue;
-      }
-      // Greater
-      thisChild = true;
-      for (i = 0; i < ndim; i++) {
-	if (pos[i] < out->greater->left_edge[i]) {
-	  thisChild = false;
-	  break;
-	}
-	if (pos[i] >= out->greater->right_edge[i]) {
-	  thisChild = false;
-	  break;
-	}
-      }
-      if (thisChild) {
+      else
 	out = out->greater;
-	continue;
-      }
     }
     return out;
   }
