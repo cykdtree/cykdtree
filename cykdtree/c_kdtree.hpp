@@ -17,6 +17,10 @@ public:
   std::vector<double> right_edge;
   uint64_t left_idx;
   uint64_t children;
+  std::vector<bool> periodic_left;
+  std::vector<bool> periodic_right;
+  std::vector<std::vector<Node*>> left_neighbors;
+  std::vector<std::vector<Node*>> right_neighbors;
   // innernode parameters
   uint32_t split_dim;
   double split;
@@ -38,6 +42,14 @@ public:
     less = lnode;
     greater = gnode;
     children = lnode->children + gnode->children;
+
+    for (uint32_t d = 0; d < ndim; d++) {
+      periodic_left.push_back(false);
+      periodic_right.push_back(true);
+    }
+
+    left_neighbors = std::vector<std::vector<Node*>>(ndim);
+    right_neighbors = std::vector<std::vector<Node*>>(ndim);
   }
   // leafnode constructor
   Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, 
@@ -51,6 +63,14 @@ public:
     left_idx = Lidx;
 
     children = n;
+
+    for (uint32_t d = 0; d < ndim; d++) {
+      periodic_left.push_back(false);
+      periodic_right.push_back(true);
+    }
+
+    left_neighbors = std::vector<std::vector<Node*>>(ndim);
+    right_neighbors = std::vector<std::vector<Node*>>(ndim);
   }
 };
 
@@ -64,6 +84,7 @@ public:
   uint32_t leafsize;
   double* domain_left_edge;
   double* domain_right_edge;
+  bool periodic;
   double* domain_mins;
   double* domain_maxs;
   uint32_t num_leaves;
@@ -72,7 +93,7 @@ public:
 
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0, 
-	 double *left_edge, double *right_edge)
+	 double *left_edge, double *right_edge, bool periodic0=false)
   {
     all_pts = pts;
     all_idx = idx;
@@ -81,6 +102,7 @@ public:
     leafsize = leafsize0;
     domain_left_edge = left_edge;
     domain_right_edge = right_edge;
+    periodic = periodic0;
     num_leaves = 0;
 
     domain_mins = min_pts(pts, n, m);
@@ -98,13 +120,78 @@ public:
     }
 
     root = build(0, n, LE, RE, mins, maxs);
+
+    set_neighbors();
   }
   ~KDTree()
   {
-    // free(idx);
     free(domain_mins);
     free(domain_maxs);
     free(root);
+  }
+
+  void set_neighbors()
+  {
+    uint32_t d;
+    Node* leaf;
+    Node* prev;
+    uint64_t i, j;
+    bool match;
+
+    // Periodicity in each dimension
+    if (periodic) {
+      for (i = 0; i < num_leaves; i++) {
+    	leaf = leaves[i];
+    	for (d = 0; d < ndim; d++) {
+    	  leaf->periodic_left[d] = isEqual(leaf->left_edge[d], domain_left_edge[d]);
+    	  leaf->periodic_right[d] = isEqual(leaf->right_edge[d], domain_right_edge[d]);
+    	}
+      }
+    }
+
+    // Neighbors
+    for (i = 0; i < num_leaves; i++) {
+      leaf = leaves[i];
+      for (j = 0; j <= i; j++) {
+	prev = leaves[j];
+	match = true;
+	for (d = 0; d < ndim; d++) {
+	  if (leaf->left_edge[d] > prev->right_edge[d]) {
+	    if (!(leaf->periodic_right[d] && prev->periodic_left[d])) {
+	      match = false;
+	      break;
+	    }
+	  }
+	  if (leaf->right_edge[d] < prev->left_edge[d]) {
+	    if (!(prev->periodic_right[d] && leaf->periodic_left[d])) {
+	      match = false;
+	      break;
+	    }
+	  }
+	}
+	if (match) {
+	  for (d = 0; d < ndim; d++) {
+	    if (isEqual(leaf->left_edge[d], prev->right_edge[d])) {
+	      leaf->left_neighbors[d].push_back(prev);
+	      prev->right_neighbors[d].push_back(leaf);
+	    } else if (isEqual(leaf->right_edge[d], prev->left_edge[d])) {
+	      leaf->right_neighbors[d].push_back(prev);
+	      prev->left_neighbors[d].push_back(leaf);
+	    }
+	    if (periodic) {
+	      if (leaf->periodic_right[d] && prev->periodic_left[d]) {
+		leaf->right_neighbors[d].push_back(prev);
+		prev->left_neighbors[d].push_back(leaf);
+	      }
+	      if (prev->periodic_right[d] && leaf->periodic_left[d]) {
+		leaf->left_neighbors[d].push_back(prev);
+		prev->right_neighbors[d].push_back(leaf);
+	      }
+	    }		
+	  }
+	}
+      }
+    }
   }
 
   Node* build(uint64_t Lidx, uint64_t n, 
@@ -234,6 +321,13 @@ public:
       }
     }
     return out;
+  }
+
+  void find_neighbors(Node* leaf, std::vector<std::vector<Node*>> left, 
+		      std::vector<std::vector<Node*>> right) 
+  {
+    
+
   }
 
 };

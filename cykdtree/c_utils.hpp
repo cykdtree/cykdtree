@@ -5,7 +5,9 @@
 #include <iostream>
 #include <fstream>
 #include <stdint.h>
+#include <float.h>
 
+bool isEqual(double f1, double f2);
 double* max_pts(double *pts, uint64_t n, uint32_t m);
 double* min_pts(double *pts, uint64_t n, uint32_t m);
 void quickSort(double *pts, uint64_t *idx,

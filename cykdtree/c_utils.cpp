@@ -6,6 +6,11 @@
 #include <fstream>
 #include <stdint.h>
 #include "c_utils.hpp"
+#include <float.h>
+
+bool isEqual(double f1, double f2) {
+  return (fabs(f1 - f2) <= FLT_EPSILON);
+}
 
 double* max_pts(double *pts, uint64_t n, uint32_t m)
 {

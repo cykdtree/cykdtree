@@ -111,7 +111,6 @@ def leaves(method, pts, left_edge, right_edge, periodic, *args, **kwargs):
                 {'left':[],'left_periodic':[],
                  'right':[],'right_periodic':[]} for i in range(leaf.ndim)]
             for prev in leaves[:(leaf.id+1)]:
-                matches = [None for _ in range(m)]
                 match = True
                 for i in range(m):
                     if leaf.left_edge[i] > prev.right_edge[i]:

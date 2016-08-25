@@ -3,6 +3,10 @@ from cykdtree import Leaf
 import cython
 import numpy as np
 cimport numpy as np
+
+from libcpp cimport bool as cbool
+from cpython cimport bool as pybool
+
 from libc.stdint cimport uint32_t, uint64_t, int32_t, int64_t
 
 cdef class PyKDTree:
@@ -13,6 +17,8 @@ cdef class PyKDTree:
             m-dimensional domain.
         left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
         right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
+        periodic (bool, optional): True if the domain is periodic. Defaults to
+            `False`.
         leafsize (int, optional): The maximum number of points that should be in 
             a leaf. Defaults to 10000.
         
@@ -27,7 +33,7 @@ cdef class PyKDTree:
     def __cinit__(self, np.ndarray[double, ndim=2] pts, 
                   np.ndarray[double, ndim=1] left_edge, 
                   np.ndarray[double, ndim=1] right_edge,
-                  int leafsize = 10000):
+                  pybool periodic = False, int leafsize = 10000):
         if (leafsize < 2):
             # This is here to prevent segfault. The cpp code needs modified to 
             # support leafsize = 1
@@ -43,7 +49,7 @@ cdef class PyKDTree:
         cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(&pts[0,0], &idx[0], self.npts, self.ndim, 
                                     <uint32_t>leafsize, 
-                                    &left_edge[0], &right_edge[0])
+                                    &left_edge[0], &right_edge[0], periodic)
         # Create list of leaves
         self.leaves = [None for _ in xrange(self._tree.leaves.size())]
         cdef Node* leafnode
