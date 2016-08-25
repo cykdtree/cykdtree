@@ -60,9 +60,7 @@ class Leaf(object):
             return []
         out = []
         for i in range(self.ndim):
-            out += self.neighbors[i]['left'] + self.neighbors[i]['right'] + \
-              self.neighbors[i]['left_periodic'] + \
-              self.neighbors[i]['right_periodic']
+            out += self.neighbors[i]['left'] + self.neighbors[i]['right'] 
         return set(out)
 
 from kdtree import PyKDTree

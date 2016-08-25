@@ -68,22 +68,12 @@ cdef class PyKDTree:
                 leaf_periodic_left[i] = <np.uint8_t>leafnode.periodic_left[i]
                 leaf_periodic_right[i] = <np.uint8_t>leafnode.periodic_right[i]
             # Neighbors
-            leaf_neighbors = [
-                {'left':[],'left_periodic':[],
-                 'right':[],'right_periodic':[]} for i in range(self.ndim)]
+            leaf_neighbors = [{'left':[], 'right':[]} for i in range(self.ndim)]
             for i in range(self.ndim):
-                if leaf_periodic_left[i]:
-                    leaf_neighbors[i]['left_periodic'] = \
-                      [leafnode.left_neighbors[i][j] for j in range(leafnode.left_neighbors[i].size())]
-                else:
-                    leaf_neighbors[i]['left'] = \
-                      [leafnode.left_neighbors[i][j] for j in range(leafnode.left_neighbors[i].size())]
-                if leaf_periodic_right[i]:
-                    leaf_neighbors[i]['right_periodic'] = \
-                      [leafnode.right_neighbors[i][j] for j in range(leafnode.right_neighbors[i].size())]
-                else:
-                    leaf_neighbors[i]['right'] = \
-                      [leafnode.right_neighbors[i][j] for j in range(leafnode.right_neighbors[i].size())]
+                leaf_neighbors[i]['left'] = \
+                  [leafnode.left_neighbors[i][j] for j in range(leafnode.left_neighbors[i].size())]
+                leaf_neighbors[i]['right'] = \
+                  [leafnode.right_neighbors[i][j] for j in range(leafnode.right_neighbors[i].size())]
             # Add leaf
             self.leaves.append(Leaf(k, leaf_idx, leaf_left_edge, leaf_right_edge,
                                     periodic_left = leaf_periodic_left.astype('bool'),
