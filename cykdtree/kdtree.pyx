@@ -48,7 +48,7 @@ cdef class PyKDTree:
                                 &left_edge[0], &right_edge[0], periodic)
         # Create list of Python leaves
         self.num_leaves = <uint32_t>self._tree.leaves.size()
-        self.leaves = [None for _ in xrange(self.num_leaves)]
+        self.leaves = []
         cdef Node* leafnode
         cdef np.ndarray[np.float64_t] leaf_left_edge = np.zeros(self.ndim, 'float64')
         cdef np.ndarray[np.float64_t] leaf_right_edge = np.zeros(self.ndim, 'float64')

@@ -53,91 +53,19 @@ class Leaf(object):
         self.neighbors = neighbors
         self.num_leaves = num_leaves
 
+    @property
+    def all_neighbors(self):
+        """list of int: Indices of all neighboring leaves."""
+        if self.neighbors is None:
+            return []
+        out = []
+        for i in range(self.ndim):
+            out += self.neighbors[i]['left'] + self.neighbors[i]['right'] + \
+              self.neighbors[i]['left_periodic'] + \
+              self.neighbors[i]['right_periodic']
+        return set(out)
+
 from kdtree import PyKDTree
-
-# def leaves(method, pts, left_edge, right_edge, periodic, *args, **kwargs):
-#     r"""Get list of leaves for a given domain decomposition.
-
-#     Args:
-#         method (str): Domain decomposition method. Supported options are:
-#             'kdtree': KDTree based on median position along the dimension 
-#                 with the greatest domain width. See 
-#                 :meth:`cgal4py.domain_decomp.kdtree` for details on 
-#                 accepted keyword arguments.
-#         pts (np.ndarray of float64): (n,m) array of n coordinates in a 
-#             m-dimensional domain. 
-#         left_edge (np.ndarray of float64): (m,) domain minimum in each dimension. 
-#         right_edge (np.ndarray of float64): (m,) domain maximum in each dimension. 
-#         periodic (bool): True if domain is periodic, False otherwise.
-#         *args: Variable argument list. Passed to the selected domain 
-#             decomposition method.
-#         **kwargs: Variable keyword argument list. Passed to the selected domain 
-#             decomposition method.
-
-#     Returns:
-#         list of :class:`cgal4py.domain_decomp.Leaf`s: Leaves returned by the 
-#             domain decomposition.
-
-#     Raises:
-#         ValueError: If `method` is not one of the supported domain decomposition 
-#             methods listed above.
-
-#     """
-#     m = pts.shape[1]
-#     # Get leaves
-#     if method.lower() == 'kdtree':
-#         leaves = kdtree(pts, left_edge, right_edge, *args, **kwargs)
-#     else:
-#         raise ValueError("'{}' is not a supported domain decomposition.".format(method))
-#     # Set total number of leaves
-#     if leaves[0].num_leaves is None:
-#         num_leaves = len(leaves)
-#         for leaf in leaves:
-#             leaf.num_leaves = num_leaves
-#     # Determine if leaves are on periodic boundaries
-#     if leaves[0].periodic_left is None:
-#         if periodic:
-#             for leaf in leaves:
-#                 leaf.periodic_left = np.isclose(leaf.left_edge, left_edge)
-#                 leaf.periodic_right = np.isclose(leaf.right_edge, right_edge)
-#         else:
-#             for leaf in leaves:
-#                 leaf.periodic_left = np.zeros(leaf.ndim, 'bool')
-#                 leaf.periodic_right = np.zeros(leaf.ndim, 'bool')
-#     # Add neighbors
-#     if leaves[0].neighbors is None:
-#         for leaf in leaves:
-#             leaf.neighbors = [
-#                 {'left':[],'left_periodic':[],
-#                  'right':[],'right_periodic':[]} for i in range(leaf.ndim)]
-#             for prev in leaves[:(leaf.id+1)]:
-#                 match = True
-#                 for i in range(m):
-#                     if leaf.left_edge[i] > prev.right_edge[i]:
-#                         if not (leaf.periodic_right[i] and prev.periodic_left[i]):
-#                             match = False
-#                             break
-#                     if leaf.right_edge[i] < prev.left_edge[i]:
-#                         if not (prev.periodic_right[i] and leaf.periodic_left[i]):
-#                             match = False
-#                             break
-#                 if match:
-#                     for i in range(m):
-#                         if np.isclose(leaf.left_edge[i], prev.right_edge[i]):
-#                             leaf.neighbors[i]['left'].append(prev.id)
-#                             prev.neighbors[i]['right'].append(leaf.id)
-#                         elif np.isclose(leaf.right_edge[i], prev.left_edge[i]):
-#                             leaf.neighbors[i]['right'].append(prev.id)
-#                             prev.neighbors[i]['left'].append(leaf.id)
-#                         if periodic:
-#                             if leaf.periodic_right[i] and prev.periodic_left[i]:
-#                                 leaf.neighbors[i]['right_periodic'].append(prev.id)
-#                                 prev.neighbors[i]['left_periodic'].append(leaf.id)
-#                             if prev.periodic_right[i] and leaf.periodic_left[i]:
-#                                 leaf.neighbors[i]['left_periodic'].append(prev.id)
-#                                 prev.neighbors[i]['right_periodic'].append(leaf.id)
-#     # Return leaves
-#     return leaves
 
 __all__ = ["Leaf", "PyKDTree"]
 
