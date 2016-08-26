@@ -28,14 +28,14 @@ cdef class PyNode:
 
     """
     cdef Node* _node
-    cdef np.uint32_t id
-    cdef np.uint64_t npts
-    cdef np.uint32_t ndim
-    cdef np.uint64_t start_idx
-    cdef np.uint64_t stop_idx
-    cdef object left_edge, right_edge
-    cdef object periodic_left, periodic_right
-    cdef object left_neighbors, right_neighbors
+    cdef readonly np.uint32_t id
+    cdef readonly np.uint64_t npts
+    cdef readonly np.uint32_t ndim
+    cdef readonly np.uint64_t start_idx
+    cdef readonly np.uint64_t stop_idx
+    cdef readonly object left_edge, right_edge
+    cdef readonly object periodic_left, periodic_right
+    cdef readonly object left_neighbors, right_neighbors
 
     def __cinit__(self):
         self._node = NULL
