@@ -197,6 +197,37 @@ cdef class PyKDTree:
         """
         return self._get_neighbor_ids(pos)
 
+    cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3]):
+        assert(self.ndim == 3)
+        cdef np.uint32_t i, j
+        cdef np.float64_t wrapped_pos[3]
+        for i in range(3):
+            wrapped_pos[i] = pos[i]
+        # Wrap positions for periodic domains to make search easier
+        if self.periodic:
+            for i in range(3):
+                wrapped_pos[i] = self.left_edge[i] + ((pos[i] - self.left_edge[i]) % self.domain_width[i])
+        # Search
+        cdef Node *leafnode = self._tree.search(&wrapped_pos[0])
+        if leafnode == NULL:
+            raise ValueError("Position is not within the kdtree root node.")
+        # Transfer neighbor ids to total array
+        cdef np.uint32_t ntot = 1
+        for i in range(self.ndim):
+            ntot += leafnode.left_neighbors[i].size()
+            ntot += leafnode.right_neighbors[i].size()
+        cdef np.ndarray[np.uint32_t, ndim=1] out = np.empty(ntot, 'uint32')
+        cdef np.uint32_t c = 0
+        for i in range(self.ndim):
+            for j in range(leafnode.left_neighbors[i].size()):
+                out[c] = leafnode.left_neighbors[i][j]
+                c += 1
+            for j in range(leafnode.right_neighbors[i].size()):
+                out[c] = leafnode.right_neighbors[i][j]
+                c += 1
+        out[c] = leafnode.leafid
+        return np.unique(out)
+
     cdef PyNode _get(self, np.ndarray[double, ndim=1] pos):
         assert(<uint32_t>len(pos) == self.ndim)
         cdef np.ndarray[double, ndim=1] wrapped_pos = pos

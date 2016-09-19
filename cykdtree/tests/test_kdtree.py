@@ -53,8 +53,11 @@ def test_get_neighbor_ids():
     # 2D
     tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize, periodic=True)
     for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
-        leaf2 = tree2.get_neighbor_ids(pos)
+        ids2 = tree2.get_neighbor_ids(pos)
+        print pos, ids2
     # 3D
     tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize, periodic=True)
     for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
-        leaf3 = tree3.get_neighbor_ids(pos)
+        ids3 = tree3.get_neighbor_ids(pos)
+        print pos, ids3
+    raise Exception

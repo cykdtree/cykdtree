@@ -67,4 +67,5 @@ cdef class PyKDTree:
     cdef readonly object domain_width
     cdef readonly bool periodic
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
+    cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])
     cdef PyNode _get(self, np.ndarray[double, ndim=1] pos)
