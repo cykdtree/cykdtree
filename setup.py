@@ -61,6 +61,7 @@ setup(name='cykdtree',
       author_email='langmm.astro@gmail.com',
       license='GPL',
       packages=['cykdtree'],
+      package_data = {'':['*.pxd']},
       zip_safe=False,
       cmdclass = cmdclass,
       ext_modules = ext_modules)
