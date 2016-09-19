@@ -48,3 +48,13 @@ def test_search_periodic():
 def test_neighbors():
     # TODO: Answer testing neighbors
     pass
+
+def test_get_neighbor_ids():    
+    # 2D
+    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize, periodic=True)
+    for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
+        leaf2 = tree2.get_neighbor_ids(pos)
+    # 3D
+    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize, periodic=True)
+    for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
+        leaf3 = tree3.get_neighbor_ids(pos)

@@ -31,17 +31,6 @@ cdef class PyNode:
             maximum bounds in each dimension.
 
     """
-    cdef Node* _node
-    cdef readonly np.uint32_t id
-    cdef readonly np.uint64_t npts
-    cdef readonly np.uint32_t ndim
-    cdef readonly np.uint32_t num_leaves
-    cdef readonly np.uint64_t start_idx
-    cdef readonly np.uint64_t stop_idx
-    cdef readonly object left_edge, right_edge
-    cdef readonly object periodic_left, periodic_right
-    cdef readonly object left_neighbors, right_neighbors
-    cdef readonly object domain_width
 
     def __cinit__(self):
         self._node = NULL
@@ -165,19 +154,50 @@ cdef class PyKDTree:
         cdef np.ndarray[np.uint64_t] out = self.idx[self.leaves[leafid].slice]
         return out
 
-    def get(self, np.ndarray[double, ndim=1] pos):
-        r"""Return the leaf containing a given position.
+    cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
+        assert(<uint32_t>len(pos) == self.ndim)
+        cdef np.ndarray[double, ndim=1] wrapped_pos = pos
+        cdef np.uint32_t i, j
+        # Wrap positions for periodic domains to make search easier
+        if self.periodic:
+            wrapped_pos = self.left_edge + ((pos - self.left_edge) % self.domain_width)
+        # Search
+        cdef Node *leafnode = self._tree.search(&wrapped_pos[0])
+        if leafnode == NULL:
+            raise ValueError("Position is not within the kdtree root node.")
+        # Transfer neighbor ids to total array
+        cdef np.uint32_t ntot = 1
+        for i in range(self.ndim):
+            ntot += leafnode.left_neighbors[i].size()
+            ntot += leafnode.right_neighbors[i].size()
+        cdef np.ndarray[np.uint32_t, ndim=1] out = np.empty(ntot, 'uint32')
+        cdef np.uint32_t c = 0
+        for i in range(self.ndim):
+            for j in range(leafnode.left_neighbors[i].size()):
+                out[c] = leafnode.left_neighbors[i][j]
+                c += 1
+            for j in range(leafnode.right_neighbors[i].size()):
+                out[c] = leafnode.right_neighbors[i][j]
+                c += 1
+        out[c] = leafnode.leafid
+        return np.unique(out)
+
+    def get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
+        r"""Return the IDs of leaves containing & neighboring a given position.
 
         Args:
             pos (np.ndarray of double): Coordinates.
             
         Returns:
-            :class:`cykdtree.Leaf`: Leaf containing `pos`.
+            np.ndarray of uint32: Leaves containing/neighboring `pos`.
 
         Raises:
             ValueError: If pos is not contained withing the KDTree.
 
         """
+        return self._get_neighbor_ids(pos)
+
+    cdef PyNode _get(self, np.ndarray[double, ndim=1] pos):
         assert(<uint32_t>len(pos) == self.ndim)
         cdef np.ndarray[double, ndim=1] wrapped_pos = pos
         cdef np.uint32_t i
@@ -188,5 +208,20 @@ cdef class PyKDTree:
         cdef Node *leafnode = self._tree.search(&wrapped_pos[0])
         if leafnode == NULL:
             raise ValueError("Position is not within the kdtree root node.")
-        return self.leaves[leafnode.leafid]
+        cdef PyNode out = self.leaves[leafnode.leafid]
+        return out
 
+    def get(self, np.ndarray[double, ndim=1] pos):
+        r"""Return the leaf containing a given position.
+
+        Args:
+            pos (np.ndarray of double): Coordinates.
+            
+        Returns:
+            :class:`cykdtree.PyNode`: Leaf containing `pos`.
+
+        Raises:
+            ValueError: If pos is not contained withing the KDTree.
+
+        """
+        return self._get(pos)

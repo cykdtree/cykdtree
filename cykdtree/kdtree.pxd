@@ -39,6 +39,21 @@ cdef extern from "c_kdtree.hpp":
                double *left_edge, double *right_edge, bool periodic)
         Node* search(double* pos)
 
+cdef class PyNode:
+    cdef Node* _node
+    cdef readonly np.uint32_t id
+    cdef readonly np.uint64_t npts
+    cdef readonly np.uint32_t ndim
+    cdef readonly np.uint32_t num_leaves
+    cdef readonly np.uint64_t start_idx
+    cdef readonly np.uint64_t stop_idx
+    cdef readonly object left_edge, right_edge
+    cdef readonly object periodic_left, periodic_right
+    cdef readonly object left_neighbors, right_neighbors
+    cdef readonly object domain_width
+    cdef void _init_node(self, Node* node, uint32_t num_leaves,
+                         np.ndarray[np.float64_t, ndim=1] domain_width)
+
 cdef class PyKDTree:
     cdef KDTree *_tree
     cdef readonly uint64_t npts
@@ -51,3 +66,5 @@ cdef class PyKDTree:
     cdef readonly object right_edge
     cdef readonly object domain_width
     cdef readonly bool periodic
+    cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
+    cdef PyNode _get(self, np.ndarray[double, ndim=1] pos)
