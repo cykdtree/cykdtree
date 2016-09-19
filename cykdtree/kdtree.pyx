@@ -13,6 +13,8 @@ cdef class PyNode:
     Attributes:
         npts (np.uint64_t): Number of points in this node.
         ndim (np.uint32_t): Number of dimensions in domain.
+        num_leaves (np.uint32_t): Number of leaves in the tree containing this 
+            node.
         start_idx (np.uint64_t): Index where indices for this node begin.
         stop_idx (np.uint64_t): One passed the end of indices for this node.
         left_edge (np.ndarray of float64): Minimum bounds of this node in each 
@@ -21,6 +23,8 @@ cdef class PyNode:
             dimension.
         periodic_left (np.ndarray of bool): Periodicity of minimum bounds.
         periodic_right (np.ndarray of bool): Periodicity of maximum bounds.
+        domain_width (np.ndarray of float64): Width of the total domain in each
+            dimension.
         left_neighbors (list of lists): Indices of neighbor leaves at the 
             minimum bounds in each dimension.
         right_neighbors (list of lists): Indices of neighbor leaves at the 
@@ -31,38 +35,45 @@ cdef class PyNode:
     cdef readonly np.uint32_t id
     cdef readonly np.uint64_t npts
     cdef readonly np.uint32_t ndim
+    cdef readonly np.uint32_t num_leaves
     cdef readonly np.uint64_t start_idx
     cdef readonly np.uint64_t stop_idx
     cdef readonly object left_edge, right_edge
     cdef readonly object periodic_left, periodic_right
     cdef readonly object left_neighbors, right_neighbors
+    cdef readonly object domain_width
 
     def __cinit__(self):
         self._node = NULL
         self.id = np.iinfo('uint32').max
         self.npts = 0
         self.ndim = 0
+        self.num_leaves = 0
         self.start_idx = 0
         self.stop_idx = 0
         self.left_edge = np.array([], 'float64')
         self.right_edge = np.array([], 'float64')
         self.periodic_left = np.array([], 'bool')
         self.periodic_right = np.array([], 'bool')
+        self.domain_width = np.array([], 'float64')
         self.left_neighbors = []
         self.right_neighbors = []
 
-    cdef void _init_node(self, Node* node):
+    cdef void _init_node(self, Node* node, uint32_t num_leaves,
+                         np.ndarray[np.float64_t, ndim=1] domain_width):
         cdef np.uint32_t i, j
         self._node = node
         self.id = node.leafid
         self.npts = node.children
         self.ndim = node.ndim
+        self.num_leaves = num_leaves
         self.start_idx = node.left_idx
         self.stop_idx = (node.left_idx + node.children)
         self.left_edge = np.zeros(self.ndim, 'float64')
         self.right_edge = np.zeros(self.ndim, 'float64')
         self.periodic_left = np.zeros(self.ndim, 'bool')
         self.periodic_right = np.zeros(self.ndim, 'bool')
+        self.domain_width = np.zeros(self.ndim, 'float64')
         self.left_neighbors = []
         self.right_neighbors = []
         for i in range(self.ndim):
@@ -70,8 +81,9 @@ cdef class PyNode:
             self.right_edge[i] = node.right_edge[i]
             self.periodic_left[i] = node.periodic_left[i]
             self.periodic_right[i] = node.periodic_right[i]
-            self.left_neighbors.append([node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())])
-            self.right_neighbors.append([node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())])
+            self.domain_width[i] = domain_width[i]
+            self.left_neighbors.append(list(set([node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())])))
+            self.right_neighbors.append(list(set([node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())])))
 
     @property
     def slice(self):
@@ -132,16 +144,12 @@ cdef class PyKDTree:
         self.leaves = []
         cdef Node* leafnode
         cdef PyNode leafnode_py
-        cdef np.ndarray[np.float64_t] leaf_left_edge = np.zeros(self.ndim, 'float64')
-        cdef np.ndarray[np.float64_t] leaf_right_edge = np.zeros(self.ndim, 'float64')
-        cdef np.ndarray[np.uint8_t] leaf_periodic_left = np.zeros(self.ndim, 'uint8')
-        cdef np.ndarray[np.uint8_t] leaf_periodic_right = np.zeros(self.ndim, 'uint8')
         cdef object leaf_neighbors = None
         for k in xrange(self.num_leaves):
             leafnode = self._tree.leaves[k]
             assert(leafnode.leafid == k)
             leafnode_py = PyNode()
-            leafnode_py._init_node(leafnode)
+            leafnode_py._init_node(leafnode, self.num_leaves, self.domain_width)
             self.leaves.append(leafnode_py)
 
     def leaf_idx(self, np.uint32_t leafid):
