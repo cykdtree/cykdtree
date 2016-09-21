@@ -22,7 +22,6 @@ public:
   std::vector<std::vector<uint32_t>> left_neighbors;
   std::vector<std::vector<uint32_t>> right_neighbors;
   std::vector<Node*> left_nodes;
-  std::vector<Node*> right_nodes;
   // innernode parameters
   uint32_t split_dim;
   double split;
@@ -31,7 +30,7 @@ public:
   // innernode constructor
   Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, uint64_t Lidx, 
        uint32_t sdim0, double split0, Node *lnode, Node *gnode,
-       std::vector<Node*> left_nodes0, std::vector<Node*> right_nodes0)
+       std::vector<Node*> left_nodes0)
   {
     is_leaf = false;
     leafid = 4294967295;
@@ -50,7 +49,6 @@ public:
       periodic_left.push_back(false);
       periodic_right.push_back(false);
       left_nodes.push_back(left_nodes0[d]);
-      right_nodes.push_back(right_nodes0[d]);
     }
 
     left_neighbors = std::vector<std::vector<uint32_t>>(ndim);
@@ -59,7 +57,7 @@ public:
   // leafnode constructor
   Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, 
        uint64_t Lidx, uint64_t n, int leafid0,
-       std::vector<Node*> left_nodes0, std::vector<Node*> right_nodes0)
+       std::vector<Node*> left_nodes0)
   {
     is_leaf = true;
     leafid = leafid0;
@@ -74,7 +72,6 @@ public:
       periodic_left.push_back(false);
       periodic_right.push_back(false);
       left_nodes.push_back(left_nodes0[d]);
-      right_nodes.push_back(right_nodes0[d]);
     }
 
     left_neighbors = std::vector<std::vector<uint32_t>>(ndim);
@@ -147,17 +144,15 @@ public:
     std::vector<double> mins;
     std::vector<double> maxs;
     std::vector<Node*> left_nodes;
-    std::vector<Node*> right_nodes;
     for (uint32_t d = 0; d < m; d++) {
       LE.push_back(left_edge[d]);
       RE.push_back(right_edge[d]);
       mins.push_back(domain_mins[d]);
       maxs.push_back(domain_maxs[d]);
       left_nodes.push_back((Node*)(NULL));
-      right_nodes.push_back((Node*)(NULL));
     }
 
-    root = build(0, n, LE, RE, mins, maxs, left_nodes, right_nodes);
+    root = build(0, n, LE, RE, mins, maxs, left_nodes);
 
     // set_neighbors();
     if (periodic)
@@ -292,12 +287,12 @@ public:
   Node* build(uint64_t Lidx, uint64_t n, 
 	      std::vector<double> LE, std::vector<double> RE, 
 	      std::vector<double> mins, std::vector<double> maxes,
-	      std::vector<Node*> left_nodes, std::vector<Node*> right_nodes)
+	      std::vector<Node*> left_nodes)
   {
     // Create leaf
     if (n < leafsize) {
       Node* out = new Node(ndim, LE, RE, Lidx, n, num_leaves, 
-			   left_nodes, right_nodes);
+			   left_nodes);
       num_leaves++;
       leaves.push_back(out);
       return out;
@@ -311,7 +306,7 @@ public:
       if (maxes[dmax] == mins[dmax]) {
 	// all points singular
 	Node* out = new Node(ndim, LE, RE, Lidx, n, num_leaves,
-			     left_nodes, right_nodes);
+			     left_nodes);
 	num_leaves++;
 	leaves.push_back(out);
 	return out;
@@ -355,14 +350,14 @@ public:
 
       // Build less and greater nodes
       Node* less = build(Lidx, Nless, LE, lessright, mins, lessmaxes, 
-			 left_nodes, right_nodes);
+			 left_nodes);
       greater_left_nodes[dmax] = less;
       Node* greater = build(Lidx+Nless, Ngreater, greaterleft, RE, greatermins, 
-			    maxes, greater_left_nodes, right_nodes);
+			    maxes, greater_left_nodes);
 
       // Create innernode referencing child nodes
       Node* out = new Node(ndim, LE, RE, Lidx, dmax, split, less, greater,
-			   left_nodes, right_nodes);
+			   left_nodes);
       return out;
     } 
   }	 
