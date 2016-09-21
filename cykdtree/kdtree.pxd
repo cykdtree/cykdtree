@@ -68,6 +68,7 @@ cdef class PyKDTree:
     cdef readonly object leaves
     cdef readonly object idx
     cdef readonly bool periodic
+    cdef void _make_tree(self, double *pts)
     cdef void _wrap_pos(self, double *pos)
     cdef void _wrap_pos_3(self, double pos[3])
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
