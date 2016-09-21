@@ -77,19 +77,24 @@ cdef class PyNode:
 
     @property
     def periodic_left(self):
-        return np.asarray(self._periodic_left)
+        cdef cbool[:] view = <cbool[:self.ndim]> self._periodic_left
+        return np.asarray(view)
     @property
     def periodic_right(self):
-        return np.asarray(self._periodic_right)
+        cdef cbool[:] view = <cbool[:self.ndim]> self._periodic_right
+        return np.asarray(view)
     @property
     def left_edge(self):
-        return np.asarray(self._left_edge)
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._left_edge
+        return np.asarray(view)
     @property
     def right_edge(self):
-        return np.asarray(self._right_edge)
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._right_edge
+        return np.asarray(view)
     @property
     def domain_width(self):
-        return np.asarray(self._domain_width)
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._domain_width
+        return np.asarray(view)
 
     @property
     def slice(self):
@@ -144,14 +149,10 @@ cdef class PyKDTree:
             self._left_edge[i] = left_edge[i]
             self._right_edge[i] = right_edge[i]
             self._domain_width[i] = right_edge[i] - left_edge[i]
-        # self.left_edge = left_edge
-        # self.right_edge = right_edge
-        # self.domain_width = right_edge - left_edge
         self.periodic = periodic
         cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(&pts[0,0], &idx[0], self.npts, self.ndim, <uint32_t>leafsize, 
                                 self._left_edge, self._right_edge, periodic)
-                                # &left_edge[0], &right_edge[0], periodic)
         self.idx = idx
         # Create list of Python leaves
         self.num_leaves = <uint32_t>self._tree.leaves.size()
@@ -168,13 +169,16 @@ cdef class PyKDTree:
 
     @property
     def left_edge(self):
-        return np.asarray(self._left_edge)
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._left_edge
+        return np.asarray(view)
     @property
     def right_edge(self):
-        return np.asarray(self._right_edge)
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._right_edge
+        return np.asarray(view)
     @property
     def domain_width(self):
-        return np.asarray(self._domain_width)
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._domain_width
+        return np.asarray(view)
 
     def leaf_idx(self, np.uint32_t leafid):
         r"""Get array of indices for points in a leaf.
@@ -203,8 +207,10 @@ cdef class PyKDTree:
 
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
         assert(<uint32_t>len(pos) == self.ndim)
-        cdef np.ndarray[double, ndim=1] wrapped_pos = pos
+        cdef np.ndarray[double, ndim=1] wrapped_pos = np.empty(self.ndim, 'double')
         cdef np.uint32_t i, j
+        for i in range(self.ndim):
+            wrapped_pos[i] = pos[i]
         # Wrap positions for periodic domains to make search easier
         if self.periodic:
             self._wrap_pos(&wrapped_pos[0])
@@ -277,8 +283,10 @@ cdef class PyKDTree:
 
     cdef PyNode _get(self, np.ndarray[double, ndim=1] pos):
         assert(<uint32_t>len(pos) == self.ndim)
-        cdef np.ndarray[double, ndim=1] wrapped_pos = pos
+        cdef np.ndarray[double, ndim=1] wrapped_pos = np.empty(self.ndim, 'double')
         cdef np.uint32_t i
+        for i in range(self.ndim):
+            wrapped_pos[i] = pos[i]
         # Wrap positions for periodic domains to make search easier
         if self.periodic:
             self._wrap_pos(&wrapped_pos[0])
