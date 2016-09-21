@@ -47,12 +47,18 @@ cdef class PyNode:
     cdef readonly np.uint32_t num_leaves
     cdef readonly np.uint64_t start_idx
     cdef readonly np.uint64_t stop_idx
-    cdef readonly object left_edge, right_edge
-    cdef readonly object periodic_left, periodic_right
+    cdef double *_domain_width
+    cdef double *_left_edge
+    cdef double *_right_edge
+    cdef bool *_periodic_left
+    cdef bool *_periodic_right
+    # cdef readonly object domain_width
+    # cdef readonly object left_edge, right_edge
+    # cdef readonly object periodic_left, periodic_right
     cdef readonly object left_neighbors, right_neighbors
-    cdef readonly object domain_width
     cdef void _init_node(self, Node* node, uint32_t num_leaves,
-                         np.ndarray[np.float64_t, ndim=1] domain_width)
+                         double *domain_width)
+                         # np.ndarray[np.float64_t, ndim=1] domain_width)
 
 cdef class PyKDTree:
     cdef KDTree *_tree
@@ -60,12 +66,17 @@ cdef class PyKDTree:
     cdef readonly uint32_t ndim
     cdef readonly uint32_t num_leaves
     cdef readonly uint32_t leafsize
+    cdef double *_left_edge
+    cdef double *_right_edge
+    cdef double *_domain_width
     cdef readonly object leaves
     cdef readonly object idx
-    cdef readonly object left_edge
-    cdef readonly object right_edge
-    cdef readonly object domain_width
+    # cdef readonly object left_edge
+    # cdef readonly object right_edge
+    # cdef readonly object domain_width
     cdef readonly bool periodic
+    cdef void _wrap_pos(self, double *pos)
+    cdef void _wrap_pos_3(self, double pos[3])
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])
     cdef PyNode _get(self, np.ndarray[double, ndim=1] pos)
