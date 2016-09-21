@@ -17,6 +17,7 @@ else:
 
 
 # Needed for line_profiler - disable for production code
+directive_defaults['profile'] = True
 directive_defaults['linetrace'] = True
 directive_defaults['binding'] = True
 
