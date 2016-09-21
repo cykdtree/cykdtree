@@ -14,12 +14,12 @@ public:
   bool is_leaf;
   uint32_t leafid;
   uint32_t ndim;
-  std::vector<double> left_edge;
-  std::vector<double> right_edge;
+  double *left_edge;
+  double *right_edge;
   uint64_t left_idx;
   uint64_t children;
-  std::vector<bool> periodic_left;
-  std::vector<bool> periodic_right;
+  bool *periodic_left;
+  bool *periodic_right;
   std::vector<std::vector<uint32_t>> left_neighbors;
   std::vector<std::vector<uint32_t>> right_neighbors;
   std::vector<Node*> left_nodes;
@@ -29,15 +29,13 @@ public:
   Node *less;
   Node *greater;
   // innernode constructor
-  Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, uint64_t Lidx, 
+  Node(uint32_t ndim0, double *le, double *re, uint64_t Lidx, 
        uint32_t sdim0, double split0, Node *lnode, Node *gnode,
        std::vector<Node*> left_nodes0)
   {
     is_leaf = false;
     leafid = 4294967295;
     ndim = ndim0;
-    left_edge = le;
-    right_edge = re;
     left_idx = Lidx;
 
     split_dim = sdim0;
@@ -46,9 +44,15 @@ public:
     greater = gnode;
     children = lnode->children + gnode->children;
 
+    left_edge = (double*)malloc(ndim*sizeof(double));
+    right_edge = (double*)malloc(ndim*sizeof(double));
+    periodic_left = (bool*)malloc(ndim*sizeof(bool));
+    periodic_right = (bool*)malloc(ndim*sizeof(bool));
     for (uint32_t d = 0; d < ndim; d++) {
-      periodic_left.push_back(false);
-      periodic_right.push_back(false);
+      left_edge[d] = le[d];
+      right_edge[d] = re[d];
+      periodic_left[d] = false;
+      periodic_right[d] = false;
       left_nodes.push_back(left_nodes0[d]);
     }
 
@@ -56,22 +60,28 @@ public:
     right_neighbors = std::vector<std::vector<uint32_t>>(ndim);
   }
   // leafnode constructor
-  Node(uint32_t ndim0, std::vector<double> le, std::vector<double> re, 
+  Node(uint32_t ndim0, double *le, double *re, 
        uint64_t Lidx, uint64_t n, int leafid0,
        std::vector<Node*> left_nodes0)
   {
     is_leaf = true;
     leafid = leafid0;
     ndim = ndim0;
-    left_edge = le;
-    right_edge = re;
+    split=0.0;
+    split_dim = 0;
     left_idx = Lidx;
 
     children = n;
 
+    left_edge = (double*)malloc(ndim*sizeof(double));
+    right_edge = (double*)malloc(ndim*sizeof(double));
+    periodic_left = (bool*)malloc(ndim*sizeof(bool));
+    periodic_right = (bool*)malloc(ndim*sizeof(bool));
     for (uint32_t d = 0; d < ndim; d++) {
-      periodic_left.push_back(false);
-      periodic_right.push_back(false);
+      left_edge[d] = le[d];
+      right_edge[d] = re[d];
+      periodic_left[d] = false;
+      periodic_right[d] = false;
       left_nodes.push_back(left_nodes0[d]);
     }
 
@@ -83,6 +93,12 @@ public:
     	add_neighbors(left_nodes[d], d);
     }
   }
+  ~Node() {
+    free(left_edge);
+    free(right_edge);
+    free(periodic_left);
+    free(periodic_right);
+  }
 
   void add_neighbors(Node* curr, uint32_t dim) {
     if (curr->is_leaf) {
@@ -92,9 +108,9 @@ public:
       if (curr->split_dim == dim) {
 	add_neighbors(curr->greater, dim);
       } else {
-	if (curr->split > right_edge[curr->split_dim]) 
+	if (curr->split > this->right_edge[curr->split_dim]) 
 	  add_neighbors(curr->less, dim);
-	else if (curr->split < left_edge[curr->split_dim])
+	else if (curr->split < this->left_edge[curr->split_dim])
 	  add_neighbors(curr->greater, dim);
 	else {
 	  add_neighbors(curr->less, dim);
@@ -155,28 +171,35 @@ public:
     domain_mins = min_pts(pts, n, m);
     domain_maxs = max_pts(pts, n, m);
 
-    std::vector<double> LE;
-    std::vector<double> RE;
-    std::vector<double> mins;
-    std::vector<double> maxs;
+    double *LE = (double*)malloc(ndim*sizeof(double));
+    double *RE = (double*)malloc(ndim*sizeof(double));
+    double *mins = (double*)malloc(ndim*sizeof(double));
+    double *maxs = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> left_nodes;
-    for (uint32_t d = 0; d < m; d++) {
-      LE.push_back(left_edge[d]);
-      RE.push_back(right_edge[d]);
-      mins.push_back(domain_mins[d]);
-      maxs.push_back(domain_maxs[d]);
-      left_nodes.push_back((Node*)(NULL));
+    for (uint32_t d = 0; d < ndim; d++) {
+      LE[d] = left_edge[d];
+      RE[d] = right_edge[d];
+      mins[d] = domain_mins[d];
+      maxs[d] = domain_maxs[d];
+      left_nodes.push_back(NULL);
     }
 
     root = build(0, n, LE, RE, mins, maxs, left_nodes);
+
+    free(LE);
+    free(RE);
+    free(mins);
+    free(maxs);
 
     // Add periodic neighbors
     if (periodic)
       set_neighbors_periodic();
 
     // Remove duplicate neighbors
-    for (uint32_t i; i < num_leaves; i++) 
+    uint32_t i;
+    for (i = 0; i < num_leaves; i++) 
       leaves[i]->select_unique_neighbors();
+
   }
   ~KDTree()
   {
@@ -240,73 +263,9 @@ public:
     }
   }
 
-  void set_neighbors()
-  {
-    uint32_t d;
-    Node* leaf;
-    Node* prev;
-    uint64_t i, j;
-    bool match;
-
-    // Periodicity in each dimension
-    if (periodic) {
-      for (i = 0; i < num_leaves; i++) {
-    	leaf = leaves[i];
-    	for (d = 0; d < ndim; d++) {
-    	  leaf->periodic_left[d] = isEqual(leaf->left_edge[d], domain_left_edge[d]);
-    	  leaf->periodic_right[d] = isEqual(leaf->right_edge[d], domain_right_edge[d]);
-    	}
-      }
-    }
-
-    // Neighbors
-    for (i = 0; i < num_leaves; i++) {
-      leaf = leaves[i];
-      for (j = 0; j <= i; j++) {
-	prev = leaves[j];
-	match = true;
-	for (d = 0; d < ndim; d++) {
-	  if (leaf->left_edge[d] > prev->right_edge[d]) {
-	    if (!(leaf->periodic_right[d] && prev->periodic_left[d])) {
-	      match = false;
-	      break;
-	    }
-	  }
-	  if (leaf->right_edge[d] < prev->left_edge[d]) {
-	    if (!(prev->periodic_right[d] && leaf->periodic_left[d])) {
-	      match = false;
-	      break;
-	    }
-	  }
-	}
-	if (match) {
-	  for (d = 0; d < ndim; d++) {
-	    if (isEqual(leaf->left_edge[d], prev->right_edge[d])) {
-	      leaf->left_neighbors[d].push_back(prev->leafid);
-	      prev->right_neighbors[d].push_back(leaf->leafid);
-	    } else if (isEqual(leaf->right_edge[d], prev->left_edge[d])) {
-	      leaf->right_neighbors[d].push_back(prev->leafid);
-	      prev->left_neighbors[d].push_back(leaf->leafid);
-	    }
-	    if (periodic) {
-	      if (leaf->periodic_right[d] && prev->periodic_left[d]) {
-		leaf->right_neighbors[d].push_back(prev->leafid);
-		prev->left_neighbors[d].push_back(leaf->leafid);
-	      }
-	      if (prev->periodic_right[d] && leaf->periodic_left[d]) {
-		leaf->left_neighbors[d].push_back(prev->leafid);
-		prev->right_neighbors[d].push_back(leaf->leafid);
-	      }
-	    }		
-	  }
-	}
-      }
-    }
-  }
-
   Node* build(uint64_t Lidx, uint64_t n, 
-	      std::vector<double> LE, std::vector<double> RE, 
-	      std::vector<double> mins, std::vector<double> maxes,
+	      double *LE, double *RE, 
+	      double *mins, double *maxes,
 	      std::vector<Node*> left_nodes)
   {
     // Create leaf
@@ -344,23 +303,21 @@ public:
       double split;
       if ((n%2) == 0) {
 	split = all_pts[ndim*all_idx[med] + dmax];
-	// split = (all_pts[ndim*all_idx[med] + dmax] + 
-	// 	 all_pts[ndim*all_idx[med+1] + dmax])/2.0;
       } else {
 	split = all_pts[ndim*all_idx[med] + dmax];
       }
 
       // Get new boundaries
-      std::vector<double> lessmaxes;
-      std::vector<double> lessright;
-      std::vector<double> greatermins;
-      std::vector<double> greaterleft;
+      double *lessmaxes = (double*)malloc(ndim*sizeof(double));
+      double *lessright = (double*)malloc(ndim*sizeof(double));
+      double *greatermins = (double*)malloc(ndim*sizeof(double));
+      double *greaterleft = (double*)malloc(ndim*sizeof(double));
       std::vector<Node*> greater_left_nodes;
       for (d = 0; d < ndim; d++) {
-	lessmaxes.push_back(maxes[d]);
-	lessright.push_back(RE[d]);
-	greatermins.push_back(mins[d]);
-	greaterleft.push_back(LE[d]);
+	lessmaxes[d] = maxes[d];
+	lessright[d] = RE[d];
+	greatermins[d] = mins[d];
+	greaterleft[d] = LE[d];
 	greater_left_nodes.push_back(left_nodes[d]);
       }
       lessmaxes[dmax] = split;
@@ -378,6 +335,11 @@ public:
       // Create innernode referencing child nodes
       Node* out = new Node(ndim, LE, RE, Lidx, dmax, split, less, greater,
 			   left_nodes);
+      
+      free(lessright);
+      free(greaterleft);
+      free(lessmaxes);
+      free(greatermins);
       return out;
     } 
   }	 

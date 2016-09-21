@@ -9,16 +9,16 @@ cdef extern from "c_kdtree.hpp":
         bool is_leaf
         uint32_t leafid
         uint32_t ndim
-        vector[double] left_edge
-        vector[double] right_edge
+        double *left_edge
+        double *right_edge
         uint64_t left_idx
         uint64_t children
         uint32_t split_dim
         double split
         Node* less
         Node* greater
-        vector[bool] periodic_left
-        vector[bool] periodic_right
+        bool *periodic_left
+        bool *periodic_right
         vector[vector[uint32_t]] left_neighbors
         vector[vector[uint32_t]] right_neighbors
     cdef cppclass KDTree:
