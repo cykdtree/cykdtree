@@ -1,4 +1,5 @@
 #include <vector>
+#include <algorithm>
 #include <array>
 #include <stdio.h>
 #include <math.h>
@@ -103,6 +104,21 @@ public:
     }
   }
 
+  void select_unique_neighbors() {
+    uint32_t d;
+    std::vector<uint32_t>::iterator last;
+    for (d = 0; d < ndim; d++) {
+      // left
+      std::sort(left_neighbors[d].begin(), left_neighbors[d].end());
+      last = std::unique(left_neighbors[d].begin(), left_neighbors[d].end());
+      left_neighbors[d].erase(last, left_neighbors[d].end());
+      // right
+      std::sort(right_neighbors[d].begin(), right_neighbors[d].end());
+      last = std::unique(right_neighbors[d].begin(), right_neighbors[d].end());
+      right_neighbors[d].erase(last, right_neighbors[d].end());
+    }
+  }
+
 };
 
 class KDTree
@@ -154,9 +170,13 @@ public:
 
     root = build(0, n, LE, RE, mins, maxs, left_nodes);
 
-    // set_neighbors();
+    // Add periodic neighbors
     if (periodic)
       set_neighbors_periodic();
+
+    // Remove duplicate neighbors
+    for (uint32_t i; i < num_leaves; i++) 
+      leaves[i]->select_unique_neighbors();
   }
   ~KDTree()
   {

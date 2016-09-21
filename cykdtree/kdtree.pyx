@@ -48,16 +48,10 @@ cdef class PyNode:
         self.id = node.leafid
         self.npts = node.children
         assert(self.ndim == node.ndim)
-        # self.ndim = node.ndim
         self.num_leaves = num_leaves
         self.start_idx = node.left_idx
         self.stop_idx = (node.left_idx + node.children)
         self._domain_width = domain_width
-        # self.domain_width = np.zeros(self.ndim, 'float64')
-        # self.left_edge = np.zeros(self.ndim, 'float64')
-        # self.right_edge = np.zeros(self.ndim, 'float64')
-        # self.periodic_left = np.zeros(self.ndim, 'bool')
-        # self.periodic_right = np.zeros(self.ndim, 'bool')
         self.left_neighbors = []
         self.right_neighbors = []
         for i in range(self.ndim):
@@ -65,9 +59,8 @@ cdef class PyNode:
             self._right_edge[i] = node.right_edge[i]
             self._periodic_left[i] = node.periodic_left[i]
             self._periodic_right[i] = node.periodic_right[i]
-            # self.domain_width[i] = domain_width[i]
-            self.left_neighbors.append(list(set([node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())])))
-            self.right_neighbors.append(list(set([node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())])))
+            self.left_neighbors.append([node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())])
+            self.right_neighbors.append([node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())])
 
     def __dealloc__(self):
         free(self._left_edge)
