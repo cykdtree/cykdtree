@@ -33,13 +33,6 @@ cdef class PyNode:
 
     """
 
-    def __cinit__(self, uint32_t ndim):
-        self.ndim = ndim
-        self._left_edge = <double *>malloc(self.ndim*sizeof(double))
-        self._right_edge = <double *>malloc(self.ndim*sizeof(double))
-        self._periodic_left = <cbool *>malloc(self.ndim*sizeof(cbool))
-        self._periodic_right = <cbool *>malloc(self.ndim*sizeof(cbool))
-
     cdef void _init_node(self, Node* node, uint32_t num_leaves,
                          double *domain_width):
                          # np.ndarray[np.float64_t, ndim=1] domain_width):
@@ -47,7 +40,7 @@ cdef class PyNode:
         self._node = node
         self.id = node.leafid
         self.npts = node.children
-        assert(self.ndim == node.ndim)
+        self.ndim = node.ndim
         self.num_leaves = num_leaves
         self.start_idx = node.left_idx
         self.stop_idx = (node.left_idx + node.children)
@@ -55,34 +48,24 @@ cdef class PyNode:
         self.left_neighbors = []
         self.right_neighbors = []
         for i in range(self.ndim):
-            self._left_edge[i] = node.left_edge[i]
-            self._right_edge[i] = node.right_edge[i]
-            self._periodic_left[i] = node.periodic_left[i]
-            self._periodic_right[i] = node.periodic_right[i]
             self.left_neighbors.append([node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())])
             self.right_neighbors.append([node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())])
 
-    def __dealloc__(self):
-        free(self._left_edge)
-        free(self._right_edge)
-        free(self._periodic_left)
-        free(self._periodic_right)
-
     @property
     def periodic_left(self):
-        cdef cbool[:] view = <cbool[:self.ndim]> self._periodic_left
+        cdef cbool[:] view = <cbool[:self.ndim]> self._node.periodic_left
         return np.asarray(view)
     @property
     def periodic_right(self):
-        cdef cbool[:] view = <cbool[:self.ndim]> self._periodic_right
+        cdef cbool[:] view = <cbool[:self.ndim]> self._node.periodic_right
         return np.asarray(view)
     @property
     def left_edge(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._left_edge
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._node.left_edge
         return np.asarray(view)
     @property
     def right_edge(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._right_edge
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._node.right_edge
         return np.asarray(view)
     @property
     def domain_width(self):

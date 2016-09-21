@@ -48,10 +48,6 @@ cdef class PyNode:
     cdef readonly np.uint64_t start_idx
     cdef readonly np.uint64_t stop_idx
     cdef double *_domain_width
-    cdef double *_left_edge
-    cdef double *_right_edge
-    cdef bool *_periodic_left
-    cdef bool *_periodic_right
     cdef readonly object left_neighbors, right_neighbors
     cdef void _init_node(self, Node* node, uint32_t num_leaves,
                          double *domain_width)
