@@ -32,22 +32,6 @@ cdef class PyNode:
 
     """
 
-    def __cinit__(self):
-        self._node = NULL
-        self.id = np.iinfo('uint32').max
-        self.npts = 0
-        self.ndim = 0
-        self.num_leaves = 0
-        self.start_idx = 0
-        self.stop_idx = 0
-        self.left_edge = np.array([], 'float64')
-        self.right_edge = np.array([], 'float64')
-        self.periodic_left = np.array([], 'bool')
-        self.periodic_right = np.array([], 'bool')
-        self.domain_width = np.array([], 'float64')
-        self.left_neighbors = []
-        self.right_neighbors = []
-
     cdef void _init_node(self, Node* node, uint32_t num_leaves,
                          np.ndarray[np.float64_t, ndim=1] domain_width):
         cdef np.uint32_t i, j
