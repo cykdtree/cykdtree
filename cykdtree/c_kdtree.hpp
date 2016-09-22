@@ -173,7 +173,8 @@ public:
   double* domain_left_edge;
   double* domain_right_edge;
   double* domain_width;
-  bool periodic;
+  bool* periodic;
+  bool any_periodic;
   double* domain_mins;
   double* domain_maxs;
   uint32_t num_leaves;
@@ -182,7 +183,7 @@ public:
 
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0, 
-	 double *left_edge, double *right_edge, bool periodic0=false)
+	 double *left_edge, double *right_edge, bool *periodic0)
   {
     uint32_t d;
     all_pts = pts;
@@ -198,12 +199,21 @@ public:
     domain_mins = min_pts(pts, n, m);
     domain_maxs = max_pts(pts, n, m);
 
+    any_periodic = false;
+    for (d = 0; d < ndim; d++) {
+      if (periodic[d]) {
+	any_periodic = true;
+	break;
+      }
+    }
+
     domain_width = (double*)malloc(ndim*sizeof(double));
     double *LE = (double*)malloc(ndim*sizeof(double));
     double *RE = (double*)malloc(ndim*sizeof(double));
     double *mins = (double*)malloc(ndim*sizeof(double));
     double *maxs = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> left_nodes;
+
     for (d = 0; d < ndim; d++) {
       domain_width[d] = right_edge[d] - left_edge[d];
       LE[d] = left_edge[d];
@@ -221,7 +231,7 @@ public:
     free(maxs);
 
     // Add periodic neighbors
-    if (periodic)
+    if (any_periodic)
       set_neighbors_periodic();
 
     // Remove duplicate neighbors
@@ -251,10 +261,12 @@ public:
     for (i = 0; i < num_leaves; i++) {
       leaf = leaves[i];
       for (d = 0; d < ndim; d++) {
-	if (leaf->left_neighbors[d].size() == 0)
-	  leaf->periodic_left[d] = true;
-	if (leaf->right_neighbors[d].size() == 0)
-	  leaf->periodic_right[d] = true;
+	if (periodic[d]) {
+	  if (leaf->left_neighbors[d].size() == 0)
+	    leaf->periodic_left[d] = true;
+	  if (leaf->right_neighbors[d].size() == 0)
+	    leaf->periodic_right[d] = true;
+	}
       }
     }
 
@@ -379,7 +391,10 @@ public:
     uint32_t d;
     double* wrapped_pos = (double*)malloc(ndim*sizeof(double));
     for (d = 0; d < ndim; d++) {
-      wrapped_pos[d] = domain_left_edge[d] + fmod((pos[d] - domain_left_edge[d]),domain_width[d]);
+      if (periodic[d])
+	wrapped_pos[d] = domain_left_edge[d] + fmod((pos[d] - domain_left_edge[d]),domain_width[d]);
+      else
+	wrapped_pos[d] = pos[d];
     }
     return wrapped_pos;
   }
@@ -391,7 +406,7 @@ public:
     bool valid;
     // Wrap positions
     double* pos;
-    if (periodic) 
+    if (any_periodic) 
       pos = wrap_pos(pos0); // allocates new array
     else
       pos = pos0;
@@ -418,7 +433,7 @@ public:
       }
     }
 
-    if (periodic)
+    if (any_periodic)
       free(pos);
     return out;
   }

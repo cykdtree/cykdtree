@@ -93,8 +93,9 @@ cdef class PyKDTree:
             m-dimensional domain.
         left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
         right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
-        periodic (bool, optional): True if the domain is periodic. Defaults to
-            `False`.
+        periodic (bool or np.ndarray of bool, optional): Truth of the domain 
+            periodicity overall (if bool), or in each dimension (if np.ndarray).
+            Defaults to `False`.
         leafsize (int, optional): The maximum number of points that should be in 
             a leaf. Defaults to 10000.
         
@@ -111,15 +112,15 @@ cdef class PyKDTree:
         left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
         right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
         domain_width (np.ndarray of double): (m,) domain width in each dimension.
-        periodic (bool): True if the domain is periodic at its left/right edges.
-            Defaults to False.
+        periodic (np.ndarray of bool): Truth of domain periodicity in each 
+            dimension. 
 
     """
 
     def __cinit__(self, np.ndarray[double, ndim=2] pts, 
                   np.ndarray[double, ndim=1] left_edge, 
                   np.ndarray[double, ndim=1] right_edge,
-                  pybool periodic = False, int leafsize = 10000):
+                  object periodic = False, int leafsize = 10000):
         if (leafsize < 2):
             # This is here to prevent segfault. The cpp code needs modified to 
             # support leafsize = 1
@@ -131,11 +132,17 @@ cdef class PyKDTree:
         self._left_edge = <double *>malloc(self.ndim*sizeof(double))
         self._right_edge = <double *>malloc(self.ndim*sizeof(double))
         self._domain_width = <double *>malloc(self.ndim*sizeof(double))
+        self._periodic = <cbool *>malloc(self.ndim*sizeof(cbool));
         for i in range(self.ndim):
             self._left_edge[i] = left_edge[i]
             self._right_edge[i] = right_edge[i]
             self._domain_width[i] = right_edge[i] - left_edge[i]
-        self.periodic = periodic
+        if isinstance(periodic, pybool):
+            for i in range(self.ndim):
+                self._periodic[i] = <cbool>periodic
+        else:
+            for i in range(self.ndim):
+                self._periodic[i] = <cbool>periodic[i]
         self._make_tree(&pts[0,0])
         # Create list of Python leaves
         self.num_leaves = <uint32_t>self._tree.leaves.size()
@@ -153,11 +160,12 @@ cdef class PyKDTree:
         free(self._left_edge)
         free(self._right_edge)
         free(self._domain_width)
+        free(self._periodic)
 
     cdef void _make_tree(self, double *pts):
         cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize, 
-                                self._left_edge, self._right_edge, self.periodic)
+                                self._left_edge, self._right_edge, self._periodic)
         self.idx = idx
 
     @property
@@ -171,6 +179,10 @@ cdef class PyKDTree:
     @property
     def domain_width(self):
         cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._domain_width
+        return np.asarray(view)
+    @property
+    def periodic(self):
+        cdef cbool[:] view = <cbool[:self.ndim]> self._periodic
         return np.asarray(view)
 
     def leaf_idx(self, np.uint32_t leafid):
