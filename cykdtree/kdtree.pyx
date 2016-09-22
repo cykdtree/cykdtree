@@ -102,6 +102,17 @@ cdef class PyKDTree:
         ValueError: If `leafsize < 2`. This currectly segfaults.
 
     Attributes:
+        npts (uint64): Number of points in the tree.
+        ndim (uint32): Number of dimensions points occupy.
+        num_leaves (uint32): Number of leaves in the tree.
+        leafsize (uint32): Maximum number of points a leaf can have.
+        leaves (list of `cykdtree.PyNode`): Tree leaves.
+        idx (np.ndarray of uint64): Indices sorting the points by leaf.
+        left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
+        right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
+        domain_width (np.ndarray of double): (m,) domain width in each dimension.
+        periodic (bool): True if the domain is periodic at its left/right edges.
+            Defaults to False.
 
     """
 
