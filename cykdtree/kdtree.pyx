@@ -131,12 +131,10 @@ cdef class PyKDTree:
         self.leafsize = leafsize
         self._left_edge = <double *>malloc(self.ndim*sizeof(double))
         self._right_edge = <double *>malloc(self.ndim*sizeof(double))
-        self._domain_width = <double *>malloc(self.ndim*sizeof(double))
         self._periodic = <cbool *>malloc(self.ndim*sizeof(cbool));
         for i in range(self.ndim):
             self._left_edge[i] = left_edge[i]
             self._right_edge[i] = right_edge[i]
-            self._domain_width[i] = right_edge[i] - left_edge[i]
         if isinstance(periodic, pybool):
             for i in range(self.ndim):
                 self._periodic[i] = <cbool>periodic
@@ -153,13 +151,13 @@ cdef class PyKDTree:
         for k in xrange(self.num_leaves):
             leafnode = self._tree.leaves[k]
             leafnode_py = PyNode(self.ndim)
-            leafnode_py._init_node(leafnode, self.num_leaves, self._domain_width)
+            leafnode_py._init_node(leafnode, self.num_leaves, 
+                                   self._tree.domain_width)
             self.leaves[leafnode.leafid] = leafnode_py
 
     def __dealloc__(self):
         free(self._left_edge)
         free(self._right_edge)
-        free(self._domain_width)
         free(self._periodic)
 
     cdef void _make_tree(self, double *pts):
@@ -178,7 +176,7 @@ cdef class PyKDTree:
         return np.asarray(view)
     @property
     def domain_width(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._domain_width
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_width
         return np.asarray(view)
     @property
     def periodic(self):

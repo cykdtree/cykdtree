@@ -30,6 +30,7 @@ cdef extern from "c_kdtree.hpp":
         uint32_t leafsize
         double* domain_left_edge
         double* domain_right_edge
+        double* domain_width
         double* domain_mins
         double* domain_maxs
         vector[Node*] leaves
@@ -61,7 +62,6 @@ cdef class PyKDTree:
     cdef readonly uint32_t leafsize
     cdef double *_left_edge
     cdef double *_right_edge
-    cdef double *_domain_width
     cdef bool *_periodic
     cdef readonly object leaves
     cdef readonly object idx
