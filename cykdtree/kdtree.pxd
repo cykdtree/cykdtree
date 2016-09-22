@@ -21,6 +21,7 @@ cdef extern from "c_kdtree.hpp":
         bool *periodic_right
         vector[vector[uint32_t]] left_neighbors
         vector[vector[uint32_t]] right_neighbors
+        vector[uint32_t] all_neighbors
     cdef cppclass KDTree:
         double* all_pts
         uint64_t* all_idx
@@ -37,6 +38,8 @@ cdef extern from "c_kdtree.hpp":
                double *left_edge, double *right_edge)
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
                double *left_edge, double *right_edge, bool periodic)
+        double* wrap_pos(double* pos)
+        vector[uint32_t] get_neighbor_ids(double* pos)
         Node* search(double* pos)
 
 cdef class PyNode:
@@ -65,8 +68,8 @@ cdef class PyKDTree:
     cdef readonly object idx
     cdef readonly bool periodic
     cdef void _make_tree(self, double *pts)
-    cdef void _wrap_pos(self, double *pos)
-    cdef void _wrap_pos_3(self, double pos[3])
+    # cdef void _wrap_pos(self, double *pos)
+    # cdef void _wrap_pos_3(self, double pos[3])
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])
     cdef PyNode _get(self, np.ndarray[double, ndim=1] pos)

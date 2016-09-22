@@ -22,6 +22,7 @@ public:
   bool *periodic_right;
   std::vector<std::vector<uint32_t>> left_neighbors;
   std::vector<std::vector<uint32_t>> right_neighbors;
+  std::vector<uint32_t> all_neighbors;
   std::vector<Node*> left_nodes;
   // innernode parameters
   uint32_t split_dim;
@@ -121,6 +122,9 @@ public:
   }
 
   void select_unique_neighbors() {
+    if (not is_leaf)
+      return;
+
     uint32_t d;
     std::vector<uint32_t>::iterator last;
     for (d = 0; d < ndim; d++) {
@@ -135,6 +139,27 @@ public:
     }
   }
 
+  void join_neighbors() {
+    if (not is_leaf)
+      return;
+
+    uint32_t d;
+    std::vector<uint32_t>::iterator last;
+    // Create concatenated vector and remove duplicates
+    all_neighbors = left_neighbors[0];
+    for (d = 1; d < ndim; d++) 
+      all_neighbors.insert(all_neighbors.end(), left_neighbors[d].begin(), left_neighbors[d].end());
+    for (d = 0; d < ndim; d++)
+      all_neighbors.insert(all_neighbors.end(), right_neighbors[d].begin(), right_neighbors[d].end());
+    all_neighbors.push_back(leafid);
+    
+    // Get unique
+    std::sort(all_neighbors.begin(), all_neighbors.end());
+    last = std::unique(all_neighbors.begin(), all_neighbors.end());
+    all_neighbors.erase(last, all_neighbors.end());
+
+  }
+
 };
 
 class KDTree
@@ -147,6 +172,7 @@ public:
   uint32_t leafsize;
   double* domain_left_edge;
   double* domain_right_edge;
+  double* domain_width;
   bool periodic;
   double* domain_mins;
   double* domain_maxs;
@@ -158,6 +184,7 @@ public:
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0, 
 	 double *left_edge, double *right_edge, bool periodic0=false)
   {
+    uint32_t d;
     all_pts = pts;
     all_idx = idx;
     npts = n;
@@ -171,12 +198,14 @@ public:
     domain_mins = min_pts(pts, n, m);
     domain_maxs = max_pts(pts, n, m);
 
+    domain_width = (double*)malloc(ndim*sizeof(double));
     double *LE = (double*)malloc(ndim*sizeof(double));
     double *RE = (double*)malloc(ndim*sizeof(double));
     double *mins = (double*)malloc(ndim*sizeof(double));
     double *maxs = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> left_nodes;
-    for (uint32_t d = 0; d < ndim; d++) {
+    for (d = 0; d < ndim; d++) {
+      domain_width[d] = right_edge[d] - left_edge[d];
       LE[d] = left_edge[d];
       RE[d] = right_edge[d];
       mins[d] = domain_mins[d];
@@ -196,13 +225,15 @@ public:
       set_neighbors_periodic();
 
     // Remove duplicate neighbors
-    uint32_t i;
-    for (i = 0; i < num_leaves; i++) 
-      leaves[i]->select_unique_neighbors();
+    for (d = 0; d < num_leaves; d++) {
+      leaves[d]->select_unique_neighbors();
+      leaves[d]->join_neighbors();
+    }
 
   }
   ~KDTree()
   {
+    free(domain_width);
     free(domain_mins);
     free(domain_maxs);
     free(root);
@@ -344,26 +375,62 @@ public:
     } 
   }	 
 
-  Node* search(double* pos)
+  double* wrap_pos(double* pos) {
+    uint32_t d;
+    double* wrapped_pos = (double*)malloc(ndim*sizeof(double));
+    for (d = 0; d < ndim; d++) {
+      wrapped_pos[d] = domain_left_edge[d] + fmod((pos[d] - domain_left_edge[d]),domain_width[d]);
+    }
+    return wrapped_pos;
+  }
+
+  Node* search(double* pos0)
   {
     uint32_t i;
     Node* out = NULL;
+    bool valid;
+    // Wrap positions
+    double* pos;
+    if (periodic) 
+      pos = wrap_pos(pos0); // allocates new array
+    else
+      pos = pos0;
     // Ensure that pos is in root, early return NULL if it's not
+    valid = true;
     for (i = 0; i < ndim; i++) {
-      if (pos[i] < root->left_edge[i]) 
-	return out;
-      if (pos[i] >= root->right_edge[i]) 
-	return out;
+      if (pos[i] < root->left_edge[i]) {
+	valid = false;
+	break;
+      }
+      if (pos[i] >= root->right_edge[i]) {
+	valid = false;
+	break;
+      }
     }
-    out = root;
     // Traverse tree looking for leaf containing pos
-    while (!(out->is_leaf)) {
-      if (pos[out->split_dim] < out->split)
-	out = out->less;
-      else
-	out = out->greater;
+    if (valid) {
+      out = root;
+      while (!(out->is_leaf)) {
+	if (pos[out->split_dim] < out->split)
+	  out = out->less;
+	else
+	  out = out->greater;
+      }
     }
+
+    if (periodic)
+      free(pos);
     return out;
+  }
+
+  std::vector<uint32_t> get_neighbor_ids(double* pos)
+  {
+    Node* leaf;
+    std::vector<uint32_t> neighbors;
+    leaf = search(pos);
+    if (leaf != NULL)
+      neighbors = leaf->all_neighbors;
+    return neighbors;
   }
 
 };

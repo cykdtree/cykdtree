@@ -152,3 +152,11 @@ def time_tree_construction(Ntime, LStime):
     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
     t1 = time.time()
     print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
+
+def time_neighbor_search(Ntime, LStime):
+    pts = np.random.rand(Ntime,2).astype('float64')
+    tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
+    t0 = time.time()
+    ids = tree.get_neighbor_ids(0.5*np.ones(tree.ndim,'double'))
+    t1 = time.time()
+    print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
