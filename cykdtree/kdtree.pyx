@@ -98,6 +98,9 @@ cdef class PyKDTree:
             Defaults to `False`.
         leafsize (int, optional): The maximum number of points that should be in 
             a leaf. Defaults to 10000.
+        nleaves (int, optional): The number of leaves that should be in the 
+            resulting tree. If greater than 0, leafsize is adjusted to produce a 
+            tree with 2**(ceil(log2(nleaves))) leaves. Defaults to 0.
         
     Raises:
         ValueError: If `leafsize < 2`. This currectly segfaults.
@@ -120,7 +123,11 @@ cdef class PyKDTree:
     def __cinit__(self, np.ndarray[double, ndim=2] pts, 
                   np.ndarray[double, ndim=1] left_edge, 
                   np.ndarray[double, ndim=1] right_edge,
-                  object periodic = False, int leafsize = 10000):
+                  object periodic = False, int leafsize = 10000,
+                  int nleaves = 0):
+        if nleaves > 0:
+            nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
+            leafsize = pts.shape[0]/nleaves - 1
         if (leafsize < 2):
             # This is here to prevent segfault. The cpp code needs modified to 
             # support leafsize = 1
