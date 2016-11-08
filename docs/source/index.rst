@@ -21,3 +21,7 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+.. todo::
+   * options for parallel construction
+   * create logo
+   * upload to PyPI

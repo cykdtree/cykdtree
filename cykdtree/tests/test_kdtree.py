@@ -1,76 +1,84 @@
+import cykdtree
 import numpy as np
 import time
-from nose.tools import assert_equal
+# from nose.tools import assert_equal
 from nose.tools import assert_raises
 np.random.seed(100)
 
-import cykdtree
-
-N = 100 ; leafsize = 10
-pts2 = np.random.rand(N,2).astype('float64')
+N = 100
+leafsize = 10
+pts2 = np.random.rand(N, 2).astype('float64')
 left_edge2 = np.zeros(2, 'float64')
 right_edge2 = np.ones(2, 'float64')
-pts3 = np.random.rand(N,3).astype('float64')
+pts3 = np.random.rand(N, 3).astype('float64')
 left_edge3 = np.zeros(3, 'float64')
 right_edge3 = np.ones(3, 'float64')
 rand_state = np.random.get_state()
 
+
 def test_PyKDTree():
-    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
-    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
-    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, 
-                              leafsize=leafsize, periodic=True)
-    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, 
-                              leafsize=leafsize, periodic=True)
-    assert_raises(ValueError, cykdtree.PyKDTree, pts2, left_edge2, right_edge2, leafsize=1)
-    
+    cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
+    cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
+    cykdtree.PyKDTree(pts2, left_edge2, right_edge2,
+                      leafsize=leafsize, periodic=True)
+    cykdtree.PyKDTree(pts3, left_edge3, right_edge3,
+                      leafsize=leafsize, periodic=True)
+    assert_raises(ValueError, cykdtree.PyKDTree, pts2,
+                  left_edge2, right_edge2, leafsize=1)
+
+
 def test_search():
     # 2D
     tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
     for pos in [left_edge2, (left_edge2+right_edge2)/2.]:
-        leaf2 = tree2.get(pos)
+        tree2.get(pos)
     assert_raises(ValueError, tree2.get, right_edge2)
     # 3D
     tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
     for pos in [left_edge3, (left_edge3+right_edge3)/2.]:
-        leaf3 = tree3.get(pos)
+        tree3.get(pos)
     assert_raises(ValueError, tree3.get, right_edge3)
+
 
 def test_search_periodic():
     # 2D
-    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize, periodic=True)
+    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2,
+                              leafsize=leafsize, periodic=True)
     for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
         leaf2 = tree2.get(pos)
-        neigh2 = leaf2.neighbors
+        leaf2.neighbors
     # 3D
-    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize, periodic=True)
+    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3,
+                              leafsize=leafsize, periodic=True)
     for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
         leaf3 = tree3.get(pos)
-        neigh3 = leaf3.neighbors
+        leaf3.neighbors
+
 
 def test_neighbors():
     np.random.set_state(rand_state)
-    pts = np.random.rand(50,2).astype('float64')
+    pts = np.random.rand(50, 2).astype('float64')
     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=10)
     # 2D
-    left_neighbors_x = [[], # None
+    left_neighbors_x = [[],  # None
                         [0],
                         [1],
                         [2],
-                        [], # None
-                        [], # None
-                        [4,5],
+                        [],  # None
+                        [],  # None
+                        [4, 5],
                         [5]]
-    left_neighbors_y = [[], # None
-                        [], # None
-                        [], # None
-                        [], # None
-                        [0,1],
+    left_neighbors_y = [[],  # None
+                        [],  # None
+                        [],  # None
+                        [],  # None
+                        [0, 1],
                         [4],
-                        [1,2,3],
+                        [1, 2, 3],
                         [6]]
     left_neighbors = [left_neighbors_x, left_neighbors_y]
-    right_neighbors = [[[] for i in range(tree.num_leaves)] for _ in range(tree.ndim)]
+    right_neighbors = [[[] for i in range(tree.num_leaves)] for _
+                       in range(tree.ndim)]
     for d in range(tree.ndim):
         for i in range(tree.num_leaves):
             for j in left_neighbors[d][i]:
@@ -82,38 +90,47 @@ def test_neighbors():
     for leaf in tree.leaves:
         print(leaf.id)
         for d in range(tree.ndim):
-            print('    ', d, leaf.left_neighbors[d], left_neighbors[d][leaf.id])
-            assert(len(left_neighbors[d][leaf.id]) == len(leaf.left_neighbors[d]))
+            print('    ', d, leaf.left_neighbors[d],
+                  left_neighbors[d][leaf.id])
+            assert(len(left_neighbors[d][leaf.id]) ==
+                   len(leaf.left_neighbors[d]))
             for i in range(len(leaf.left_neighbors[d])):
-                assert(left_neighbors[d][leaf.id][i] == leaf.left_neighbors[d][i])
-            print('    ', d, leaf.right_neighbors[d], right_neighbors[d][leaf.id])
-            assert(len(right_neighbors[d][leaf.id]) == len(leaf.right_neighbors[d]))
+                assert(left_neighbors[d][leaf.id][i] ==
+                       leaf.left_neighbors[d][i])
+            print('    ', d, leaf.right_neighbors[d],
+                  right_neighbors[d][leaf.id])
+            assert(len(right_neighbors[d][leaf.id]) ==
+                   len(leaf.right_neighbors[d]))
             for i in range(len(leaf.right_neighbors[d])):
-                assert(right_neighbors[d][leaf.id][i] == leaf.right_neighbors[d][i])
+                assert(right_neighbors[d][leaf.id][i] ==
+                       leaf.right_neighbors[d][i])
+
 
 def test_neighbors_periodic():
     np.random.set_state(rand_state)
-    pts = np.random.rand(50,2).astype('float64')
-    tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=10, periodic=True)
+    pts = np.random.rand(50, 2).astype('float64')
+    tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2,
+                             leafsize=10, periodic=True)
     # 2D
-    left_neighbors_x = [[3,6,7], 
+    left_neighbors_x = [[3, 6, 7],
                         [0],
                         [1],
                         [2],
-                        [6], 
-                        [6,7],
-                        [4,5],
+                        [6],
+                        [6, 7],
+                        [4, 5],
                         [5]]
-    left_neighbors_y = [[5,7], 
-                        [5,7],
+    left_neighbors_y = [[5, 7],
+                        [5, 7],
                         [7],
-                        [5,7],
-                        [0,1],
+                        [5, 7],
+                        [0, 1],
                         [4],
-                        [1,2,3],
+                        [1, 2, 3],
                         [6]]
     left_neighbors = [left_neighbors_x, left_neighbors_y]
-    right_neighbors = [[[] for i in range(tree.num_leaves)] for _ in range(tree.ndim)]
+    right_neighbors = [[[] for i in range(tree.num_leaves)] for
+                       _ in range(tree.ndim)]
     for d in range(tree.ndim):
         for i in range(tree.num_leaves):
             for j in left_neighbors[d][i]:
@@ -125,38 +142,47 @@ def test_neighbors_periodic():
     for leaf in tree.leaves:
         print(leaf.id)
         for d in range(tree.ndim):
-            print('    ', d, leaf.left_neighbors[d], left_neighbors[d][leaf.id])
-            assert(len(left_neighbors[d][leaf.id]) == len(leaf.left_neighbors[d]))
+            print('    ', d, leaf.left_neighbors[d],
+                  left_neighbors[d][leaf.id])
+            assert(len(left_neighbors[d][leaf.id]) ==
+                   len(leaf.left_neighbors[d]))
             for i in range(len(leaf.left_neighbors[d])):
-                assert(left_neighbors[d][leaf.id][i] == leaf.left_neighbors[d][i])
-            print('    ', d, leaf.right_neighbors[d], right_neighbors[d][leaf.id])
-            assert(len(right_neighbors[d][leaf.id]) == len(leaf.right_neighbors[d]))
+                assert(left_neighbors[d][leaf.id][i] ==
+                       leaf.left_neighbors[d][i])
+            print('    ', d, leaf.right_neighbors[d],
+                  right_neighbors[d][leaf.id])
+            assert(len(right_neighbors[d][leaf.id]) ==
+                   len(leaf.right_neighbors[d]))
             for i in range(len(leaf.right_neighbors[d])):
-                assert(right_neighbors[d][leaf.id][i] == leaf.right_neighbors[d][i])
+                assert(right_neighbors[d][leaf.id][i] ==
+                       leaf.right_neighbors[d][i])
 
-def test_get_neighbor_ids():    
+
+def test_get_neighbor_ids():
     # 2D
-    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize, periodic=True)
+    tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2,
+                              leafsize=leafsize, periodic=True)
     for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
-        ids2 = tree2.get_neighbor_ids(pos)
-        # print(pos, ids2)
+        tree2.get_neighbor_ids(pos)
     # 3D
-    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize, periodic=True)
+    tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3,
+                              leafsize=leafsize, periodic=True)
     for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
-        ids3 = tree3.get_neighbor_ids(pos)
-        # print(pos, ids3)
+        tree3.get_neighbor_ids(pos)
+
 
 def time_tree_construction(Ntime, LStime):
-    pts = np.random.rand(Ntime,2).astype('float64')
+    pts = np.random.rand(Ntime, 2).astype('float64')
     t0 = time.time()
-    tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
+    cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
     t1 = time.time()
     print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
 
+
 def time_neighbor_search(Ntime, LStime):
-    pts = np.random.rand(Ntime,2).astype('float64')
+    pts = np.random.rand(Ntime, 2).astype('float64')
     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
     t0 = time.time()
-    ids = tree.get_neighbor_ids(0.5*np.ones(tree.ndim,'double'))
+    tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
     t1 = time.time()
     print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
