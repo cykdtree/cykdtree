@@ -25,10 +25,10 @@ cmdclass = { }
 ext_modules = [ ]
 
 ext_options = dict(language="c++",
-                       include_dirs=[numpy.get_include()],
-                       extra_compile_args=["-std=c++11"],# "-std=gnu++11",
-                       # CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
-                       define_macros=[('CYTHON_TRACE', '1')])
+                   include_dirs=[numpy.get_include()],
+                   extra_compile_args=["-std=c++11"],# "-std=gnu++11",
+                   # CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
+                   define_macros=[('CYTHON_TRACE', '1')])
 if RTDFLAG:
     ext_options['libraries'] = []
     ext_options['extra_link_args'] = []
@@ -56,7 +56,7 @@ else:
 
 setup(name='cykdtree',
       version='0.1',
-      description='Python interface for CGAL Triangulations',
+      description='Cython based KD-Tree',
       url='https://langmm@bitbucket.org/langmm/cykdtree',
       author='Meagan Lang',
       author_email='langmm.astro@gmail.com',
