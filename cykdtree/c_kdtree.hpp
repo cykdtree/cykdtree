@@ -139,7 +139,7 @@ public:
     }
   }
 
-  void join_neighbors() {
+  void join_neighbors(bool include_self = true) {
     if (not is_leaf)
       return;
 
@@ -151,7 +151,8 @@ public:
       all_neighbors.insert(all_neighbors.end(), left_neighbors[d].begin(), left_neighbors[d].end());
     for (d = 0; d < ndim; d++)
       all_neighbors.insert(all_neighbors.end(), right_neighbors[d].begin(), right_neighbors[d].end());
-    all_neighbors.push_back(leafid);
+    if (include_self)
+      all_neighbors.push_back(leafid);
     
     // Get unique
     std::sort(all_neighbors.begin(), all_neighbors.end());
@@ -183,7 +184,8 @@ public:
 
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0, 
-	 double *left_edge, double *right_edge, bool *periodic0)
+	 double *left_edge, double *right_edge, bool *periodic0,
+	 bool include_self = true)
   {
     uint32_t d;
     all_pts = pts;
@@ -237,7 +239,7 @@ public:
     // Remove duplicate neighbors
     for (d = 0; d < num_leaves; d++) {
       leaves[d]->select_unique_neighbors();
-      leaves[d]->join_neighbors();
+      leaves[d]->join_neighbors(include_self);
     }
 
   }

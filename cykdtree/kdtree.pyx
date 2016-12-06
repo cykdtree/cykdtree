@@ -78,7 +78,8 @@ cdef class PyNode:
 
     @property
     def neighbors(self):
-        """list of int: Indices of all neighboring leaves including this leaf."""
+        """list of int: Indices of all neighboring leaves including this
+        leaf."""
         cdef np.uint32_t i
         cdef object out
         cdef vector[uint32_t] vout = self._node.all_neighbors
