@@ -122,8 +122,8 @@ cdef class PyKDTree:
     """
 
     def __cinit__(self, np.ndarray[double, ndim=2] pts, 
-                  np.ndarray[double, ndim=1] left_edge, 
-                  np.ndarray[double, ndim=1] right_edge,
+                  np.ndarray[double, ndim=1] left_edge = None, 
+                  np.ndarray[double, ndim=1] right_edge = None,
                   object periodic = False, int leafsize = 10000,
                   int nleaves = 0):
         if nleaves > 0:
@@ -133,9 +133,15 @@ cdef class PyKDTree:
             # This is here to prevent segfault. The cpp code needs modified to 
             # support leafsize = 1
             raise ValueError("'leafsize' cannot be smaller than 2.")
+        if left_edge == None:
+            left_edge = np.min(pts, axis=0)
+        if right_edge == None:
+            right_edge = np.max(pts, axis=0)
         cdef uint32_t k,i,j
         self.npts = <uint64_t>pts.shape[0]
         self.ndim = <uint32_t>pts.shape[1]
+        assert(left_edge.size == self.ndim)
+        assert(right_edge.size == self.ndim)
         self.leafsize = leafsize
         self._left_edge = <double *>malloc(self.ndim*sizeof(double))
         self._right_edge = <double *>malloc(self.ndim*sizeof(double))
