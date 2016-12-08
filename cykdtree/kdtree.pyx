@@ -133,9 +133,9 @@ cdef class PyKDTree:
             # This is here to prevent segfault. The cpp code needs modified to 
             # support leafsize = 1
             raise ValueError("'leafsize' cannot be smaller than 2.")
-        if left_edge == None:
+        if left_edge is None:
             left_edge = np.min(pts, axis=0)
-        if right_edge == None:
+        if right_edge is None:
             right_edge = np.max(pts, axis=0)
         cdef uint32_t k,i,j
         self.npts = <uint64_t>pts.shape[0]
