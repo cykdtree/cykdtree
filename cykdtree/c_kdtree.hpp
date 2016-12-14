@@ -185,7 +185,7 @@ public:
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0, 
 	 double *left_edge, double *right_edge, bool *periodic0,
-	 bool include_self = true)
+	 bool include_self = true, bool dont_build = false)
   {
     uint32_t d;
     all_pts = pts;
@@ -209,23 +209,33 @@ public:
       }
     }
 
-    domain_width = (double*)malloc(ndim*sizeof(double));
+    if (!(dont_build))
+      build_tree(include_self);
+
+  }
+
+  void build_tree(bool include_self = true) {
+    uint32_t d;
     double *LE = (double*)malloc(ndim*sizeof(double));
     double *RE = (double*)malloc(ndim*sizeof(double));
     double *mins = (double*)malloc(ndim*sizeof(double));
     double *maxs = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> left_nodes;
 
+    domain_width = (double*)malloc(ndim*sizeof(double));
     for (d = 0; d < ndim; d++) {
-      domain_width[d] = right_edge[d] - left_edge[d];
-      LE[d] = left_edge[d];
-      RE[d] = right_edge[d];
+      domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
+    }
+
+    for (d = 0; d < ndim; d++) {
+      LE[d] = domain_left_edge[d];
+      RE[d] = domain_right_edge[d];
       mins[d] = domain_mins[d];
       maxs[d] = domain_maxs[d];
       left_nodes.push_back(NULL);
     }
 
-    root = build(0, n, LE, RE, mins, maxs, left_nodes);
+    root = build(0, npts, LE, RE, mins, maxs, left_nodes);
 
     free(LE);
     free(RE);
@@ -308,6 +318,29 @@ public:
     }
   }
 
+  uint32_t split(uint64_t Lidx, uint64_t n,
+		 double *mins, double *maxes,
+		 int64_t &split_idx, double &split_val) {
+    // Find dimension to split along
+    uint32_t dmax, d;
+    dmax = 0;
+    for (d = 1; d < ndim; d++) 
+      if ((maxes[d]-mins[d]) > (maxes[dmax]-mins[dmax]))
+	dmax = d;
+    if (maxes[dmax] == mins[dmax]) {
+      // all points singular
+      return ndim;
+    }
+      
+    // Find median along dimension
+    int64_t stop = n-1;
+    select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
+    split_idx = (stop/2)+Lidx;
+    split_val = all_pts[ndim*all_idx[split_idx] + dmax];
+
+    return dmax;
+  }
+
   Node* build(uint64_t Lidx, uint64_t n, 
 	      double *LE, double *RE, 
 	      double *mins, double *maxes,
@@ -321,12 +354,11 @@ public:
       leaves.push_back(out);
       return out;
     } else {
-      // Find dimension to split along
+      // Split
       uint32_t dmax, d;
-      dmax = 0;
-      for (d = 1; d < ndim; d++) 
-	if ((maxes[d]-mins[d]) > (maxes[dmax]-mins[dmax]))
-	  dmax = d;
+      int64_t split_idx = 0;
+      double split_val = 0.0;
+      dmax = split(Lidx, n, mins, maxes, split_idx, split_val);
       if (maxes[dmax] == mins[dmax]) {
 	// all points singular
 	Node* out = new Node(ndim, LE, RE, Lidx, n, num_leaves,
@@ -336,23 +368,9 @@ public:
 	return out;
       }
       
-      // Find median along dimension
-      int64_t stop = n-1;
-      int64_t med = (n/2) + (n%2);
-
-      // Version using pointer to all points and index
-      med = select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
-      med = (stop/2)+Lidx;
-      uint64_t Nless = med-Lidx+1;
-      uint64_t Ngreater = n - Nless;
-      double split;
-      if ((n%2) == 0) {
-	split = all_pts[ndim*all_idx[med] + dmax];
-      } else {
-	split = all_pts[ndim*all_idx[med] + dmax];
-      }
-
       // Get new boundaries
+      uint64_t Nless = split_idx-Lidx+1;
+      uint64_t Ngreater = n - Nless;
       double *lessmaxes = (double*)malloc(ndim*sizeof(double));
       double *lessright = (double*)malloc(ndim*sizeof(double));
       double *greatermins = (double*)malloc(ndim*sizeof(double));
@@ -365,10 +383,10 @@ public:
 	greaterleft[d] = LE[d];
 	greater_left_nodes.push_back(left_nodes[d]);
       }
-      lessmaxes[dmax] = split;
-      lessright[dmax] = split;
-      greatermins[dmax] = split;
-      greaterleft[dmax] = split;
+      lessmaxes[dmax] = split_val;
+      lessright[dmax] = split_val;
+      greatermins[dmax] = split_val;
+      greaterleft[dmax] = split_val;
 
       // Build less and greater nodes
       Node* less = build(Lidx, Nless, LE, lessright, mins, lessmaxes, 
@@ -378,7 +396,7 @@ public:
 			    maxes, greater_left_nodes);
 
       // Create innernode referencing child nodes
-      Node* out = new Node(ndim, LE, RE, Lidx, dmax, split, less, greater,
+      Node* out = new Node(ndim, LE, RE, Lidx, dmax, split_val, less, greater,
 			   left_nodes);
       
       free(lessright);

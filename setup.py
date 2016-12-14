@@ -34,14 +34,32 @@ if RTDFLAG:
     ext_options['extra_link_args'] = []
     ext_options['extra_compile_args'].append('-DREADTHEDOCS')
 
+def make_cpp(cpp_file):
+    if not os.path.isfile(cpp_file):
+        open(cpp_file,'a').close()
+        assert(os.path.isfile(cpp_file))
+
 if use_cython:
+    make_cpp("cykdtree/c_kdtree.cpp")
+    make_cpp("cykdtree/c_utils.cpp")
+    make_cpp("cykdtree/c_parallel_kdtree.cpp")
     ext_modules += cythonize(Extension("cykdtree/kdtree",
-                                       sources=["cykdtree/kdtree.pyx","cykdtree/c_kdtree.cpp","cykdtree/c_utils.cpp"],
+                                       sources=["cykdtree/kdtree.pyx",
+                                                "cykdtree/c_kdtree.cpp",
+                                                "cykdtree/c_utils.cpp"],
                                        language="c++",
                                        include_dirs=[numpy.get_include()],
                                        extra_compile_args=["-std=gnu++11"]))
     ext_modules += cythonize(Extension("cykdtree/utils",
-                                       sources=["cykdtree/utils.pyx","cykdtree/c_utils.cpp"],
+                                       sources=["cykdtree/utils.pyx",
+                                                "cykdtree/c_utils.cpp"],
+                                       language="c++",
+                                       include_dirs=[numpy.get_include()],
+                                       extra_compile_args=["-std=gnu++11"]))
+    ext_modules += cythonize(Extension("cykdtree/parallel_kdtree",
+                                       sources=["cykdtree/parallel_kdtree.pyx",
+                                                "cykdtree/c_parallel_kdtree.cpp",
+                                                "cykdtree/c_kdtree.cpp"],
                                        language="c++",
                                        include_dirs=[numpy.get_include()],
                                        extra_compile_args=["-std=gnu++11"]))
@@ -51,6 +69,8 @@ else:
         Extension("cykdtree.kdtree", ["cykdtree/c_kdtree.cpp"],
                   include_dirs=[numpy.get_include()]),
         Extension("cykdtree.utils", ["cykdtree/c_utils.cpp"],
+                  include_dirs=[numpy.get_include()]),
+        Extension("cykdtree.parallel_kdtree", ["cykdtree/c_parallel_kdtree.cpp"],
                   include_dirs=[numpy.get_include()]),
     ]
 
