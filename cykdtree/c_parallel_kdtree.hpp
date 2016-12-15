@@ -343,6 +343,7 @@ public:
     leaf2rank = (int*)realloc(leaf2rank, tot_num_leaves*sizeof(int));
     MPI_Bcast(leaf2rank, tot_num_leaves, MPI_INT, root, MPI_COMM_WORLD);
     // Consolidate left/right edges of all leaves
+    // TODO: This could be done using Gatherv...
     leaves_le = (double*)malloc(tot_num_leaves*ndim*sizeof(double));
     leaves_re = (double*)malloc(tot_num_leaves*ndim*sizeof(double));
     nprev = 0;
@@ -365,6 +366,8 @@ public:
 		 MPI_COMM_WORLD);
       }
     }
+    MPI_Bcast(leaves_le, tot_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
+    MPI_Bcast(leaves_re, tot_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
   }
 
   int total_available(bool update = false) {
