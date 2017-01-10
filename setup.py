@@ -84,7 +84,7 @@ with open('README.rst') as file:
 setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
-      package_data = {'cykdtree': ['README.md', 'README.rst'],
+      package_data = {'cykdtree': ['README.md', 'README.rst']},
       version='0.1',
       description='Cython based KD-Tree',
       long_description=long_description,

@@ -151,10 +151,10 @@ public:
     MPI_Recv(re, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (j = 0; j < ndim; j++)
-      ple[d] = (bool)(pe[d]);
+      ple[j] = (bool)(pe[j]);
     MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (j = 0; j < ndim; j++)
-      pre[d] = (bool)(pe[d]);
+      pre[j] = (bool)(pe[j]);
     MPI_Recv(&leafid, 1, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
 	     MPI_STATUS_IGNORE);
     Node *node = new Node(ndim, le, re, ple, pre, 0, 0, leafid, left_nodes);
@@ -187,7 +187,7 @@ public:
       MPI_Send(ids, s, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
     }
     if (ids != NULL)
-      free(ids):
+      free(ids);
   }
 
   void recv_node_neighbors(int src, Node *node) {
@@ -211,7 +211,7 @@ public:
 	node->right_neighbors[d].push_back(ids[j]);
     }
     if (ids != NULL)
-      free(ids):
+      free(ids);
   }
 
   void partition() {
@@ -333,8 +333,10 @@ public:
 		   MPI_COMM_WORLD);
 	  free(pts_send);
 	  // Update local info
-	  dsts.push_front(other_rank); // Smaller splits at front
-	  split_dsts[dsplit].push_front(other_rank);
+	  dsts.insert(dsts.begin(), other_rank); // Smaller splits at front
+	  split_dsts[dsplit].insert(split_dsts[dsplit].begin(), other_rank);
+	  // dsts.push_front(other_rank); // Smaller splits at front
+	  // split_dsts[dsplit].push_front(other_rank);
 	  tree->domain_maxs[dsplit] = split_val;
 	  tree->domain_right_edge[dsplit] = split_val;
 	  tree->periodic_right[dsplit] = false;
@@ -382,7 +384,7 @@ public:
     std::vector<int>::iterator dst;
     uint64_t left_idx_exch, nexch, i;
     uint64_t *idx_exch;
-    uint64_t t;
+    // uint64_t t;
     // Receive ids from child processes
     for (dst = dsts.begin(); dst != dsts.end(); ++dst) {
       MPI_Recv(&left_idx_exch, 1, MPI_UNSIGNED_LONG, *dst, rank,
@@ -410,9 +412,9 @@ public:
   }
 
   void consolidate_leaves() {
-    int i;
+    uint32_t i, nprev;
     uint32_t local_count = 0, total_count = 0, child_count = 0;
-    uint32_t max_leafid = 0;
+    // uint32_t max_leafid = 0;
     std::vector<Node*>::iterator it;
     std::vector<int>::iterator dst;
     // Wait for max leafid from parent process and update local ids
@@ -421,7 +423,7 @@ public:
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
-	it->update_ids(total_count);
+	(*it)->update_ids(total_count);
       }
     }
     local_count = tree->num_leaves;
@@ -442,7 +444,7 @@ public:
     }
     // Send final count back to source
     if (src >= 0) {
-      MPI_Send(local_count, 1, MPI_UNSIGNED, src, rank, MPI_COMM_WORLD);
+      MPI_Send(&local_count, 1, MPI_UNSIGNED, src, rank, MPI_COMM_WORLD);
       MPI_Send(leaf2rank, local_count, MPI_INT, src, rank, MPI_COMM_WORLD);
     }
     // Consolidate count

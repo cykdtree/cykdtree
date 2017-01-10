@@ -107,14 +107,17 @@ public:
     for (uint32_t d = 0; d < ndim; d++) {
       for (it = left_neighbors[d].begin();
 	   it != left_neighbors[d].end(); ++it)
-	it->leafid += add_to;
+	it += add_to;
+	// it->leafid += add_to;
       for (it = right_neighbors[d].begin();
 	   it != right_neighbors[d].end(); ++it)
-	it->leafid += add_to;
+	it += add_to;
+	// it->leafid += add_to;
     }
     for (it = all_neighbors.begin();
 	 it != all_neighbors.end(); ++it)
-      it->leafid += add_to;
+      it += add_to;
+      // it->leafid += add_to;
   }
 
   void add_neighbors(Node* curr, uint32_t dim) {
@@ -240,7 +243,7 @@ public:
     }
 
     domain_width = (double*)malloc(ndim*sizeof(double));
-    for (d = 0; d < ndim; d++) {
+    for (uint32_t d = 0; d < ndim; d++) {
       domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
     }
 
@@ -281,7 +284,7 @@ public:
     }
 
     domain_width = (double*)malloc(ndim*sizeof(double));
-    for (d = 0; d < ndim; d++) {
+    for (uint32_t d = 0; d < ndim; d++) {
       domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
     }
 
@@ -310,7 +313,7 @@ public:
   void consolidate_edges() {
     leaves_le = (double*)malloc(num_leaves*ndim*sizeof(double));
     leaves_re = (double*)malloc(num_leaves*ndim*sizeof(double));
-    for (uint32_t k = 0; k < tree->num_leaves; k++) {
+    for (uint32_t k = 0; k < num_leaves; k++) {
       memcpy(leaves_le+leaves[k]->leafid,
              leaves[k]->left_edge,
              ndim*sizeof(double));
