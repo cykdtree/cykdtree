@@ -2,7 +2,6 @@ from setuptools import setup
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Build import cythonize
-from Cython.Compiler.Options import directive_defaults
 import numpy
 import os
 
@@ -91,7 +90,7 @@ setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst']},
-      version='0.1.1',
+      version='0.1.1b',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
