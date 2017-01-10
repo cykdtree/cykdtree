@@ -6,7 +6,7 @@ from Cython.Compiler.Options import directive_defaults
 import numpy
 import os
 
-release = False
+release = True
 
 RTDFLAG = bool(os.environ.get('READTHEDOCS', None) == 'True')
 
