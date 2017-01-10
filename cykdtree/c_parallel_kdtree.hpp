@@ -13,6 +13,8 @@ public:
   int rrank;
   int src = -1;
   std::vector<int> dsts;
+  std::vector<int> split_src;
+  std::vector<std::vector<int>> split_dsts;
   uint32_t ndim;
   uint64_t npts = 0;
   uint64_t npts_orig;
@@ -60,6 +62,8 @@ public:
     MPI_Bcast(&ndim, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     MPI_Bcast(&leafsize, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     // Basic init
+    split_src = std::vector<int>(ndim);
+    split_dsts = std::vector<std::vector<int>>(ndim);
     domain_left_edge = (double*)malloc(ndim*sizeof(double));
     domain_right_edge = (double*)malloc(ndim*sizeof(double));
     domain_width = (double*)malloc(ndim*sizeof(double));
@@ -114,6 +118,102 @@ public:
       free(leaves_re);
   }
 
+  void send_node(int dst, Node *node) {
+    int i = 0;
+    uint32_t j;
+    int *pe = (int*)malloc(ndim*sizeof(int));
+    MPI_Send(node->left_edge, ndim, MPI_DOUBLE, dst, i++, MPI_COMM_WORLD);
+    MPI_Send(node->right_edge, ndim, MPI_DOUBLE, dst, i++, MPI_COMM_WORLD);
+    for (j = 0; j < ndim; j++)
+      pe[j] = (int)(node->periodic_left[j]);
+    MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
+    for (j = 0; j < ndim; j++)
+      pe[j] = (int)(node->periodic_right[j]);
+    MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
+    MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
+    free(pe);
+  }
+
+  Node* recv_node(int src, uint32_t dim) {
+    int i = 0;
+    uint32_t j;
+    uint32_t leafid;
+    int *pe = (int*)malloc(ndim*sizeof(int));
+    bool *ple = (bool*)malloc(ndim*sizeof(bool));
+    bool *pre = (bool*)malloc(ndim*sizeof(bool));
+    double *re = (double*)malloc(ndim*sizeof(double));
+    double *le = (double*)malloc(ndim*sizeof(double));
+    std::vector<Node*> left_nodes;
+    for (j = 0; j < ndim; j++)
+      left_nodes.push_back(NULL);
+    left_nodes[dim] = tree->root;
+    MPI_Recv(le, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(re, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    for (j = 0; j < ndim; j++)
+      ple[d] = (bool)(pe[d]);
+    MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    for (j = 0; j < ndim; j++)
+      pre[d] = (bool)(pe[d]);
+    MPI_Recv(&leafid, 1, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
+	     MPI_STATUS_IGNORE);
+    Node *node = new Node(ndim, le, re, ple, pre, 0, 0, leafid, left_nodes);
+    free(pe);
+    free(ple);
+    free(pre);
+    free(le);
+    free(re);
+    return node;
+  }
+
+  void send_node_neighbors(int dst, Node *node) {
+    uint32_t d;
+    int i = 0, j, s;
+    uint32_t *ids = NULL;
+    for (d = 0; d < ndim; d++) {
+      // left
+      s = (int)(node->left_neighbors[d].size());
+      ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
+      for (j = 0; j < s; j++)
+	ids[j] = node->left_neighbors[d][j];
+      MPI_Send(&s, 1, MPI_INT, dst, i++, MPI_COMM_WORLD);
+      MPI_Send(ids, s, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
+      // right
+      s = (int)(node->right_neighbors[d].size());
+      ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
+      for (j = 0; j < s; j++)
+	ids[j] = node->right_neighbors[d][j];
+      MPI_Send(&s, 1, MPI_INT, dst, i++, MPI_COMM_WORLD);
+      MPI_Send(ids, s, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
+    }
+    if (ids != NULL)
+      free(ids):
+  }
+
+  void recv_node_neighbors(int src, Node *node) {
+    uint32_t d;
+    int i = 0, j, s;
+    uint32_t *ids = NULL;
+    for (d = 0; d < ndim; d++) {
+      // left
+      MPI_Recv(&s, 1, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
+      MPI_Recv(ids, s, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
+      for (j = 0; j < s; j++)
+	node->left_neighbors[d].push_back(ids[j]);
+      // right
+      MPI_Recv(&s, 1, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
+      MPI_Recv(ids, s, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
+      for (j = 0; j < s; j++)
+	node->right_neighbors[d].push_back(ids[j]);
+    }
+    if (ids != NULL)
+      free(ids):
+  }
+
   void partition() {
     // Partition points until every process has points
     double *exch_mins = (double*)malloc(ndim*sizeof(double));
@@ -140,6 +240,8 @@ public:
 	if (rrank < (nsend+nexch)) {
 	  // Receive information about incoming domain
 	  other_rank = (root + rrank - nsend) % size;
+	  MPI_Recv(&(dsplit), 1, MPI_UNSIGNED, other_rank, rank,
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	  MPI_Recv(&(left_idx), 1, MPI_UNSIGNED_LONG, other_rank, rank,
 		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	  MPI_Recv(&(npts), 1, MPI_UNSIGNED_LONG, other_rank, rank,
@@ -167,6 +269,7 @@ public:
 	  // Update local info
 	  available = 0;
 	  src = other_rank;
+	  split_src[dsplit] = other_rank;
 	  npts_orig = npts;
 	  tree->npts = npts;
 	  tree->left_idx = left_idx;
@@ -201,6 +304,8 @@ public:
 	  exch_ple[dsplit] = 0;
 	  npts_send = npts - split_idx - 1;
 	  left_idx_send = left_idx + split_idx + 1;
+	  MPI_Send(&dsplit, 1, MPI_UNSIGNED, other_rank, other_rank,
+		   MPI_COMM_WORLD);
 	  MPI_Send(&left_idx_send, 1, MPI_UNSIGNED_LONG, other_rank, other_rank,
 		   MPI_COMM_WORLD);
 	  MPI_Send(&npts_send, 1, MPI_UNSIGNED_LONG, other_rank, other_rank,
@@ -229,6 +334,7 @@ public:
 	  free(pts_send);
 	  // Update local info
 	  dsts.push_front(other_rank); // Smaller splits at front
+	  split_dsts[dsplit].push_front(other_rank);
 	  tree->domain_maxs[dsplit] = split_val;
 	  tree->domain_right_edge[dsplit] = split_val;
 	  tree->periodic_right[dsplit] = false;
@@ -266,6 +372,9 @@ public:
   }
 
   void consolidate_neighbors() {
+    // Receive nodes from child processes
+
+    // Send nodes to parent processes
 
   }
 

@@ -68,7 +68,7 @@ public:
     is_leaf = true;
     leafid = leafid0;
     ndim = ndim0;
-    split=0.0;
+    split = 0.0;
     split_dim = 0;
     left_idx = Lidx;
 
