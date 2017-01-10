@@ -30,6 +30,7 @@ if not RTDFLAG and not release and use_cython:
 
 cmdclass = { }
 ext_modules = [ ]
+src_include = [ ]
 
 ext_options = dict(language="c++",
                    include_dirs=[numpy.get_include()],
@@ -73,6 +74,10 @@ ext_modules += [
                        "cykdtree/c_parallel_kdtree.cpp",
                        "cykdtree/c_kdtree.cpp"],
               **ext_options)]
+src_include += [
+    "cykdtree/kdtree.pyx", "cykdtree/c_kdtree.hpp",
+    "cykdtree/utils.pyx", "cykdtree/c_utils.hpp"
+    "cykdtree/parallel_kdtree.pyx", "cykdtree/c_parallel_kdtree.hpp"]
 
 if use_cython:
     ext_modules = cythonize(ext_modules)
@@ -84,8 +89,8 @@ with open('README.rst') as file:
 setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
-      package_data = {'cykdtree': ['README.md', 'README.rst']},
-      version='0.1.3',
+      package_data = {'cykdtree': ['README.md', 'README.rst'] + src_include},
+      version='0.1.4',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
@@ -106,6 +111,7 @@ setup(name='cykdtree',
       license='BSD',
       zip_safe=False,
       cmdclass = cmdclass,
-      ext_modules = ext_modules)
+      ext_modules = ext_modules,
+      data_files = [('cykdtree', src_include)])
 
 
