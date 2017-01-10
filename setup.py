@@ -3,6 +3,7 @@ from distutils.core import setup
 from distutils.extension import Extension
 import numpy
 import os
+import copy
 
 # Set to false to enable tracking of Cython lines in profile
 release = True
@@ -119,7 +120,7 @@ setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst'] + src_include},
-      version='0.1.7',
+      version='0.1.8',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
