@@ -104,7 +104,6 @@ setup(name='cykdtree',
                    "Topic :: Scientific/Engineering :: Physics",
                    "Development Status :: 3 - Alpha"],
       license='BSD',
-      # package_data = {'':['*.pxd']},
       zip_safe=False,
       cmdclass = cmdclass,
       ext_modules = ext_modules)
