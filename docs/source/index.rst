@@ -22,6 +22,4 @@ Indices and tables
 * :ref:`search`
 
 .. todo::
-   * options for parallel construction
-   * create logo
-   * upload to PyPI
+   * complete parallel construction

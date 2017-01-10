@@ -2,9 +2,12 @@
 Code
 ####
 
-.. automodule:: cykdtree.PyKDTree
+.. automodule:: cykdtree
    :members:
 
-.. automodule:: cykdtree.PyNode
+.. autoclass:: cykdtree.PyKDTree
+   :members:
+
+.. autoclass:: cykdtree.PyNode
    :members:
 
