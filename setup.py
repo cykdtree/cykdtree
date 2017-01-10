@@ -117,10 +117,10 @@ with open('README.rst') as file:
     long_description = file.read()
 
 setup(name='cykdtree',
-      packages=['cykdtree'],
+      packages=['cykdtree', 'cykdtree.tests'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst'] + src_include},
-      version='0.1.8',
+      version='0.1.9',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
