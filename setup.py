@@ -74,15 +74,33 @@ else:
                   include_dirs=[numpy.get_include()]),
     ]
 
+with open('README.rst') as file:
+    long_description = file.read()
+
 setup(name='cykdtree',
+      packages=['cykdtree'],
+      package_dir={'cykdtree':'cykdtree'},
+      package_data = {'cykdtree': ['README.md', 'README.rst'],
       version='0.1',
       description='Cython based KD-Tree',
-      url='https://langmm@bitbucket.org/langmm/cykdtree',
+      long_description=long_description,
       author='Meagan Lang',
       author_email='langmm.astro@gmail.com',
+      url='https://langmm@bitbucket.org/langmm/cykdtree',
+      keywords=['domain decomposition', 'decomposition', 'kdtree'],
+      classifiers=["Programming Language :: Python",
+                   "Programming Language :: C++",
+                   "Operating System :: OS Independent",
+                   "Intended Audience :: Science/Research",
+                   "License :: OSI Approved :: BSD License",
+                   "Natural Language :: English",
+                   "Topic :: Scientific/Engineering",
+                   "Topic :: Scientific/Engineering :: Astronomy",
+                   "Topic :: Scientific/Engineering :: Mathematics",
+                   "Topic :: Scientific/Engineering :: Physics",
+                   "Development Status :: 3 - Alpha"],
       license='BSD',
-      packages=['cykdtree'],
-      package_data = {'':['*.pxd']},
+      # package_data = {'':['*.pxd']},
       zip_safe=False,
       cmdclass = cmdclass,
       ext_modules = ext_modules)
