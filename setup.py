@@ -29,6 +29,7 @@ ext_options = dict(language="c++",
 if not release and use_cython:
     ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
 
+ext_options_mpi = copy.deepcopy(ext_options)
 if RTDFLAG:
     ext_options['libraries'] = []
     ext_options['extra_link_args'] = []
@@ -38,7 +39,6 @@ else:
     # Check for existence of mpi
     compile_parallel = True
     try:
-        ext_options_mpi = copy.deepcopy(ext_options)
         # Attempt to call MPICH first, then OpenMPI
         try:
             mpi_compile_args = os.popen(
