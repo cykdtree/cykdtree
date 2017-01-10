@@ -48,40 +48,35 @@ def make_cpp(cpp_file):
         open(cpp_file,'a').close()
         assert(os.path.isfile(cpp_file))
 
+make_cpp("cykdtree/c_kdtree.cpp")
+make_cpp("cykdtree/c_utils.cpp")
+make_cpp("cykdtree/c_parallel_kdtree.cpp")
+
+ext_options = dict(language="c++",
+                   include_dirs=[numpy.get_include()],
+                   libraries=[],
+                   extra_link_args=[],
+                   extra_compile_args=["-std=gnu++11"])
+
+ext_modules += [
+    Extension("cykdtree/kdtree",
+              sources=["cykdtree/kdtree.pyx",
+                       "cykdtree/c_kdtree.cpp",
+                       "cykdtree/c_utils.cpp"],
+              **ext_options),
+    Extension("cykdtree/utils",
+              sources=["cykdtree/utils.pyx",
+                       "cykdtree/c_utils.cpp"],
+              **ext_options),
+    Extension("cykdtree/parallel_kdtree",
+              sources=["cykdtree/parallel_kdtree.pyx",
+                       "cykdtree/c_parallel_kdtree.cpp",
+                       "cykdtree/c_kdtree.cpp"],
+              **ext_options)]
+
 if use_cython:
-    make_cpp("cykdtree/c_kdtree.cpp")
-    make_cpp("cykdtree/c_utils.cpp")
-    make_cpp("cykdtree/c_parallel_kdtree.cpp")
-    ext_modules += cythonize(Extension("cykdtree/kdtree",
-                                       sources=["cykdtree/kdtree.pyx",
-                                                "cykdtree/c_kdtree.cpp",
-                                                "cykdtree/c_utils.cpp"],
-                                       language="c++",
-                                       include_dirs=[numpy.get_include()],
-                                       extra_compile_args=["-std=gnu++11"]))
-    ext_modules += cythonize(Extension("cykdtree/utils",
-                                       sources=["cykdtree/utils.pyx",
-                                                "cykdtree/c_utils.cpp"],
-                                       language="c++",
-                                       include_dirs=[numpy.get_include()],
-                                       extra_compile_args=["-std=gnu++11"]))
-    ext_modules += cythonize(Extension("cykdtree/parallel_kdtree",
-                                       sources=["cykdtree/parallel_kdtree.pyx",
-                                                "cykdtree/c_parallel_kdtree.cpp",
-                                                "cykdtree/c_kdtree.cpp"],
-                                       language="c++",
-                                       include_dirs=[numpy.get_include()],
-                                       extra_compile_args=["-std=gnu++11"]))
+    ext_modules = cythonize(ext_modules)
     cmdclass.update({ 'build_ext': build_ext })
-else:
-    ext_modules += [
-        Extension("cykdtree.kdtree", ["cykdtree/c_kdtree.cpp"],
-                  include_dirs=[numpy.get_include()]),
-        Extension("cykdtree.utils", ["cykdtree/c_utils.cpp"],
-                  include_dirs=[numpy.get_include()]),
-        Extension("cykdtree.parallel_kdtree", ["cykdtree/c_parallel_kdtree.cpp"],
-                  include_dirs=[numpy.get_include()]),
-    ]
 
 with open('README.rst') as file:
     long_description = file.read()
@@ -90,7 +85,7 @@ setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst']},
-      version='0.1.2',
+      version='0.1.3',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
