@@ -19,6 +19,12 @@ else:
 
 # Needed for line_profiler - disable for production code
 if not release:
+    try:
+        from Cython.Compiler.Options import directive_defaults
+    except ImportError:
+        # Update to cython
+        from Cython.Compiler.Options import get_directive_defaults
+        directive_defaults = get_directive_defaults()
     directive_defaults['profile'] = True
     directive_defaults['linetrace'] = True
     directive_defaults['binding'] = True
