@@ -4,10 +4,13 @@ from distutils.extension import Extension
 import numpy
 import os
 
+# Set to false to enable tracking of Cython lines in profile
 release = True
 
+# Check for ReadTheDocs flag
 RTDFLAG = bool(os.environ.get('READTHEDOCS', None) == 'True')
 
+# Check for Cython
 try:
     from Cython.Build import cythonize
     from Cython.Distutils import build_ext
@@ -15,6 +18,46 @@ except ImportError:
     use_cython = False
 else:
     use_cython = True
+
+ext_options = dict(language="c++",
+                   include_dirs=[numpy.get_include()],
+                   libraries=[],
+                   extra_link_args=[],
+                   extra_compile_args=["-std=gnu++11"])
+
+# CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
+if not release and use_cython:
+    ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
+
+if RTDFLAG:
+    ext_options['libraries'] = []
+    ext_options['extra_link_args'] = []
+    ext_options['extra_compile_args'].append('-DREADTHEDOCS')
+    compile_parallel = False
+else:
+    # Check for existence of mpi
+    compile_parallel = True
+    try:
+        ext_options_mpi = copy.deepcopy(ext_options)
+        # Attempt to call MPICH first, then OpenMPI
+        try:
+            mpi_compile_args = os.popen(
+                "mpic++ -compile_info").read().strip().split(' ')[1:]
+            mpi_link_args = os.popen(
+                "mpic++ -link_info").read().strip().split(' ')[1:]
+            if len(mpi_compile_args[0]) == 0:
+                raise Exception
+        except:
+            mpi_compile_args = os.popen(
+                "mpic++ --showme:compile").read().strip().split(' ')
+            mpi_link_args = os.popen(
+                "mpic++ --showme:link").read().strip().split(' ')
+            if len(mpi_compile_args[0]) == 0:
+                raise Exception
+        ext_options_mpi['extra_compile_args'] += mpi_compile_args
+        ext_options_mpi['extra_link_args'] += mpi_link_args
+    except:
+        compile_parallel = False
 
 # Needed for line_profiler - disable for production code
 if not RTDFLAG and not release and use_cython:
@@ -32,18 +75,6 @@ cmdclass = { }
 ext_modules = [ ]
 src_include = [ ]
 
-ext_options = dict(language="c++",
-                   include_dirs=[numpy.get_include()],
-                   extra_compile_args=["-std=c++11"])  # "-std=gnu++11")
-# CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
-if not release:
-    ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
-
-if RTDFLAG:
-    ext_options['libraries'] = []
-    ext_options['extra_link_args'] = []
-    ext_options['extra_compile_args'].append('-DREADTHEDOCS')
-
 def make_cpp(cpp_file):
     if not os.path.isfile(cpp_file):
         open(cpp_file,'a').close()
@@ -51,13 +82,8 @@ def make_cpp(cpp_file):
 
 make_cpp("cykdtree/c_kdtree.cpp")
 make_cpp("cykdtree/c_utils.cpp")
-make_cpp("cykdtree/c_parallel_kdtree.cpp")
-
-ext_options = dict(language="c++",
-                   include_dirs=[numpy.get_include()],
-                   libraries=[],
-                   extra_link_args=[],
-                   extra_compile_args=["-std=gnu++11"])
+if compile_parallel:
+    make_cpp("cykdtree/c_parallel_kdtree.cpp")
 
 ext_modules += [
     Extension("cykdtree/kdtree",
@@ -68,15 +94,18 @@ ext_modules += [
     Extension("cykdtree/utils",
               sources=["cykdtree/utils.pyx",
                        "cykdtree/c_utils.cpp"],
-              **ext_options),
-    Extension("cykdtree/parallel_kdtree",
-              sources=["cykdtree/parallel_kdtree.pyx",
-                       "cykdtree/c_parallel_kdtree.cpp",
-                       "cykdtree/c_kdtree.cpp"],
               **ext_options)]
+if compile_parallel:
+    ext_modules.append(
+        Extension("cykdtree/parallel_kdtree",
+                  sources=["cykdtree/parallel_kdtree.pyx",
+                           "cykdtree/c_parallel_kdtree.cpp",
+                           "cykdtree/c_kdtree.cpp"],
+                  **ext_options_mpi))
+
 src_include += [
     "cykdtree/kdtree.pyx", "cykdtree/c_kdtree.hpp",
-    "cykdtree/utils.pyx", "cykdtree/c_utils.hpp"
+    "cykdtree/utils.pyx", "cykdtree/c_utils.hpp",
     "cykdtree/parallel_kdtree.pyx", "cykdtree/c_parallel_kdtree.hpp"]
 
 if use_cython:
@@ -90,7 +119,7 @@ setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst'] + src_include},
-      version='0.1.4',
+      version='0.1.7',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
