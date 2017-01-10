@@ -1,0 +1,10 @@
+include *.md
+include *.png
+include *.svg
+include *.txt
+recursive-include cykdtree *.hpp
+recursive-include cykdtree *.pxd
+recursive-include cykdtree *.py
+recursive-include cykdtree *.pyx
+graft docs
+
