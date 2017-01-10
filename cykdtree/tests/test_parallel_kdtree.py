@@ -16,15 +16,15 @@ right_edge3 = np.ones(3, 'float64')
 rand_state = np.random.get_state()
 
 
-def test_PyParallelKDTree():
-    cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
-    cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
-    cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2,
-                              leafsize=leafsize, periodic=True)
-    cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3,
-                              leafsize=leafsize, periodic=True)
-    assert_raises(ValueError, cykdtree.PyParallelKDTree, pts2,
-                  left_edge2, right_edge2, leafsize=1)
+# def test_PyParallelKDTree():
+#     cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
+#     cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
+#     cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2,
+#                               leafsize=leafsize, periodic=True)
+#     cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3,
+#                               leafsize=leafsize, periodic=True)
+#     assert_raises(ValueError, cykdtree.PyParallelKDTree, pts2,
+#                   left_edge2, right_edge2, leafsize=1)
 
 
 # def test_search():
