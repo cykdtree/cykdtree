@@ -2,9 +2,6 @@
 Installation
 ############
 
-Installing |cykdtree|
-=====================
-
 ..todo:: Links to PyPI release
 
 |cykdtree| can be installed from either PyPI using ``pip``::
