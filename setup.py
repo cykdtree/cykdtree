@@ -6,6 +6,8 @@ from Cython.Compiler.Options import directive_defaults
 import numpy
 import os
 
+release = False
+
 RTDFLAG = bool(os.environ.get('READTHEDOCS', None) == 'True')
 
 try:
@@ -15,20 +17,22 @@ except ImportError:
 else:
     use_cython = True
 
-
 # Needed for line_profiler - disable for production code
-directive_defaults['profile'] = True
-directive_defaults['linetrace'] = True
-directive_defaults['binding'] = True
+if not release:
+    directive_defaults['profile'] = True
+    directive_defaults['linetrace'] = True
+    directive_defaults['binding'] = True
 
 cmdclass = { }
 ext_modules = [ ]
 
 ext_options = dict(language="c++",
                    include_dirs=[numpy.get_include()],
-                   extra_compile_args=["-std=c++11"],# "-std=gnu++11",
-                   # CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
-                   define_macros=[('CYTHON_TRACE', '1')])
+                   extra_compile_args=["-std=c++11"])  # "-std=gnu++11")
+# CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
+if not release:
+    ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
+
 if RTDFLAG:
     ext_options['libraries'] = []
     ext_options['extra_link_args'] = []
