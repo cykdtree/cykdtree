@@ -1,7 +1,6 @@
 from setuptools import setup
 from distutils.core import setup
 from distutils.extension import Extension
-from Cython.Build import cythonize
 import numpy
 import os
 
@@ -10,6 +9,7 @@ release = True
 RTDFLAG = bool(os.environ.get('READTHEDOCS', None) == 'True')
 
 try:
+    from Cython.Build import cythonize
     from Cython.Distutils import build_ext
 except ImportError:
     use_cython = False
@@ -17,7 +17,7 @@ else:
     use_cython = True
 
 # Needed for line_profiler - disable for production code
-if not release:
+if not RTDFLAG and not release and use_cython:
     try:
         from Cython.Compiler.Options import directive_defaults
     except ImportError:
@@ -90,7 +90,7 @@ setup(name='cykdtree',
       packages=['cykdtree'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst']},
-      version='0.1.1b',
+      version='0.1.2',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
