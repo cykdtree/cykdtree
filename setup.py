@@ -107,7 +107,8 @@ if compile_parallel:
 src_include += [
     "cykdtree/kdtree.pyx", "cykdtree/c_kdtree.hpp",
     "cykdtree/utils.pyx", "cykdtree/c_utils.hpp",
-    "cykdtree/parallel_kdtree.pyx", "cykdtree/c_parallel_kdtree.hpp"]
+    "cykdtree/parallel_kdtree.pyx", "cykdtree/c_parallel_kdtree.hpp",
+    "cykdtree/c_kdtree.cpp", "cykdtree/c_utils.cpp", "cykdtree/c_parallel_kdtree.cpp"]
 
 if use_cython:
     ext_modules = cythonize(ext_modules)
