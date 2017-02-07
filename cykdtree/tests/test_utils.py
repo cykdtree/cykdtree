@@ -108,7 +108,7 @@ def test_select():
     np.random.seed(10)
     # Even number
     N = 10
-    p = q = N/2
+    p = q = int(N/2)
     p -= 1
     pts = np.random.rand(N, 2).astype('float64')
     idx = utils.py_select(pts, d, p)
@@ -120,7 +120,7 @@ def test_select():
     assert((pts[idx[q:], d] > np.median(pts[:, d])).all())
     # Odd number
     N = 11
-    p = q = N/2
+    p = q = int(N/2)
     q += 1
     pts = np.random.rand(N, 2).astype('float64')
     idx = utils.py_select(pts, d, p)

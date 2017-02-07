@@ -1,4 +1,4 @@
-import test_utils
-import test_kdtree
+from cykdtree.tests import test_utils
+from cykdtree.tests import test_kdtree
 
 __all__ = ["test_utils", "test_kdtree"]

@@ -87,18 +87,18 @@ if compile_parallel:
     make_cpp("cykdtree/c_parallel_kdtree.cpp")
 
 ext_modules += [
-    Extension("cykdtree/kdtree",
+    Extension("cykdtree.kdtree",
               sources=["cykdtree/kdtree.pyx",
                        "cykdtree/c_kdtree.cpp",
                        "cykdtree/c_utils.cpp"],
               **ext_options),
-    Extension("cykdtree/utils",
+    Extension("cykdtree.utils",
               sources=["cykdtree/utils.pyx",
                        "cykdtree/c_utils.cpp"],
               **ext_options)]
 if compile_parallel:
     ext_modules.append(
-        Extension("cykdtree/parallel_kdtree",
+        Extension("cykdtree.parallel_kdtree",
                   sources=["cykdtree/parallel_kdtree.pyx",
                            "cykdtree/c_parallel_kdtree.cpp",
                            "cykdtree/c_kdtree.cpp"],
@@ -120,7 +120,7 @@ setup(name='cykdtree',
       packages=['cykdtree', 'cykdtree.tests'],
       package_dir={'cykdtree':'cykdtree'},
       package_data = {'cykdtree': ['README.md', 'README.rst'] + src_include},
-      version='0.1.9',
+      version='0.2,0',
       description='Cython based KD-Tree',
       long_description=long_description,
       author='Meagan Lang',
