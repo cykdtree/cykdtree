@@ -1,11 +1,11 @@
 package:
   name: cykdtree
-  version: "0.2.3"
+  version: "0.2.4"
 
 source:
-  fn: cykdtree-0.2.3.tar.gz
-  url: https://pypi.python.org/packages/4a/53/560e107859bdba0c096218b7a195982eb6571f8e7f833a5229a8e11ea51d/cykdtree-0.2.3.tar.gz
-  md5: 559aa41f11220873f6be48a1e2a7e3c0
+  fn: cykdtree-0.2.4.tar.gz
+  url: https://pypi.python.org/packages/95/b4/d607852a54695537241406ab93a8ea7607c21e3aec7309921b786e8b7fc3/cykdtree-0.2.4.tar.gz
+  md5: abbc05f5a05b378593b4b6f8024cf611
 #  patches:
    # List any patch files here
    # - fix.patch
