@@ -1,0 +1,76 @@
+package:
+  name: cykdtree
+  version: "0.2.2"
+
+source:
+  fn: cykdtree-0.2.2.tar.gz
+  url: https://pypi.python.org/packages/cd/c1/d7230a47fc43ac5c9151f42443cf64912fe446425ec005b8da6a02274114/cykdtree-0.2.2.tar.gz
+  md5: 3cfd6b0ee06d0d24e433385268533033
+#  patches:
+   # List any patch files here
+   # - fix.patch
+
+# build:
+  script:
+    - flake8 . -v --config=.flake8rc
+    - nosetests --verbose
+    - python setup.py install
+  # noarch_python: True
+  # preserve_egg_dir: True
+  # entry_points:
+    # Put any entry points (scripts to be generated automatically) here. The
+    # syntax is module:function.  For example
+    #
+    # - cykdtree = cykdtree:main
+    #
+    # Would create an entry point called cykdtree that calls cykdtree.main()
+
+
+  # If this is a new build for the same version, increment the build
+  # number. If you do not include this key, it defaults to 0.
+  # number: 1
+
+requirements:
+  build:
+    - python
+    - setuptools
+    - nose
+    - flake8
+    - cython
+    - numpy
+
+  run:
+    - python
+    - cython
+    - numpy
+    - scipy
+    - matplotlib
+    - nose
+    - mpi4py
+
+test:
+  # Python imports
+  imports:
+    - cykdtree
+    - cykdtree.tests
+
+  # commands:
+    # You can put test commands to be run here.  Use this to test that the
+    # entry points work.
+
+  # You can also put a file called run_test.py in the recipe that will be run
+  # at test time.
+
+  # requires:
+    # Put any additional test requirements here.  For example
+    - nose
+
+about:
+  home: https://langmm@bitbucket.org/langmm/cykdtree
+  license: BSD License
+  summary: 'Cython based KD-Tree'
+  license_family: BSD
+
+# See
+# http://docs.continuum.io/conda/build.html for
+# more information about meta.yaml
