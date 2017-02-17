@@ -12,7 +12,9 @@ public:
   int root;
   int rrank;
   int src = -1;
+  int src_split = -1;
   std::vector<int> dsts;
+  std::vector<int> splits;
   std::vector<int> split_src;
   std::vector<std::vector<int>> split_dsts;
   uint32_t ndim;
@@ -94,7 +96,7 @@ public:
 		      include_self, false);
     partition();
     build();
-    consolidate();
+    consolidate(include_self);
   }
   ~ParallelKDTree() {
     delete(tree);
@@ -130,11 +132,18 @@ public:
     for (j = 0; j < ndim; j++)
       pe[j] = (int)(node->periodic_right[j]);
     MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
+    for (j = 0; j < ndim; j++) {
+      if (node->left_nodes[j] == NULL)
+	pe[j] = 0;
+      else 
+	pe[j] = 1;
+    }
+    MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
     MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
     free(pe);
   }
 
-  Node* recv_node(int src, uint32_t dim) {
+  Node* recv_node(int src) {
     int i = 0;
     uint32_t j;
     uint32_t leafid;
@@ -146,7 +155,6 @@ public:
     std::vector<Node*> left_nodes;
     for (j = 0; j < ndim; j++)
       left_nodes.push_back(NULL);
-    left_nodes[dim] = tree->root;
     MPI_Recv(le, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(re, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -155,6 +163,11 @@ public:
     MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (j = 0; j < ndim; j++)
       pre[j] = (bool)(pe[j]);
+    MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    for (j = 0; j < ndim; j++) {
+      if (pe[j] == 1)
+	left_nodes[j] = new Node(); // empty place holder
+    }
     MPI_Recv(&leafid, 1, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
 	     MPI_STATUS_IGNORE);
     Node *node = new Node(ndim, le, re, ple, pre, 0, 0, leafid, left_nodes);
@@ -269,6 +282,7 @@ public:
 	  // Update local info
 	  available = 0;
 	  src = other_rank;
+	  src_split = dsplit;
 	  split_src[dsplit] = other_rank;
 	  npts_orig = npts;
 	  tree->npts = npts;
@@ -334,6 +348,7 @@ public:
 	  free(pts_send);
 	  // Update local info
 	  dsts.insert(dsts.begin(), other_rank); // Smaller splits at front
+	  splits.insert(splits.begin(), dsplit);
 	  split_dsts[dsplit].insert(split_dsts[dsplit].begin(), other_rank);
 	  // dsts.push_front(other_rank); // Smaller splits at front
 	  // split_dsts[dsplit].push_front(other_rank);
@@ -362,22 +377,75 @@ public:
   }
 
   void build(bool include_self = false) {
+    // Build, don't include self in all neighbors for now
     tree->build_tree(include_self);
     leaves = tree->leaves;
   }
 
-  void consolidate() {
+  void consolidate(bool include_self) {
     consolidate_leaves();
     consolidate_idx();
-    consolidate_neighbors();
+    consolidate_neighbors(include_self);
     leaves = tree->leaves;
   }
 
-  void consolidate_neighbors() {
+  void consolidate_neighbors(bool include_self) {
+    Node *node;
+    std::vector<Node*>::iterator it;
+    std::vector<Node*> leaves_send;
+    std::vector<Node*> leaves_recv;
+    std::vector<int>::iterator dst;
+    std::vector<uint64_t> dst_nrecv;
+    uint64_t i;
+    uint64_t nrecv, j;
     // Receive nodes from child processes
-
+    for (i = 0; i < dsts.size(); ++i) {
+      MPI_Recv(&nrecv, 1, MPI_UNSIGNED_LONG, dsts[i], rank,
+               MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      dst_nrecv.push_back(nrecv);
+      for (j = 0; j < nrecv; j++) {
+	node = recv_node(dsts[i]);
+	node->left_nodes[splits[i]] = tree->root;
+	node->add_neighbors(tree->root, splits[i]);
+	leaves_recv.push_back(node);
+      }
+    }
     // Send nodes to parent processes
-
+    if (src >= 0) {
+      // Local leaves
+      for (it = tree->leaves.begin();
+	   it != tree->leaves.end(); ++it) {
+	if ((*it)->left_nodes[src_split] == NULL)
+	  leaves_send.push_back(*it);
+      }
+      // Child leaves
+      for (it = leaves_recv.begin();
+	   it != leaves_recv.end(); ++it) {
+	if ((*it)->left_nodes[src_split] == NULL)
+	  leaves_send.push_back(*it);
+      }
+      for (it = leaves_send.begin();
+	   it != leaves_send.end(); ++it) {
+	send_node(src, *it);
+      } 
+    }
+    // Recieve neighbors from parent process
+    if (src >= 0) {
+      for (it = leaves_send.begin();
+	   it != leaves_send.end(); ++it) {
+	recv_node_neighbors(src, *it);
+      } 
+    }
+    // Send neighbors to child processes
+    uint64_t c = 0;
+    for (i = 0; i < dsts.size(); ++i) {
+      for (j = 0; j < dst_nrecv[i]; ++j) {
+	send_node_neighbors(dsts[i], leaves_recv[c]);
+      }
+    }
+    // TODO: handle periodic neighbors
+    // Finalize neighbors
+    tree->finalize_neighbors(include_self);
   }
 
   void consolidate_idx() {

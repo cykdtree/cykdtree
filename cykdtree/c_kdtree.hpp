@@ -11,6 +11,7 @@
 class Node
 {
 public:
+  bool is_empty;
   bool is_leaf;
   uint32_t leafid;
   uint32_t ndim;
@@ -29,11 +30,16 @@ public:
   double split;
   Node *less;
   Node *greater;
+  // empty node constructor
+  Node() {
+    is_empty = true;
+  }
   // innernode constructor
   Node(uint32_t ndim0, double *le, double *re, bool *ple, bool *pre,
        uint64_t Lidx, uint32_t sdim0, double split0, Node *lnode, Node *gnode,
        std::vector<Node*> left_nodes0)
   {
+    is_empty = false;
     is_leaf = false;
     leafid = 4294967295;
     ndim = ndim0;
@@ -65,6 +71,7 @@ public:
        uint64_t Lidx, uint64_t n, int leafid0,
        std::vector<Node*> left_nodes0)
   {
+    is_empty = false;
     is_leaf = true;
     leafid = leafid0;
     ndim = ndim0;
@@ -90,7 +97,7 @@ public:
     right_neighbors = std::vector<std::vector<uint32_t>>(ndim);
 
     for (uint32_t d = 0; d < ndim; d++) {
-      if (left_nodes[d] != NULL)
+      if ((left_nodes[d] != NULL) && (!(left_nodes[d]->is_empty)))
     	add_neighbors(left_nodes[d], d);
     }
   }
@@ -353,6 +360,14 @@ public:
     free(mins);
     free(maxs);
 
+    // Finalize neighbors
+    finalize_neighbors(include_self);
+
+  }
+
+  void finalize_neighbors(bool include_self = true) {
+    uint32_t d;
+
     // Add periodic neighbors
     if (any_periodic)
       set_neighbors_periodic();
@@ -362,7 +377,6 @@ public:
       leaves[d]->select_unique_neighbors();
       leaves[d]->join_neighbors(include_self);
     }
-
   }
 
   void set_neighbors_periodic() 
