@@ -501,6 +501,7 @@ public:
       printf("%d: waiting for parent (%d)\n", rank, src);
       MPI_Recv(&total_count, 1, MPI_UNSIGNED, src, rank,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      printf("%d: recieved from parent (%d)\n", rank, src);
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
 	(*it)->update_ids(total_count);
