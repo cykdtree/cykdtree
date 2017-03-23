@@ -110,21 +110,15 @@ public:
 
   void update_ids(uint32_t add_to) {
     leafid += add_to;
-    std::vector<uint32_t>::iterator it;
+    uint32_t i;
     for (uint32_t d = 0; d < ndim; d++) {
-      for (it = left_neighbors[d].begin();
-	   it != left_neighbors[d].end(); ++it)
-	it += add_to;
-	// it->leafid += add_to;
-      for (it = right_neighbors[d].begin();
-	   it != right_neighbors[d].end(); ++it)
-	it += add_to;
-	// it->leafid += add_to;
+      for (i = 0; i < left_neighbors[d].size(); i++)
+	left_neighbors[d][i] += add_to;
+      for (i = 0; i < right_neighbors[d].size(); i++)
+	right_neighbors[d][i] += add_to;
     }
-    for (it = all_neighbors.begin();
-	 it != all_neighbors.end(); ++it)
-      it += add_to;
-      // it->leafid += add_to;
+    for (i = 0; i < all_neighbors.size(); i++)
+      all_neighbors[i] += add_to;
   }
 
   void add_neighbors(Node* curr, uint32_t dim) {

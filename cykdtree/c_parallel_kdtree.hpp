@@ -92,19 +92,14 @@ public:
     MPI_Bcast(domain_left_edge, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
     MPI_Bcast(domain_right_edge, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
     MPI_Bcast(domain_width, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
-    printf("%d: after domain\n", rank);
     // Create trees and partition
     tree = new KDTree(all_pts, all_idx, npts, ndim, leafsize, 0,
 		      domain_left_edge, domain_right_edge,
 		      periodic_left, periodic_right,
 		      include_self, true);
-    printf("%d: after init\n", rank);
     partition();
-    printf("%d: after partition\n", rank);
     build();
-    printf("%d: after build\n", rank);
     consolidate(include_self);
-    printf("%d: after consolidate\n", rank);
   }
   ~ParallelKDTree() {
     delete(tree);
@@ -392,11 +387,8 @@ public:
 
   void consolidate(bool include_self) {
     consolidate_leaves();
-    printf("%d: consolidated leaves\n", rank);
     consolidate_idx();
-    printf("%d: consolidated idx\n", rank);
     consolidate_neighbors(include_self);
-    printf("%d: consolidated neighbors\n", rank);
     leaves = tree->leaves;
   }
 
@@ -406,15 +398,15 @@ public:
     std::vector<Node*> leaves_send;
     std::vector<Node*> leaves_recv;
     std::vector<int>::iterator dst;
-    std::vector<uint64_t> dst_nrecv;
+    std::vector<uint64_t> dst_nexch;
     uint64_t i;
-    uint64_t nrecv, j;
+    uint64_t nexch, j;
     // Receive nodes from child processes
     for (i = 0; i < dsts.size(); ++i) {
-      MPI_Recv(&nrecv, 1, MPI_UNSIGNED_LONG, dsts[i], rank,
+      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, dsts[i], rank,
                MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      dst_nrecv.push_back(nrecv);
-      for (j = 0; j < nrecv; j++) {
+      dst_nexch.push_back(nexch);
+      for (j = 0; j < nexch; j++) {
 	node = recv_node(dsts[i]);
 	node->left_nodes[splits[i]] = tree->root;
 	node->add_neighbors(tree->root, splits[i]);
@@ -435,6 +427,8 @@ public:
 	if ((*it)->left_nodes[src_split] == NULL)
 	  leaves_send.push_back(*it);
       }
+      nexch = (uint64_t)(leaves_send.size());
+      MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, src, src, MPI_COMM_WORLD);
       for (it = leaves_send.begin();
 	   it != leaves_send.end(); ++it) {
 	send_node(src, *it);
@@ -450,7 +444,7 @@ public:
     // Send neighbors to child processes
     uint64_t c = 0;
     for (i = 0; i < dsts.size(); ++i) {
-      for (j = 0; j < dst_nrecv[i]; ++j) {
+      for (j = 0; j < dst_nexch[i]; ++j, ++c) {
 	send_node_neighbors(dsts[i], leaves_recv[c]);
       }
     }
@@ -498,10 +492,8 @@ public:
     std::vector<int>::iterator dst;
     // Wait for max leafid from parent process and update local ids
     if (src != rank) {
-      printf("%d: waiting for parent (%d)\n", rank, src);
       MPI_Recv(&total_count, 1, MPI_UNSIGNED, src, rank,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      printf("%d: recieved from parent (%d)\n", rank, src);
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
 	(*it)->update_ids(total_count);
@@ -512,11 +504,11 @@ public:
     // Send max leaf id on this process to child processes updating
     // count along the way
     leaf2rank = (int*)malloc(local_count*sizeof(int));
+    for (i = 0; i < local_count; i++)
+      leaf2rank[i] = rank;
     for (dst = dsts.begin(); dst != dsts.end(); ++dst) {
-      printf("%d: sending to child (%d)\n", rank, *dst);
       MPI_Send(&total_count, 1, MPI_UNSIGNED, *dst, *dst,
 	       MPI_COMM_WORLD);
-      printf("%d: waiting for child (%d)\n", rank, *dst);
       MPI_Recv(&child_count, 1, MPI_UNSIGNED, *dst, *dst,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       leaf2rank = (int*)realloc(leaf2rank, (local_count+child_count)*sizeof(int));
@@ -527,7 +519,6 @@ public:
     }
     // Send final count back to source
     if (src != rank) {
-      printf("%d: sending to parent (%d)\n", rank, src);
       MPI_Send(&local_count, 1, MPI_UNSIGNED, src, rank, MPI_COMM_WORLD);
       MPI_Send(leaf2rank, local_count, MPI_INT, src, rank, MPI_COMM_WORLD);
     }

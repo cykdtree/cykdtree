@@ -28,6 +28,8 @@ cdef class PyParallelKDTree:
         cdef object comm = MPI.COMM_WORLD
         self.size = comm.Get_size()
         self.rank = comm.Get_rank()
+        self.ndim = 0
+        self.npts = 0
         cdef np.uint32_t ndim = 0
         cdef np.uint64_t npts = 0
         cdef double *ptr_pts = NULL
@@ -91,6 +93,14 @@ cdef class PyParallelKDTree:
         if self.rank == 0:
             free(self._periodic)
         free(self._tree)
+
+    cdef void _make_tree(self, double *pts):
+        cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
+        with nogil, cython.boundscheck(False), cython.wraparound(False):
+            self._tree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
+                                            self.leafsize, self._left_edge,
+                                            self._right_edge, self._periodic)
+        self.idx = idx
 
     def build(self, pybool include_self = False):
         cdef cbool c_is = <cbool>include_self

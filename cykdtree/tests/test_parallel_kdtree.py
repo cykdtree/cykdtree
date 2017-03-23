@@ -36,31 +36,27 @@ def test_PyParallelKDTree():
     rank = comm.Get_rank()
     pts2, left_edge2, right_edge2, leafsize = init_input(2)
     pts3, left_edge3, right_edge3, leafsize = init_input(3)
-    c = 0
-    print(rank, 'init')
     cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
-    print(rank, c)
-    c+=1
     cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
-    print(rank, c)
-    c+=1
     cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2,
                               leafsize=leafsize, periodic=True)
-    print(rank, c)
-    c+=1
     cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3,
                               leafsize=leafsize, periodic=True)
-    print(rank, c)
-    c+=1
     if rank == 0:
         assert_raises(ValueError, cykdtree.PyParallelKDTree, pts2,
                       left_edge2, right_edge2, leafsize=1)
     else:
         assert_raises(Exception, cykdtree.PyParallelKDTree, pts2,
                       left_edge2, right_edge2, leafsize=1)
-    print(rank, c)
-    c+=1
-        
+
+def test_PyParallelKDTree_ans():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    pts2, left_edge2, right_edge2, leafsize = init_input(2)
+    pts3, left_edge3, right_edge3, leafsize = init_input(3)
+    cykdtree.PyParallelKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
+    cykdtree.PyParallelKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)
+    
 
 
 # def test_search():
