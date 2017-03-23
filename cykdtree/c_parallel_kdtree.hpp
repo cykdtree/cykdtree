@@ -57,13 +57,14 @@ public:
       ndim = m;
       npts = n;
     } else {
-      MPI_Recv(&root, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&root, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
     }
     // Get information about global process
     rrank = (rank - root + size) % size;
     MPI_Bcast(&ndim, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     MPI_Bcast(&leafsize, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
-    // Basic init
+    // Domain information
     split_src = std::vector<int>(ndim);
     split_dsts = std::vector<std::vector<int>>(ndim);
     domain_left_edge = (double*)malloc(ndim*sizeof(double));
@@ -88,15 +89,22 @@ public:
 	periodic_right[d] = false;
       }
     }
+    MPI_Bcast(domain_left_edge, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
+    MPI_Bcast(domain_right_edge, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
     MPI_Bcast(domain_width, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
+    printf("%d: after domain\n", rank);
     // Create trees and partition
     tree = new KDTree(all_pts, all_idx, npts, ndim, leafsize, 0,
 		      domain_left_edge, domain_right_edge,
 		      periodic_left, periodic_right,
-		      include_self, false);
+		      include_self, true);
+    printf("%d: after init\n", rank);
     partition();
+    printf("%d: after partition\n", rank);
     build();
+    printf("%d: after build\n", rank);
     consolidate(include_self);
+    printf("%d: after consolidate\n", rank);
   }
   ~ParallelKDTree() {
     delete(tree);
@@ -120,30 +128,30 @@ public:
       free(leaves_re);
   }
 
-  void send_node(int dst, Node *node) {
+  void send_node(int dp, Node *node) {
     int i = 0;
     uint32_t j;
     int *pe = (int*)malloc(ndim*sizeof(int));
-    MPI_Send(node->left_edge, ndim, MPI_DOUBLE, dst, i++, MPI_COMM_WORLD);
-    MPI_Send(node->right_edge, ndim, MPI_DOUBLE, dst, i++, MPI_COMM_WORLD);
+    MPI_Send(node->left_edge, ndim, MPI_DOUBLE, dp, i++, MPI_COMM_WORLD);
+    MPI_Send(node->right_edge, ndim, MPI_DOUBLE, dp, i++, MPI_COMM_WORLD);
     for (j = 0; j < ndim; j++)
       pe[j] = (int)(node->periodic_left[j]);
-    MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
+    MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
     for (j = 0; j < ndim; j++)
       pe[j] = (int)(node->periodic_right[j]);
-    MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
+    MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
     for (j = 0; j < ndim; j++) {
       if (node->left_nodes[j] == NULL)
 	pe[j] = 0;
       else 
 	pe[j] = 1;
     }
-    MPI_Send(pe, ndim, MPI_INT, dst, i++, MPI_COMM_WORLD);
-    MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
+    MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
+    MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
     free(pe);
   }
 
-  Node* recv_node(int src) {
+  Node* recv_node(int sp) {
     int i = 0;
     uint32_t j;
     uint32_t leafid;
@@ -155,20 +163,20 @@ public:
     std::vector<Node*> left_nodes;
     for (j = 0; j < ndim; j++)
       left_nodes.push_back(NULL);
-    MPI_Recv(le, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(re, ndim, MPI_DOUBLE, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(le, ndim, MPI_DOUBLE, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(re, ndim, MPI_DOUBLE, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (j = 0; j < ndim; j++)
       ple[j] = (bool)(pe[j]);
-    MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (j = 0; j < ndim; j++)
       pre[j] = (bool)(pe[j]);
-    MPI_Recv(pe, ndim, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (j = 0; j < ndim; j++) {
       if (pe[j] == 1)
 	left_nodes[j] = new Node(); // empty place holder
     }
-    MPI_Recv(&leafid, 1, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
+    MPI_Recv(&leafid, 1, MPI_UNSIGNED, sp, i++, MPI_COMM_WORLD,
 	     MPI_STATUS_IGNORE);
     Node *node = new Node(ndim, le, re, ple, pre, 0, 0, leafid, left_nodes);
     free(pe);
@@ -179,7 +187,7 @@ public:
     return node;
   }
 
-  void send_node_neighbors(int dst, Node *node) {
+  void send_node_neighbors(int dp, Node *node) {
     uint32_t d;
     int i = 0, j, s;
     uint32_t *ids = NULL;
@@ -189,36 +197,36 @@ public:
       ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
       for (j = 0; j < s; j++)
 	ids[j] = node->left_neighbors[d][j];
-      MPI_Send(&s, 1, MPI_INT, dst, i++, MPI_COMM_WORLD);
-      MPI_Send(ids, s, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
+      MPI_Send(&s, 1, MPI_INT, dp, i++, MPI_COMM_WORLD);
+      MPI_Send(ids, s, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
       // right
       s = (int)(node->right_neighbors[d].size());
       ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
       for (j = 0; j < s; j++)
 	ids[j] = node->right_neighbors[d][j];
-      MPI_Send(&s, 1, MPI_INT, dst, i++, MPI_COMM_WORLD);
-      MPI_Send(ids, s, MPI_UNSIGNED, dst, i++, MPI_COMM_WORLD);
+      MPI_Send(&s, 1, MPI_INT, dp, i++, MPI_COMM_WORLD);
+      MPI_Send(ids, s, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
     }
     if (ids != NULL)
       free(ids);
   }
 
-  void recv_node_neighbors(int src, Node *node) {
+  void recv_node_neighbors(int sp, Node *node) {
     uint32_t d;
     int i = 0, j, s;
     uint32_t *ids = NULL;
     for (d = 0; d < ndim; d++) {
       // left
-      MPI_Recv(&s, 1, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&s, 1, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
-      MPI_Recv(ids, s, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
+      MPI_Recv(ids, s, MPI_UNSIGNED, sp, i++, MPI_COMM_WORLD,
 	       MPI_STATUS_IGNORE);
       for (j = 0; j < s; j++)
 	node->left_neighbors[d].push_back(ids[j]);
       // right
-      MPI_Recv(&s, 1, MPI_INT, src, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&s, 1, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       ids = (uint32_t*)realloc(ids, s*sizeof(uint32_t));
-      MPI_Recv(ids, s, MPI_UNSIGNED, src, i++, MPI_COMM_WORLD,
+      MPI_Recv(ids, s, MPI_UNSIGNED, sp, i++, MPI_COMM_WORLD,
 	       MPI_STATUS_IGNORE);
       for (j = 0; j < s; j++)
 	node->right_neighbors[d].push_back(ids[j]);
@@ -384,8 +392,11 @@ public:
 
   void consolidate(bool include_self) {
     consolidate_leaves();
+    printf("%d: consolidated leaves\n", rank);
     consolidate_idx();
+    printf("%d: consolidated idx\n", rank);
     consolidate_neighbors(include_self);
+    printf("%d: consolidated neighbors\n", rank);
     leaves = tree->leaves;
   }
 
@@ -411,7 +422,7 @@ public:
       }
     }
     // Send nodes to parent processes
-    if (src >= 0) {
+    if (src != rank) {
       // Local leaves
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
@@ -430,7 +441,7 @@ public:
       } 
     }
     // Recieve neighbors from parent process
-    if (src >= 0) {
+    if (src != rank) {
       for (it = leaves_send.begin();
 	   it != leaves_send.end(); ++it) {
 	recv_node_neighbors(src, *it);
@@ -469,7 +480,7 @@ public:
       free(idx_exch);
     }
     // Send ids to parent process
-    if (src >= 0) {
+    if (src != rank) {
       MPI_Send(&left_idx, 1, MPI_UNSIGNED_LONG, src, src,
 	       MPI_COMM_WORLD);
       MPI_Send(&npts_orig, 1, MPI_UNSIGNED_LONG, src, src,
@@ -486,7 +497,8 @@ public:
     std::vector<Node*>::iterator it;
     std::vector<int>::iterator dst;
     // Wait for max leafid from parent process and update local ids
-    if (src >= 0) {
+    if (src != rank) {
+      printf("%d: waiting for parent (%d)\n", rank, src);
       MPI_Recv(&total_count, 1, MPI_UNSIGNED, src, rank,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       for (it = tree->leaves.begin();
@@ -500,8 +512,10 @@ public:
     // count along the way
     leaf2rank = (int*)malloc(local_count*sizeof(int));
     for (dst = dsts.begin(); dst != dsts.end(); ++dst) {
+      printf("%d: sending to child (%d)\n", rank, *dst);
       MPI_Send(&total_count, 1, MPI_UNSIGNED, *dst, *dst,
 	       MPI_COMM_WORLD);
+      printf("%d: waiting for child (%d)\n", rank, *dst);
       MPI_Recv(&child_count, 1, MPI_UNSIGNED, *dst, *dst,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       leaf2rank = (int*)realloc(leaf2rank, (local_count+child_count)*sizeof(int));
@@ -511,7 +525,8 @@ public:
       total_count += child_count;
     }
     // Send final count back to source
-    if (src >= 0) {
+    if (src != rank) {
+      printf("%d: sending to parent (%d)\n", rank, src);
       MPI_Send(&local_count, 1, MPI_UNSIGNED, src, rank, MPI_COMM_WORLD);
       MPI_Send(leaf2rank, local_count, MPI_INT, src, rank, MPI_COMM_WORLD);
     }

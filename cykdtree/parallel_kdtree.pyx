@@ -1,6 +1,7 @@
 import cython
 import numpy as np
 cimport numpy as np
+import traceback
 from mpi4py import MPI
 
 from libc.stdlib cimport malloc, free
@@ -34,34 +35,50 @@ cdef class PyParallelKDTree:
         cdef double *ptr_re = NULL
         cdef cbool *ptr_periodic = NULL
         cdef uint32_t i
-        if self.rank == 0:
-            ndim = pts.shape[1]
-            npts = pts.shape[0]
-            ptr_pts = &pts[0,0]
-            if nleaves > 0:
-                nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
-                leafsize = npts/nleaves + 1
-            if (leafsize < 2):
-                # This is here to prevent segfault. The cpp code needs modified
-                # to support leafsize = 1
-                raise ValueError("'leafsize' cannot be smaller than 2.")
-            if left_edge is None:
-                left_edge = np.min(pts, axis=0)
-            if right_edge is None:
-                right_edge = np.max(pts, axis=0)
-            assert(left_edge.size == ndim)
-            assert(right_edge.size == ndim)
-            ptr_le = &left_edge[0]
-            ptr_re = &right_edge[0]
-            ptr_periodic = <cbool *>malloc(ndim*sizeof(cbool));
-            if isinstance(periodic, pybool):
-                for i in range(ndim):
-                    ptr_periodic[i] = <cbool>periodic
+        cdef object error = None
+        cdef object error_flags = None
+        cdef int error_flag = 0
+        try:
+            if self.rank == 0:
+                ndim = pts.shape[1]
+                npts = pts.shape[0]
+                ptr_pts = &pts[0,0]
+                if nleaves > 0:
+                    nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
+                    leafsize = npts/nleaves + 1
+                if (leafsize < 2):
+                    # This is here to prevent segfault. The cpp code needs modified
+                    # to support leafsize = 1
+                    raise ValueError("Process %d: 'leafsize' cannot be smaller than 2." %
+                                     self.rank)
+                if left_edge is None:
+                    left_edge = np.min(pts, axis=0)
+                if right_edge is None:
+                    right_edge = np.max(pts, axis=0)
+                assert(left_edge.size == ndim)
+                assert(right_edge.size == ndim)
+                ptr_le = &left_edge[0]
+                ptr_re = &right_edge[0]
+                ptr_periodic = <cbool *>malloc(ndim*sizeof(cbool));
+                if isinstance(periodic, pybool):
+                    for i in range(ndim):
+                        ptr_periodic[i] = <cbool>periodic
+                else:
+                    for i in range(ndim):
+                        ptr_periodic[i] = <cbool>periodic[i]
             else:
-                for i in range(ndim):
-                    ptr_periodic[i] = <cbool>periodic[i]
-        else:
-            assert(pts == None)
+                assert(pts is None)
+        except Exception as error:
+            error_flag = 1
+        # Handle errors
+        error_flags = comm.allgather(error_flag)
+        if sum(error_flags) > 0:
+            if error_flag:
+                raise error
+                # traceback.print_exception(type(error), error, error.__traceback__)
+            raise Exception("Process %d: There were errors on %d processes." % 
+                            (self.rank, sum(error_flags)))
+        # Create c object
         cdef np.ndarray[np.uint64_t] idx = np.arange(npts).astype('uint64')
         with nogil, cython.boundscheck(False), cython.wraparound(False):
             self._tree = new ParallelKDTree(ptr_pts, &idx[0], npts, ndim,

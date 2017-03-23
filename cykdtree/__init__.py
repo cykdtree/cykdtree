@@ -1,4 +1,5 @@
 from cykdtree.kdtree import PyKDTree, PyNode
+from cykdtree.parallel_kdtree import PyParallelKDTree
 from cykdtree import tests
 import nose
 import sys
@@ -34,4 +35,5 @@ def run_nose(verbose=False):
 
 
 
-__all__ = ["PyKDTree", "PyNode", "tests", "run_nose"]
+__all__ = ["PyKDTree", "PyNode", "tests", "run_nose",
+           "PyParallelKDTree"]

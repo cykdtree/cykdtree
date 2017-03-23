@@ -16,7 +16,7 @@ double* max_pts(double *pts, uint64_t n, uint32_t m)
 {
   double* max = (double*)malloc(m*sizeof(double));
   uint32_t d;
-  for (d = 0; d < m; d++) max[d] = pts[d];
+  for (d = 0; d < m; d++) max[d] = -DBL_MAX; // pts[d];
   for (uint64_t i = 0; i < n; i++) {
     for (d = 0; d < m; d++) {
       if (pts[m*i + d] > max[d])
@@ -30,7 +30,7 @@ double* min_pts(double *pts, uint64_t n, uint32_t m)
 {
   double* min = (double*)malloc(m*sizeof(double));
   uint32_t d;
-  for (d = 0; d < m; d++) min[d] = pts[d];
+  for (d = 0; d < m; d++) min[d] = DBL_MAX; // pts[d];
   for (uint64_t i = 0; i < n; i++) {
     for (d = 0; d < m; d++) {
       if (pts[m*i + d] < min[d])
