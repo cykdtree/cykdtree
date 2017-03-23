@@ -14,11 +14,6 @@ cdef class PyParallelKDTree:
     r"""Object for constructing a KDTree in parallel.
 
     """
-    cdef int rank
-    cdef int size
-    cdef cbool *_periodic
-    cdef ParallelKDTree *_tree
-    cdef object _idx
 
     def __cinit__(self, np.ndarray[double, ndim=2] pts = None,
                   np.ndarray[double, ndim=1] left_edge = None,
@@ -30,25 +25,22 @@ cdef class PyParallelKDTree:
         self.rank = comm.Get_rank()
         self.ndim = 0
         self.npts = 0
-        cdef np.uint32_t ndim = 0
-        cdef np.uint64_t npts = 0
-        cdef double *ptr_pts = NULL
-        cdef double *ptr_le = NULL
-        cdef double *ptr_re = NULL
-        cdef cbool *ptr_periodic = NULL
+        self.leafsize = leafsize
+        self._left_edge = NULL
+        self._right_edge = NULL
+        self._periodic = NULL
         cdef uint32_t i
         cdef object error = None
         cdef object error_flags = None
         cdef int error_flag = 0
         try:
             if self.rank == 0:
-                ndim = pts.shape[1]
-                npts = pts.shape[0]
-                ptr_pts = &pts[0,0]
+                self.ndim = pts.shape[1]
+                self.npts = pts.shape[0]
                 if nleaves > 0:
                     nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
-                    leafsize = npts/nleaves + 1
-                if (leafsize < 2):
+                    self.leafsize = self.npts/nleaves + 1
+                if (self.leafsize < 2):
                     # This is here to prevent segfault. The cpp code needs modified
                     # to support leafsize = 1
                     raise ValueError("Process %d: 'leafsize' cannot be smaller than 2." %
@@ -57,17 +49,20 @@ cdef class PyParallelKDTree:
                     left_edge = np.min(pts, axis=0)
                 if right_edge is None:
                     right_edge = np.max(pts, axis=0)
-                assert(left_edge.size == ndim)
-                assert(right_edge.size == ndim)
-                ptr_le = &left_edge[0]
-                ptr_re = &right_edge[0]
-                ptr_periodic = <cbool *>malloc(ndim*sizeof(cbool));
+                assert(left_edge.size == self.ndim)
+                assert(right_edge.size == self.ndim)
+                self._left_edge = <double *>malloc(self.ndim*sizeof(double))
+                self._right_edge = <double *>malloc(self.ndim*sizeof(double))
+                self._periodic = <cbool *>malloc(self.ndim*sizeof(cbool));
+                for i in range(self.ndim):
+                    self._left_edge[i] = left_edge[i]
+                    self._right_edge[i] = right_edge[i]
                 if isinstance(periodic, pybool):
-                    for i in range(ndim):
-                        ptr_periodic[i] = <cbool>periodic
+                    for i in range(self.ndim):
+                        self._periodic[i] = <cbool>periodic
                 else:
-                    for i in range(ndim):
-                        ptr_periodic[i] = <cbool>periodic[i]
+                    for i in range(self.ndim):
+                        self._periodic[i] = <cbool>periodic[i]
             else:
                 assert(pts is None)
         except Exception as error:
@@ -81,28 +76,50 @@ cdef class PyParallelKDTree:
             raise Exception("Process %d: There were errors on %d processes." % 
                             (self.rank, sum(error_flags)))
         # Create c object
-        cdef np.ndarray[np.uint64_t] idx = np.arange(npts).astype('uint64')
-        with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._tree = new ParallelKDTree(ptr_pts, &idx[0], npts, ndim,
-                                            leafsize, ptr_le, ptr_re,
-                                            ptr_periodic)
-        self._periodic = ptr_periodic
-        self._idx = idx
+        if self.rank == 0:
+            self._make_tree(&pts[0,0])
+        else:
+            self._make_tree(NULL)
+        # Create list of Python leaves 
 
     def __dealloc__(self):
         if self.rank == 0:
+            free(self._left_edge)
+            free(self._right_edge)
             free(self._periodic)
         free(self._tree)
 
     cdef void _make_tree(self, double *pts):
         cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
+        cdef uint64_t npts = self.npts
+        cdef uint32_t ndim = self.ndim
+        cdef uint32_t leafsize = self.leafsize
+        cdef double *left_edge = self._left_edge
+        cdef double *right_edge = self._right_edge
+        cdef cbool *periodic = self._periodic
         with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._tree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
-                                            self.leafsize, self._left_edge,
-                                            self._right_edge, self._periodic)
+            self._tree = new ParallelKDTree(pts, &idx[0], npts, ndim, leafsize,
+                                            left_edge, right_edge, periodic)
         self.idx = idx
 
-    def build(self, pybool include_self = False):
-        cdef cbool c_is = <cbool>include_self
-        with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._tree.build(c_is)
+    @property
+    def left_edge(self):
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_left_edge
+        return np.asarray(view)
+    @property
+    def right_edge(self):
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_right_edge
+        return np.asarray(view)
+    @property
+    def domain_width(self):
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_width
+        return np.asarray(view)
+    @property
+    def periodic(self):
+        cdef cbool[:] view = <cbool[:self.ndim]> self._tree.periodic
+        return np.asarray(view)
+
+    # def build(self, pybool include_self = False):
+    #     cdef cbool c_is = <cbool>include_self
+    #     with nogil, cython.boundscheck(False), cython.wraparound(False):
+    #         self._tree.build(c_is)
