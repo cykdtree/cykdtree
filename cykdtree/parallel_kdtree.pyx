@@ -10,6 +10,7 @@ from cpython cimport bool as pybool
 
 from libc.stdint cimport uint32_t, uint64_t, int32_t, int64_t
 
+
 cdef class PyParallelKDTree:
     r"""Object for constructing a KDTree in parallel.
 
@@ -81,6 +82,17 @@ cdef class PyParallelKDTree:
         else:
             self._make_tree(NULL)
         # Create list of Python leaves 
+        self.num_leaves = <uint32_t>self._tree.leaves.size()
+        self.leaves = {}#[None for _ in xrange(self.num_leaves)]
+        cdef Node* leafnode
+        cdef PyNode leafnode_py
+        cdef object leaf_neighbors = None
+        for k in xrange(self.num_leaves):
+            leafnode = self._tree.leaves[k]
+            leafnode_py = PyNode(self.ndim)
+            leafnode_py._init_node(leafnode, self.num_leaves,
+                                   self._tree.domain_width)
+            self.leaves[leafnode.leafid] = leafnode_py
 
     def __dealloc__(self):
         if self.rank == 0:
@@ -91,15 +103,10 @@ cdef class PyParallelKDTree:
 
     cdef void _make_tree(self, double *pts):
         cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
-        cdef uint64_t npts = self.npts
-        cdef uint32_t ndim = self.ndim
-        cdef uint32_t leafsize = self.leafsize
-        cdef double *left_edge = self._left_edge
-        cdef double *right_edge = self._right_edge
-        cdef cbool *periodic = self._periodic
         with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._tree = new ParallelKDTree(pts, &idx[0], npts, ndim, leafsize,
-                                            left_edge, right_edge, periodic)
+            self._tree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
+                                            self.leafsize, self._left_edge,
+                                            self._right_edge, self._periodic)
         self.idx = idx
 
     @property
