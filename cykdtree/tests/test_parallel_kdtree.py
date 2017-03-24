@@ -45,16 +45,24 @@ def test_PyParallelKDTree():
                 Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                           periodic=periodic)
                 np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
-            if rank == 0:
-                assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
-                              le, re, leafsize=1)
-            else:
-                assert_raises(Exception, cykdtree.PyParallelKDTree, pts,
-                              le, re, leafsize=1)
-    
+            assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
+                          le, re, leafsize=1)
 
 
-# def test_search():
+def test_search():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    for periodic in (False,):
+        for ndim in (2, 3):
+            pts, le, re, ls = fake_input(ndim)
+            tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
+                                             periodic=periodic)
+            for v in [0, 0.5, 0.9]:
+                pos = v*np.ones(ndim, 'double')
+                out = tree.get(pos)
+            assert_raises(ValueError, tree.get, np.ones(ndim, 'double'))
+            assert_raises(AssertionError, tree.get, np.zeros(ndim+1, 'double'))
+
 #     # 2D
 #     tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
 #     for pos in [left_edge2, (left_edge2+right_edge2)/2.]:

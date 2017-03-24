@@ -24,8 +24,6 @@ cdef class PyParallelKDTree:
         cdef object comm = MPI.COMM_WORLD
         self.size = comm.Get_size()
         self.rank = comm.Get_rank()
-        self.ndim = 0
-        self.npts = 0
         self.leafsize = leafsize
         self._left_edge = NULL
         self._right_edge = NULL
@@ -34,18 +32,26 @@ cdef class PyParallelKDTree:
         cdef object error = None
         cdef object error_flags = None
         cdef int error_flag = 0
+        # Init & broadcast basic properties to all processes
+        if self.rank == 0:
+            self.ndim = pts.shape[1]
+            self.npts = pts.shape[0]
+            if nleaves > 0:
+                nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
+                self.leafsize = self.npts/nleaves + 1
+        else:
+            self.ndim = 0
+            self.npts = 0
+        self.ndim = comm.bcast(self.ndim, root=0)
+        self.leafsize = comm.bcast(self.leafsize, root=0)
+        if (self.leafsize < 2):
+            # This is here to prevent segfault. The cpp code needs modified
+            # to support leafsize = 1
+            raise ValueError("Process %d: 'leafsize' cannot be smaller than 2." %
+                             self.rank)
+        # Determine bounds of domain
         try:
             if self.rank == 0:
-                self.ndim = pts.shape[1]
-                self.npts = pts.shape[0]
-                if nleaves > 0:
-                    nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
-                    self.leafsize = self.npts/nleaves + 1
-                if (self.leafsize < 2):
-                    # This is here to prevent segfault. The cpp code needs modified
-                    # to support leafsize = 1
-                    raise ValueError("Process %d: 'leafsize' cannot be smaller than 2." %
-                                     self.rank)
                 if left_edge is None:
                     left_edge = np.min(pts, axis=0)
                 if right_edge is None:
@@ -83,7 +89,7 @@ cdef class PyParallelKDTree:
             self._make_tree(NULL)
         # Create list of Python leaves 
         self.num_leaves = <uint32_t>self._tree.leaves.size()
-        self.leaves = {}#[None for _ in xrange(self.num_leaves)]
+        self.leaves = {}
         cdef Node* leafnode
         cdef PyNode leafnode_py
         cdef object leaf_neighbors = None
@@ -125,6 +131,35 @@ cdef class PyParallelKDTree:
     def periodic(self):
         cdef cbool[:] view = <cbool[:self.ndim]> self._tree.periodic
         return np.asarray(view)
+
+    cdef object _get(self, np.ndarray[double, ndim=1] pos):
+        assert(<uint32_t>len(pos) == self.ndim)
+        cdef object comm = MPI.COMM_WORLD
+        cdef Node* leafnode = self._tree.search(&pos[0])
+        # cdef PyNode out = PyNode()
+        cdef pybool found = (leafnode != NULL)
+        cdef object all_found = comm.allgather(found)
+        if sum(all_found) != 1:
+            raise ValueError("Position is not within the kdtree root node.")
+        if leafnode != NULL:
+            return self.leaves[leafnode.leafid]
+        else:
+            return None
+
+    def get(self, np.ndarray[double, ndim=1] pos):
+        r"""Return the leaf containing a given position.
+
+        Args:
+            pos (np.ndarray of double): Coordinates.
+
+        Returns:
+            :class:`cykdtree.PyNode`: Leaf containing `pos`.
+
+        Raises:
+            ValueError: If pos is not contained withing the KDTree.
+
+        """
+        return self._get(pos)
 
     # def build(self, pybool include_self = False):
     #     cdef cbool c_is = <cbool>include_self

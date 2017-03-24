@@ -364,8 +364,9 @@ public:
 	  npts -= npts_send;
 	  tree->any_periodic = false;
 	  for (uint32_t d = 0; d < ndim; d++) {
-	    if (tree->periodic[d])
+	    if (tree->periodic[d]) {
 	      tree->any_periodic = true;
+	    }
 	  }
 	}
       }
@@ -588,6 +589,26 @@ public:
 	return out;
     }
     return -1;
+  }
+
+  Node* search(double* pos0)
+  {
+    Node* out = tree->search(pos0);
+    // if (rank == root) {
+    //   if (out == NULL) {
+    // 	int src;
+    // 	MPI_Recv(&src, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
+    // 		 MPI_STATUS_IGNORE);
+    // 	out = recv_node(src);
+    //   }
+    // } else {
+    //   if (out != NULL) {
+    // 	MPI_Send(&rank, 1, MPI_INT, root, 0, MPI_COMM_WORLD);
+    // 	send_node(root, out);
+    // 	out = NULL;
+    //   }
+    // }
+    return out;
   }
 
 

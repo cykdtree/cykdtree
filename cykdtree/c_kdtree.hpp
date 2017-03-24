@@ -235,8 +235,10 @@ public:
 
     any_periodic = false;
     for (uint32_t d = 0; d < ndim; d++) {
-      if ((periodic_left[d]) && (periodic_right[d]))
+      periodic[d] = false;
+      if ((periodic_left[d]) && (periodic_right[d])) {
 	periodic[d] = true;
+      }
       if (periodic[d]) {
 	any_periodic = true;
 	break;
@@ -533,10 +535,15 @@ public:
     uint32_t d;
     double* wrapped_pos = (double*)malloc(ndim*sizeof(double));
     for (d = 0; d < ndim; d++) {
-      if (periodic[d])
-	wrapped_pos[d] = domain_left_edge[d] + fmod((pos[d] - domain_left_edge[d]),domain_width[d]);
-      else
+      if (periodic[d]) {
+	if (pos[d] < domain_left_edge[d]) {
+	  wrapped_pos[d] = domain_right_edge[d] - fmod((domain_right_edge[d] - pos[d]),domain_width[d]);
+	} else {
+	  wrapped_pos[d] = domain_left_edge[d] + fmod((pos[d] - domain_left_edge[d]),domain_width[d]);
+	}
+      } else {
 	wrapped_pos[d] = pos[d];
+      }
     }
     return wrapped_pos;
   }
