@@ -16,6 +16,14 @@ right_edge3 = np.ones(3, 'float64')
 rand_state = np.random.get_state()
 
 
+def fake_input(ndim, N=100, leafsize=10):
+    np.random.seed(100)
+    pts = np.random.rand(N, ndim).astype('float64')
+    left_edge = np.zeros(ndim, 'float64')
+    right_edge = np.ones(ndim, 'float64')
+    return pts, left_edge, right_edge, leafsize
+
+
 def test_PyKDTree():
     cykdtree.PyKDTree(pts2, left_edge2, right_edge2, leafsize=leafsize)
     cykdtree.PyKDTree(pts3, left_edge3, right_edge3, leafsize=leafsize)

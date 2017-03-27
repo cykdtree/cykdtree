@@ -11,6 +11,8 @@ cdef extern from "c_parallel_kdtree.hpp":
     cdef cppclass ParallelKDTree nogil:
         uint64_t npts
         uint32_t ndim
+        uint32_t num_leaves
+        uint32_t tot_num_leaves
         uint32_t leafsize
         double* domain_left_edge
         double* domain_right_edge
@@ -32,6 +34,7 @@ cdef class PyParallelKDTree:
     cdef readonly uint64_t npts
     cdef readonly uint32_t ndim
     cdef readonly uint32_t num_leaves
+    cdef readonly uint32_t tot_num_leaves
     cdef readonly uint32_t leafsize
     cdef double *_left_edge
     cdef double *_right_edge

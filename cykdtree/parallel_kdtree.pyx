@@ -89,6 +89,7 @@ cdef class PyParallelKDTree:
             self._make_tree(NULL)
         # Create list of Python leaves 
         self.num_leaves = <uint32_t>self._tree.leaves.size()
+        self.tot_num_leaves = self._tree.tot_num_leaves
         self.leaves = {}
         cdef Node* leafnode
         cdef PyNode leafnode_py
