@@ -82,6 +82,7 @@ def test_search():
 
 
 def test_neighbors():
+
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
@@ -91,6 +92,10 @@ def test_neighbors():
     else:
         pts = None
     tree = cykdtree.PyParallelKDTree(pts, left_edge2, right_edge2, leafsize=10)
+
+    from cykdtree.plot import plot2D_parallel
+    plot2D_parallel(tree, label_boxes=True, plotfile='test_neighbors.png')
+
     # 2D
     left_neighbors_x = [[],  # None
                         [0],
@@ -137,9 +142,7 @@ def test_neighbors():
             for i in range(len(leaf.right_neighbors[d])):
                 assert(right_neighbors[d][leaf.id][i] ==
                        leaf.right_neighbors[d][i])
-    if rank == 0:
-        from cykdtree.plot import plot2D
-        plot2D(tree, label_boxes=True)
+
 
 
 # def test_neighbors_periodic():
