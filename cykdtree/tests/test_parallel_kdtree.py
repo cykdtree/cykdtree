@@ -94,7 +94,8 @@ def test_neighbors():
     tree = cykdtree.PyParallelKDTree(pts, left_edge2, right_edge2, leafsize=10)
 
     from cykdtree.plot import plot2D_parallel
-    plot2D_parallel(tree, label_boxes=True, plotfile='test_neighbors.png')
+    plot2D_parallel(tree, label_boxes=True, label_procs=True,
+                    plotfile='test_neighbors.png')
 
     # 2D
     left_neighbors_x = [[],  # None
