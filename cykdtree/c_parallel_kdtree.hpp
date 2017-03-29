@@ -53,7 +53,6 @@ public:
   std::vector<ExchangeRecord*> dst_exch;
   std::vector<ExchangeRecord*> pdst_exch_prior;
   std::vector<ExchangeRecord*> pdst_exch_after;
-  std::vector<int> dsts;
   uint32_t ndim;
   uint64_t npts = 0;
   uint64_t npts_orig;
@@ -401,8 +400,7 @@ public:
 		   MPI_COMM_WORLD);
 	  free(pts_send);
 	  // Update local info
-	  dst_exch.insert(dst_exch.begin(), this_exch);
-	  dsts.insert(dsts.begin(), other_rank); // Smaller splits at front
+	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
 	  tree->domain_maxs[dsplit] = split_val;
 	  tree->domain_right_edge[dsplit] = split_val;
 	  tree->periodic_right[dsplit] = false;
@@ -451,12 +449,13 @@ public:
     uint64_t i;
     uint64_t nexch, j;
     // Receive nodes from child processes
-    for (i = 0; i < dsts.size(); ++i) {
-      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, dsts[i], rank,
+    for (i = 0; i < dst_exch.size(); ++i) {
+      nexch = 0;
+      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, dst_exch[i]->dst, dst_exch[i]->dst,
                MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       dst_nexch.push_back(nexch);
       for (j = 0; j < nexch; j++) {
-	node = recv_node(dsts[i]);
+	node = recv_node(dst_exch[i]->dst);
 	if (node->left_nodes[dst_exch[i]->split_dim] == NULL) {
 	  node->left_nodes[dst_exch[i]->split_dim] = tree->root;
 	  node->add_neighbors(tree->root, dst_exch[i]->split_dim);
@@ -479,7 +478,7 @@ public:
 	  leaves_send.push_back(*it);
       }
       nexch = (uint64_t)(leaves_send.size());
-      MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, src_exch->src, src_exch->src,
+      MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, src_exch->src, rank,
 	       MPI_COMM_WORLD);
       for (it = leaves_send.begin();
 	   it != leaves_send.end(); ++it) {
@@ -495,9 +494,9 @@ public:
     }
     // Send neighbors to child processes
     uint64_t c = 0;
-    for (i = 0; i < dsts.size(); ++i) {
+    for (i = 0; i < dst_exch.size(); ++i) {
       for (j = 0; j < dst_nexch[i]; ++j, ++c) {
-	send_node_neighbors(dsts[i], leaves_recv[c]);
+	send_node_neighbors(dst_exch[i]->dst, leaves_recv[c]);
       }
     }
     // TODO: handle periodic neighbors
@@ -506,40 +505,39 @@ public:
   }
 
   void consolidate_idx() {
-    std::vector<int>::iterator dst;
-    uint64_t left_idx_exch, nexch, i;
+    uint64_t left_idx_exch, nexch, i, j;
     uint64_t *idx_exch;
     // Receive ids from child processes
-    for (dst = dsts.begin(); dst != dsts.end(); ++dst) {
-      MPI_Recv(&left_idx_exch, 1, MPI_UNSIGNED_LONG, *dst, rank,
-	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, *dst, rank,
+    for (i = 0; i < dst_exch.size(); ++i) {
+      MPI_Recv(&left_idx_exch, 1, MPI_UNSIGNED_LONG, dst_exch[i]->dst,
+	       dst_exch[i]->dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, dst_exch[i]->dst, dst_exch[i]->dst,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       idx_exch = (uint64_t*)malloc(nexch*sizeof(uint64_t));
-      MPI_Recv(idx_exch, nexch, MPI_UNSIGNED_LONG, *dst, rank,
-	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (i = 0; i < nexch; i++) {
-	idx_exch[i] = all_idx[left_idx_exch-left_idx+idx_exch[i]];
+      MPI_Recv(idx_exch, nexch, MPI_UNSIGNED_LONG, dst_exch[i]->dst, 
+	       dst_exch[i]->dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      for (j = 0; j < nexch; j++) {
+	idx_exch[j] = all_idx[left_idx_exch-left_idx+idx_exch[j]];
       }
       memcpy(all_idx+left_idx_exch-left_idx, idx_exch, nexch*sizeof(uint64_t));
       free(idx_exch);
     }
     // Send ids to parent process
     if (src_exch != NULL) {
-      MPI_Send(&left_idx, 1, MPI_UNSIGNED_LONG, src_exch->src, src_exch->src,
+      MPI_Send(&left_idx, 1, MPI_UNSIGNED_LONG, src_exch->src, rank,
 	       MPI_COMM_WORLD);
-      MPI_Send(&npts_orig, 1, MPI_UNSIGNED_LONG, src_exch->src, src_exch->src,
+      MPI_Send(&npts_orig, 1, MPI_UNSIGNED_LONG, src_exch->src, rank,
 	       MPI_COMM_WORLD);
       MPI_Send(all_idx, npts_orig, MPI_UNSIGNED_LONG, src_exch->src,
-	       src_exch->src, MPI_COMM_WORLD);
+	       rank, MPI_COMM_WORLD);
     }
   }
 
   void consolidate_leaves() {
     uint32_t i, nprev;
+    int dst;
     uint32_t local_count = 0, total_count = 0, child_count = 0;
     std::vector<Node*>::iterator it;
-    std::vector<int>::iterator dst;
     // Wait for max leafid from parent process and update local ids
     if (src_exch != NULL) {
       MPI_Recv(&total_count, 1, MPI_UNSIGNED, src_exch->src, rank,
@@ -556,13 +554,13 @@ public:
     leaf2rank = (int*)malloc(local_count*sizeof(int));
     for (i = 0; i < local_count; i++)
       leaf2rank[i] = rank;
-    for (dst = dsts.begin(); dst != dsts.end(); ++dst) {
-      MPI_Send(&total_count, 1, MPI_UNSIGNED, *dst, *dst,
-	       MPI_COMM_WORLD);
-      MPI_Recv(&child_count, 1, MPI_UNSIGNED, *dst, *dst,
-	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    for (i = 0; i < dst_exch.size(); ++i) {
+      dst = dst_exch[i]->dst;
+      MPI_Send(&total_count, 1, MPI_UNSIGNED, dst, dst, MPI_COMM_WORLD);
+      MPI_Recv(&child_count, 1, MPI_UNSIGNED, dst, dst, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
       leaf2rank = (int*)realloc(leaf2rank, (local_count+child_count)*sizeof(int));
-      MPI_Recv(leaf2rank+local_count, child_count, MPI_INT, *dst, *dst,
+      MPI_Recv(leaf2rank+local_count, child_count, MPI_INT, dst, dst,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       local_count += child_count;
       total_count += child_count;
