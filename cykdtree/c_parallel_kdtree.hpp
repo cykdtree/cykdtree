@@ -49,9 +49,8 @@ public:
   int size;
   int root;
   int rrank;
-  int src = -1;
   int src_split = -1;
-  ExchangeRecord *src_exch;
+  ExchangeRecord *src_exch = NULL;
   std::vector<ExchangeRecord*> dst_exch;
   std::vector<ExchangeRecord*> parent_exch_prior;
   std::vector<ExchangeRecord*> parent_exch_after;
@@ -88,7 +87,6 @@ public:
     // Determine root
     if (pts != NULL) {
       root = rank;
-      src = rank;
       is_root = true;
       for (int i = 0; i < size; i++) {
 	if (i != rank)
@@ -326,7 +324,6 @@ public:
 	  // Update local info
 	  available = 0;
 	  src_exch = this_exch;
-	  src = src_exch->src; //other_rank;
 	  src_split = src_exch->split_dim; //dsplit;
 	  npts_orig = npts;
 	  tree->npts = npts;
@@ -473,7 +470,7 @@ public:
       }
     }
     // Send nodes to parent processes
-    if (src != rank) {
+    if (src_exch != NULL) {
       // Local leaves
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
@@ -487,17 +484,18 @@ public:
 	  leaves_send.push_back(*it);
       }
       nexch = (uint64_t)(leaves_send.size());
-      MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, src, src, MPI_COMM_WORLD);
+      MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, src_exch->src, src_exch->src,
+	       MPI_COMM_WORLD);
       for (it = leaves_send.begin();
 	   it != leaves_send.end(); ++it) {
-	send_node(src, *it);
+	send_node(src_exch->src, *it);
       } 
     }
     // Receive neighbors from parent process
-    if (src != rank) {
+    if (src_exch != NULL) {
       for (it = leaves_send.begin();
 	   it != leaves_send.end(); ++it) {
-	recv_node_neighbors(src, *it);
+	recv_node_neighbors(src_exch->src, *it);
       } 
     }
     // Send neighbors to child processes
@@ -532,13 +530,13 @@ public:
       free(idx_exch);
     }
     // Send ids to parent process
-    if (src != rank) {
-      MPI_Send(&left_idx, 1, MPI_UNSIGNED_LONG, src, src,
+    if (src_exch != NULL) {
+      MPI_Send(&left_idx, 1, MPI_UNSIGNED_LONG, src_exch->src, src_exch->src,
 	       MPI_COMM_WORLD);
-      MPI_Send(&npts_orig, 1, MPI_UNSIGNED_LONG, src, src,
+      MPI_Send(&npts_orig, 1, MPI_UNSIGNED_LONG, src_exch->src, src_exch->src,
 	       MPI_COMM_WORLD);
-      MPI_Send(all_idx, npts_orig, MPI_UNSIGNED_LONG, src, src,
-	       MPI_COMM_WORLD);
+      MPI_Send(all_idx, npts_orig, MPI_UNSIGNED_LONG, src_exch->src,
+	       src_exch->src, MPI_COMM_WORLD);
     }
   }
 
@@ -548,8 +546,8 @@ public:
     std::vector<Node*>::iterator it;
     std::vector<int>::iterator dst;
     // Wait for max leafid from parent process and update local ids
-    if (src != rank) {
-      MPI_Recv(&total_count, 1, MPI_UNSIGNED, src, rank,
+    if (src_exch != NULL) {
+      MPI_Recv(&total_count, 1, MPI_UNSIGNED, src_exch->src, rank,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
@@ -575,9 +573,11 @@ public:
       total_count += child_count;
     }
     // Send final count back to source
-    if (src != rank) {
-      MPI_Send(&local_count, 1, MPI_UNSIGNED, src, rank, MPI_COMM_WORLD);
-      MPI_Send(leaf2rank, local_count, MPI_INT, src, rank, MPI_COMM_WORLD);
+    if (src_exch != NULL) {
+      MPI_Send(&local_count, 1, MPI_UNSIGNED, src_exch->src, rank,
+	       MPI_COMM_WORLD);
+      MPI_Send(leaf2rank, local_count, MPI_INT, src_exch->src, rank,
+	       MPI_COMM_WORLD);
     }
     // Consolidate count
     if (rank == root)
