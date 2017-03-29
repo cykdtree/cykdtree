@@ -281,6 +281,7 @@ public:
     uint64_t npts_send;
     double *pts_send;
     ExchangeRecord *this_exch;
+    int npdst;
     // uint64_t *idx_send;
     while (nrecv > 0) {
       nsend = size - nrecv;
@@ -336,17 +337,12 @@ public:
 	    }
 	  }
 	  // Recieve previous exchanges from parent
-	  
-
-	  // Recieve previous splits from parent
-	  // MPI_Recv(nexch_split, 1, MPI_INT, other_rank, rank,
-	  // 	   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  // for (int i = 0; i < nexch_split, i++) {
-	  //   MPI_Recv(&dsplit, 1, MPI_UNSIGNED, other_rank, rank,
-	  // 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  //   MPI_Recv(&split_val, 1, MPI_DOUBLE, other_rank, rank,
-	  // 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  // }
+	  MPI_Recv(&npdst, 1, MPI_INT, other_rank, other_rank,
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	  for (int i = 0; i < npdst; i++) {
+	    this_exch = recv_exch(other_rank, other_rank);
+	    pdst_exch_prior.push_back(this_exch);
+	  }
 	}
       } else {
 	// Send a subset of points
@@ -399,6 +395,12 @@ public:
 	  MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, other_rank, other_rank,
 		   MPI_COMM_WORLD);
 	  free(pts_send);
+	  // Send prior exchanges
+	  npdst = dst_exch.size();
+	  MPI_Send(&npdst, 1, MPI_INT, other_rank, rank, MPI_COMM_WORLD);
+	  for (int i = 0; i < npdst; i++) {
+	    send_exch(other_rank, rank, dst_exch[i]);
+	  }
 	  // Update local info
 	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
 	  tree->domain_maxs[dsplit] = split_val;
