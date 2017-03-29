@@ -1,4 +1,5 @@
 # mpirun -n 4 python -c 'from cykdtree.tests.test_parallel_kdtree import *; test_neighbors()'
+# mpirun -n 4 python -c 'from cykdtree.tests.test_parallel_kdtree import *; test_neighbors()'
 import cykdtree
 import numpy as np
 import time
