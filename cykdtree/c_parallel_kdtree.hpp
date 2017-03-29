@@ -49,7 +49,6 @@ public:
   int size;
   int root;
   int rrank;
-  int src_split = -1;
   ExchangeRecord *src_exch = NULL;
   std::vector<ExchangeRecord*> dst_exch;
   std::vector<ExchangeRecord*> parent_exch_prior;
@@ -324,7 +323,6 @@ public:
 	  // Update local info
 	  available = 0;
 	  src_exch = this_exch;
-	  src_split = src_exch->split_dim; //dsplit;
 	  npts_orig = npts;
 	  tree->npts = npts;
 	  tree->left_idx = left_idx;
@@ -350,7 +348,6 @@ public:
 	  // 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	  //   MPI_Recv(&split_val, 1, MPI_DOUBLE, other_rank, rank,
 	  // 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  //   if (dsplit != src_split
 	  // }
 	}
       } else {
@@ -474,13 +471,13 @@ public:
       // Local leaves
       for (it = tree->leaves.begin();
 	   it != tree->leaves.end(); ++it) {
-	if ((*it)->left_nodes[src_split] == NULL)
+	if ((*it)->left_nodes[src_exch->split_dim] == NULL)
 	  leaves_send.push_back(*it);
       }
       // Child leaves
       for (it = leaves_recv.begin();
 	   it != leaves_recv.end(); ++it) {
-	if ((*it)->left_nodes[src_split] == NULL)
+	if ((*it)->left_nodes[src_exch->split_dim] == NULL)
 	  leaves_send.push_back(*it);
       }
       nexch = (uint64_t)(leaves_send.size());
