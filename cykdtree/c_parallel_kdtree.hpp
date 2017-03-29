@@ -21,6 +21,10 @@ public:
 };
 
 void send_exch(int idst, int tag, ExchangeRecord *e) {
+  int rank, size;
+  MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  // printf("%d: Sending exchange to %d (tag %d)\n", rank, idst, tag);
   MPI_Send(&(e->src), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
   MPI_Send(&(e->dst), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
   MPI_Send(&(e->split_dim), 1, MPI_UNSIGNED, idst, tag, MPI_COMM_WORLD);
@@ -28,6 +32,10 @@ void send_exch(int idst, int tag, ExchangeRecord *e) {
 }
 
 ExchangeRecord* recv_exch(int isrc, int tag) {
+  int rank, size;
+  MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  // printf("%d: Receiving exchange from %d (tag %d)\n", rank, isrc, tag);
   int src;
   int dst;
   uint32_t split_dim;
@@ -281,6 +289,7 @@ public:
     uint64_t npts_send;
     double *pts_send;
     ExchangeRecord *this_exch;
+    ExchangeRecord *some_exch;
     int npdst;
     // uint64_t *idx_send;
     while (nrecv > 0) {
@@ -337,11 +346,11 @@ public:
 	    }
 	  }
 	  // Recieve previous exchanges from parent
-	  MPI_Recv(&npdst, 1, MPI_INT, other_rank, other_rank,
+	  MPI_Recv(&npdst, 1, MPI_INT, other_rank, 4*size+other_rank,
 		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	  for (int i = 0; i < npdst; i++) {
-	    this_exch = recv_exch(other_rank, other_rank);
-	    pdst_exch_prior.push_back(this_exch);
+	    some_exch = recv_exch(other_rank, 4*size+other_rank);
+	    pdst_exch_prior.push_back(some_exch);
 	  }
 	}
       } else {
@@ -395,11 +404,20 @@ public:
 	  MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, other_rank, other_rank,
 		   MPI_COMM_WORLD);
 	  free(pts_send);
-	  // Send prior exchanges
+	  // Send prior exchanges to new process
 	  npdst = dst_exch.size();
-	  MPI_Send(&npdst, 1, MPI_INT, other_rank, rank, MPI_COMM_WORLD);
-	  for (int i = 0; i < npdst; i++) {
-	    send_exch(other_rank, rank, dst_exch[i]);
+	  MPI_Send(&npdst, 1, MPI_INT, other_rank, 4*size+rank, MPI_COMM_WORLD);
+	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
+	    send_exch(other_rank, 4*size+rank, dst_exch[i]);
+	  }
+	  // Recieve new split from parent
+	  if (src_exch != NULL) {
+	    some_exch = recv_exch(src_exch->src, 5*size+src_exch->src);
+	    pdst_exch_after.insert(pdst_exch_after.begin(), some_exch);
+	  }
+	  // Send new split to prior children
+	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
+	    send_exch(dst_exch[i]->dst, 5*size+rank, this_exch);
 	  }
 	  // Update local info
 	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
