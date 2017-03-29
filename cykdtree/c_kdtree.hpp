@@ -181,6 +181,15 @@ public:
 
   }
 
+  bool check_overlap(Node other, uint32_t dim) {
+    if (other.right_edge[dim] < left_edge[dim])
+      return false;
+    else if (other.left_edge[dim] > right_edge[dim])
+      return false;
+    else
+      return true;
+  }
+
 };
 
 class KDTree
