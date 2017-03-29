@@ -51,10 +51,9 @@ public:
   int rrank;
   ExchangeRecord *src_exch = NULL;
   std::vector<ExchangeRecord*> dst_exch;
-  std::vector<ExchangeRecord*> parent_exch_prior;
-  std::vector<ExchangeRecord*> parent_exch_after;
+  std::vector<ExchangeRecord*> pdst_exch_prior;
+  std::vector<ExchangeRecord*> pdst_exch_after;
   std::vector<int> dsts;
-  std::vector<int> dsts_split;
   uint32_t ndim;
   uint64_t npts = 0;
   uint64_t npts_orig;
@@ -404,7 +403,6 @@ public:
 	  // Update local info
 	  dst_exch.insert(dst_exch.begin(), this_exch);
 	  dsts.insert(dsts.begin(), other_rank); // Smaller splits at front
-	  dsts_split.insert(dsts_split.begin(), dsplit);
 	  tree->domain_maxs[dsplit] = split_val;
 	  tree->domain_right_edge[dsplit] = split_val;
 	  tree->periodic_right[dsplit] = false;
@@ -459,9 +457,9 @@ public:
       dst_nexch.push_back(nexch);
       for (j = 0; j < nexch; j++) {
 	node = recv_node(dsts[i]);
-	if (node->left_nodes[dsts_split[i]] == NULL) {
-	  node->left_nodes[dsts_split[i]] = tree->root;
-	  node->add_neighbors(tree->root, dsts_split[i]);
+	if (node->left_nodes[dst_exch[i]->split_dim] == NULL) {
+	  node->left_nodes[dst_exch[i]->split_dim] = tree->root;
+	  node->add_neighbors(tree->root, dst_exch[i]->split_dim);
 	}
 	leaves_recv.push_back(node);
       }
