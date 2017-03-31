@@ -607,7 +607,7 @@ public:
       new_splits.clear();
       nrecv = total_available(true);
     }
-    // print_neighbors();
+    print_neighbors();
     free(exch_mins);
     free(exch_maxs);
     free(exch_le);
@@ -656,6 +656,47 @@ public:
   }
 
   void consolidate_neighbors(bool include_self) {
+    uint32_t d, i;
+    Node *node;
+    std::vector<Node*>::iterator it;
+    std::vector<std::vector<Node*>> leaves_send;
+    leaves_send = std::vector<std::vector<Node*>>(ndim);
+    int nrecv, nsend, j;
+    // Identify local leaves with missing neighbors
+    for (it = tree->leaves.begin();
+	 it != tree->leaves.end(); ++it) {
+      for (d = 0; d < ndim; d++) {
+	if (((*it)->left_nodes[d] == NULL) and (lsplit[d].size() > 0)) {
+	  leaves_send[d].push_back(*it);
+	}
+      }
+    }
+    // Loop through neighbors, sending from left, receiving from right
+    for (d = 0; d < ndim; d++) {
+      // Receive from right
+      for (i = 0; i < rsplit[d].size(); i++) {
+	MPI_Recv(&nrecv, 1, MPI_INT, rsplit[d][i], rsplit[d][i], 
+		 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][i]);
+	for (j = 0; j < nrecv; j++) {
+	  node = recv_node(rsplit[d][i]);
+	}
+      }
+      // Send to left
+      nsend = leaves_send[d].size();
+      for (i = 0; i < lsplit[d].size(); i++) {
+	MPI_Send(&nsend, 1, MPI_INT, lsplit[d][i], rank,
+		 MPI_COMM_WORLD);
+	printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][i]);
+	for (j = 0; j < nsend; j++) {
+	  node = leaves_send[d][j];
+	  send_node(lsplit[d][i], node);
+	}
+      }
+    }
+  }
+
+  void consolidate_neighbors0(bool include_self) {
     Node *node;
     std::vector<Node*>::iterator it;
     std::vector<Node*> leaves_send;
