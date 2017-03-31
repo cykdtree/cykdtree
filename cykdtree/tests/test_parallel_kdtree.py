@@ -94,9 +94,9 @@ def test_neighbors():
         pts = None
     tree = cykdtree.PyParallelKDTree(pts, left_edge2, right_edge2, leafsize=10)
 
-    from cykdtree.plot import plot2D_parallel
-    plot2D_parallel(tree, label_boxes=True, label_procs=True,
-                    plotfile='test_neighbors.png')
+    # from cykdtree.plot import plot2D_parallel
+    # plot2D_parallel(tree, label_boxes=True, label_procs=True,
+    #                 plotfile='test_neighbors.png')
 
     # 2D
     left_neighbors_x = [[],  # None
@@ -147,56 +147,66 @@ def test_neighbors():
 
 
 
-# def test_neighbors_periodic():
-#     np.random.set_state(rand_state)
-#     pts = np.random.rand(50, 2).astype('float64')
-#     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2,
-#                              leafsize=10, periodic=True)
-#     # 2D
-#     left_neighbors_x = [[3, 6, 7],
-#                         [0],
-#                         [1],
-#                         [2],
-#                         [6],
-#                         [6, 7],
-#                         [4, 5],
-#                         [5]]
-#     left_neighbors_y = [[5, 7],
-#                         [5, 7],
-#                         [7],
-#                         [5, 7],
-#                         [0, 1],
-#                         [4],
-#                         [1, 2, 3],
-#                         [6]]
-#     left_neighbors = [left_neighbors_x, left_neighbors_y]
-#     right_neighbors = [[[] for i in range(tree.num_leaves)] for
-#                        _ in range(tree.ndim)]
-#     for d in range(tree.ndim):
-#         for i in range(tree.num_leaves):
-#             for j in left_neighbors[d][i]:
-#                 right_neighbors[d][j].append(i)
-#         for i in range(tree.num_leaves):
-#             right_neighbors[d][i] = list(set(right_neighbors[d][i]))
-#     for leaf in tree.leaves:
-#         print(leaf.id, leaf.left_edge, leaf.right_edge)
-#     for leaf in tree.leaves:
-#         print(leaf.id)
-#         for d in range(tree.ndim):
-#             print('    ', d, leaf.left_neighbors[d],
-#                   left_neighbors[d][leaf.id])
-#             assert(len(left_neighbors[d][leaf.id]) ==
-#                    len(leaf.left_neighbors[d]))
-#             for i in range(len(leaf.left_neighbors[d])):
-#                 assert(left_neighbors[d][leaf.id][i] ==
-#                        leaf.left_neighbors[d][i])
-#             print('    ', d, leaf.right_neighbors[d],
-#                   right_neighbors[d][leaf.id])
-#             assert(len(right_neighbors[d][leaf.id]) ==
-#                    len(leaf.right_neighbors[d]))
-#             for i in range(len(leaf.right_neighbors[d])):
-#                 assert(right_neighbors[d][leaf.id][i] ==
-#                        leaf.right_neighbors[d][i])
+def test_neighbors_periodic():
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    if rank == 0:
+        np.random.set_state(rand_state)
+        pts = np.random.rand(50, 2).astype('float64')
+    else:
+        pts = None
+    tree = cykdtree.PyParallelKDTree(pts, left_edge2, right_edge2, leafsize=10,
+                                     periodic=True)
+
+    from cykdtree.plot import plot2D_parallel
+    plot2D_parallel(tree, label_boxes=True, label_procs=True,
+                    plotfile='test_neighbors.png')
+    # 2D
+    left_neighbors_x = [[3, 6, 7],
+                        [0],
+                        [1],
+                        [2],
+                        [6],
+                        [6, 7],
+                        [4, 5],
+                        [5]]
+    left_neighbors_y = [[5, 7],
+                        [5, 7],
+                        [7],
+                        [5, 7],
+                        [0, 1],
+                        [4],
+                        [1, 2, 3],
+                        [6]]
+    left_neighbors = [left_neighbors_x, left_neighbors_y]
+    right_neighbors = [[[] for i in range(tree.tot_num_leaves)] for
+                       _ in range(tree.ndim)]
+    for d in range(tree.ndim):
+        for i in range(tree.tot_num_leaves):
+            for j in left_neighbors[d][i]:
+                right_neighbors[d][j].append(i)
+        for i in range(tree.tot_num_leaves):
+            right_neighbors[d][i] = list(set(right_neighbors[d][i]))
+    for leaf in tree.leaves.values():
+        print(leaf.id, leaf.left_edge, leaf.right_edge)
+    for leaf in tree.leaves.values():
+        print(leaf.id)
+        for d in range(tree.ndim):
+            print('    ', d, leaf.left_neighbors[d],
+                  left_neighbors[d][leaf.id])
+            assert(len(left_neighbors[d][leaf.id]) ==
+                   len(leaf.left_neighbors[d]))
+            for i in range(len(leaf.left_neighbors[d])):
+                assert(left_neighbors[d][leaf.id][i] ==
+                       leaf.left_neighbors[d][i])
+            print('    ', d, leaf.right_neighbors[d],
+                  right_neighbors[d][leaf.id])
+            assert(len(right_neighbors[d][leaf.id]) ==
+                   len(leaf.right_neighbors[d]))
+            for i in range(len(leaf.right_neighbors[d])):
+                assert(right_neighbors[d][leaf.id][i] ==
+                       leaf.right_neighbors[d][i])
 
 
 # def test_get_neighbor_ids():
