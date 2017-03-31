@@ -88,6 +88,8 @@ public:
   int *leaf2rank = NULL;
   double *leaves_le = NULL;
   double *leaves_re = NULL;
+  double *all_lbounds = NULL;
+  double *all_rbounds = NULL;
   
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize, double *left_edge, double *right_edge,
@@ -170,6 +172,10 @@ public:
       free(leaves_le);
     if (leaves_re != NULL)
       free(leaves_re);
+    if (all_lbounds != NULL)
+      free(all_lbounds);
+    if (all_rbounds != NULL)
+      free(all_rbounds);
   }
 
   void send_node(int dp, Node *node) {
@@ -617,19 +623,36 @@ public:
   }
 
   void consolidate(bool include_self) {
+    consolidate_bounds();
     consolidate_leaves();
     consolidate_idx();
     consolidate_neighbors(include_self);
     leaves = tree->leaves;
   }
 
-  void consolidate_splits() {
-    // Receive splits from child processes
-    // list of all splits that occured after
-    // determine neighbors from those splits
-    // Send splits to parent process
-    // Receive splits from parent processes
-    // Send splits from parent to children
+  void consolidate_bounds() {
+    // Send tree bounds to root
+    if (rank == root) {
+      all_lbounds = (double*)malloc(ndim*size*sizeof(double));
+      all_rbounds = (double*)malloc(ndim*size*sizeof(double));
+      memcpy(all_lbounds+ndim*rank, tree->domain_left_edge,
+	     ndim*sizeof(double));
+      memcpy(all_rbounds+ndim*rank, tree->domain_right_edge,
+	     ndim*sizeof(double));
+      for (int i = 0; i < size; i++) {
+	if (rank != i) {
+	  MPI_Recv(all_lbounds+ndim*i, ndim, MPI_DOUBLE, i, i, 
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	  MPI_Recv(all_rbounds+ndim*i, ndim, MPI_DOUBLE, i, i, 
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	}
+      }
+    } else {
+      MPI_Send(tree->domain_left_edge, ndim, MPI_DOUBLE, root, rank,
+	       MPI_COMM_WORLD);
+      MPI_Send(tree->domain_right_edge, ndim, MPI_DOUBLE, root, rank,
+	       MPI_COMM_WORLD);
+    }
   }
 
   void consolidate_neighbors(bool include_self) {
