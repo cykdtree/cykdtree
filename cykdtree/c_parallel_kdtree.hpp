@@ -656,7 +656,7 @@ public:
   }
 
   void consolidate_neighbors(bool include_self) {
-    uint32_t d, i;
+    uint32_t d, i, d2;
     Node *node;
     std::vector<Node*>::iterator it;
     std::vector<std::vector<Node*>> leaves_send;
@@ -680,6 +680,9 @@ public:
 	printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][i]);
 	for (j = 0; j < nrecv; j++) {
 	  node = recv_node(rsplit[d][i]);
+	  node->left_nodes[d] = tree->root;
+	  node->add_neighbors(tree->root, d);
+	  send_node_neighbors(rsplit[d][i], node);
 	}
       }
       // Send to left
@@ -691,6 +694,7 @@ public:
 	for (j = 0; j < nsend; j++) {
 	  node = leaves_send[d][j];
 	  send_node(lsplit[d][i], node);
+	  recv_node_neighbors(lsplit[d][i], node);
 	}
       }
     }
