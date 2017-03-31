@@ -7,10 +7,10 @@
 class ExchangeRecord
 {
 public:
-  int src;
-  int dst;
-  uint32_t split_dim;
-  double split_val;
+  int src = -1;
+  int dst = -1;
+  uint32_t split_dim = 0;
+  double split_val = 0.0;
   ExchangeRecord() {}
   ExchangeRecord(int src0, int dst0, uint32_t split_dim0, double split_val0) {
     src = src0;
@@ -18,12 +18,17 @@ public:
     split_dim = split_dim0;
     split_val = split_val0;
   }
+
+  void print() {
+    printf("src=%d, dst=%d, split_dim=%d, split_val=%f\n",
+	   src, dst, split_dim, split_val);
+  }
 };
 
 void send_exch(int idst, int tag, ExchangeRecord *e) {
-  int rank, size;
-  MPI_Comm_size ( MPI_COMM_WORLD, &size);
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  // int rank, size;
+  // MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  // MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
   // printf("%d: Sending exchange to %d (tag %d)\n", rank, idst, tag);
   MPI_Send(&(e->src), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
   MPI_Send(&(e->dst), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
@@ -32,9 +37,9 @@ void send_exch(int idst, int tag, ExchangeRecord *e) {
 }
 
 ExchangeRecord* recv_exch(int isrc, int tag) {
-  int rank, size;
-  MPI_Comm_size ( MPI_COMM_WORLD, &size);
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  // int rank, size;
+  // MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  // MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
   // printf("%d: Receiving exchange from %d (tag %d)\n", rank, isrc, tag);
   int src;
   int dst;
@@ -50,6 +55,7 @@ ExchangeRecord* recv_exch(int isrc, int tag) {
   return e;
 }
 
+
 class ParallelKDTree
 {
 public:
@@ -57,10 +63,10 @@ public:
   int size;
   int root;
   int rrank;
+  std::vector<std::vector<int>> lsplit;
+  std::vector<std::vector<int>> rsplit;
   ExchangeRecord *src_exch = NULL;
   std::vector<ExchangeRecord*> dst_exch;
-  std::vector<ExchangeRecord*> pdst_exch_prior;
-  std::vector<ExchangeRecord*> pdst_exch_after;
   uint32_t ndim;
   uint64_t npts = 0;
   uint64_t npts_orig;
@@ -108,6 +114,8 @@ public:
     MPI_Bcast(&ndim, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     MPI_Bcast(&leafsize, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     // Domain information
+    lsplit = std::vector<std::vector<int>>(ndim);
+    rsplit = std::vector<std::vector<int>>(ndim);
     domain_left_edge = (double*)malloc(ndim*sizeof(double));
     domain_right_edge = (double*)malloc(ndim*sizeof(double));
     domain_width = (double*)malloc(ndim*sizeof(double));
@@ -271,6 +279,126 @@ public:
       free(ids);
   }
 
+  void add_dst(ExchangeRecord* e) {
+    rsplit[e->split_dim].clear();
+    rsplit[e->split_dim].push_back(e->dst);
+  }
+
+  void add_src(ExchangeRecord* e) {
+    lsplit[e->split_dim].clear();
+    lsplit[e->split_dim].push_back(e->src);
+  }
+
+  void add_split(ExchangeRecord* e) {
+    uint32_t i, d;
+    if (e->dst == rank)
+      return;
+    // printf("%d: Adding ", rank);
+    // e->print();
+    for (d = 0; d < ndim; d++) {
+      // Left
+      for (i = 0; i < lsplit[d].size(); i++) {
+	if (e->src == lsplit[d][i]) {
+	  if (e->split_dim == d) {
+	    // Split is along shared dimension, use right of split
+	    lsplit[d][i] = e->dst;
+	  } else if (e->split_val > tree->domain_right_edge[e->split_dim]) {
+	    // Split is farther right than domain, use left of split
+	    lsplit[d][i] = e->src;
+	  } else if (e->split_val < tree->domain_left_edge[e->split_dim]) {
+	    // Split is frather left than domain, use right of split
+	    lsplit[d][i] = e->dst;
+	  } else {
+	    // Use both left and right
+	    lsplit[d].push_back(e->dst);
+	  }
+	}
+      }
+      // Right
+      for (i = 0; i < rsplit[d].size(); i++) {
+	if (e->src == rsplit[d][i]) {
+	  if (e->split_dim == d) {
+	    // Split is along shared dimension, use left of split
+	    rsplit[d][i] = e->src;
+	  } else if (e->split_val > tree->domain_right_edge[e->split_dim]) {
+	    // Split is farther right than domain, use left of split
+	    rsplit[d][i] = e->src;
+	  } else if (e->split_val < tree->domain_left_edge[e->split_dim]) {
+	    // Split is frather left than domain, use right of split
+	    rsplit[d][i] = e->dst;
+	  } else {
+	    // Use both left and right
+	    rsplit[d].push_back(e->dst);
+	  }
+	}
+      }
+    }
+  }
+
+  void print_neighbors() {
+    uint32_t i, d;
+    int rank, size;
+    MPI_Comm_size ( MPI_COMM_WORLD, &size);
+    MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+    printf("%d: left = [", rank);
+    for (d = 0; d < ndim; d++) {
+      for (i = 0; i < lsplit[d].size(); i++)
+	printf("%d ", (int)(lsplit[d][i]));
+      printf(", ");
+    }
+    printf("]\n");
+    printf("%d: right = [", rank);
+    for (d = 0; d < ndim; d++) {
+      for (i = 0; i < rsplit[d].size(); i++)
+	printf("%d ", (int)(rsplit[d][i]));
+      printf(", ");
+    }
+    printf("]\n");
+  }
+
+
+  void send_neighbors(int idst, int tag) {
+    int np, i;
+    uint32_t d;
+    // Left split
+    for (d = 0; d < ndim; d++) {
+      np = lsplit[d].size();
+      MPI_Send(&np, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
+      for (i = 0; i < np; i++)
+	MPI_Send(&(lsplit[d][i]), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
+    }
+    // Right split
+    for (d = 0; d < ndim; d++) {
+      np = rsplit[d].size();
+      MPI_Send(&np, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
+      for (i = 0; i < np; i++)
+	MPI_Send(&(rsplit[d][i]), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
+    }
+  }
+
+  void recv_neighbors(int isrc, int tag) {
+    uint32_t d;
+    int i, np, e;
+    lsplit = std::vector<std::vector<int>>(ndim);
+    rsplit = std::vector<std::vector<int>>(ndim);
+    // Left split
+    for (d = 0; d < ndim; d++) {
+      MPI_Recv(&np, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      for (i = 0; i < np; i++) {
+      MPI_Recv(&e, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      lsplit[d].push_back(e);
+      }
+    }
+    // Right split
+    for (d = 0; d < ndim; d++) {
+      MPI_Recv(&np, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      for (i = 0; i < np; i++) {
+	MPI_Recv(&e, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	rsplit[d].push_back(e);
+      }
+    }
+  }
+
   void partition() {
     // Partition points until every process has points
     double *exch_mins = (double*)malloc(ndim*sizeof(double));
@@ -290,7 +418,8 @@ public:
     double *pts_send;
     ExchangeRecord *this_exch;
     ExchangeRecord *some_exch;
-    int npdst;
+    std::vector<ExchangeRecord*> new_splits;
+    int n_new_split;
     // uint64_t *idx_send;
     while (nrecv > 0) {
       nsend = size - nrecv;
@@ -345,12 +474,14 @@ public:
 	      tree->any_periodic = true;
 	    }
 	  }
-	  // Recieve previous exchanges from parent
-	  MPI_Recv(&npdst, 1, MPI_INT, other_rank, 4*size+other_rank,
+	  // Recieve neighbors and previous splits
+	  recv_neighbors(other_rank, rank);
+	  add_src(this_exch);
+	  MPI_Recv(&n_new_split, 1, MPI_INT, src_exch->src, src_exch->src,
 		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  for (int i = 0; i < npdst; i++) {
-	    some_exch = recv_exch(other_rank, 4*size+other_rank);
-	    pdst_exch_prior.push_back(some_exch);
+	  for (int j = 0; j < n_new_split; j++) {
+	    some_exch = recv_exch(src_exch->src, src_exch->src);
+	    new_splits.push_back(some_exch);
 	  }
 	}
       } else {
@@ -404,23 +535,50 @@ public:
 	  MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, other_rank, other_rank,
 		   MPI_COMM_WORLD);
 	  free(pts_send);
-	  // Send prior exchanges to new process
-	  npdst = dst_exch.size();
-	  MPI_Send(&npdst, 1, MPI_INT, other_rank, 4*size+rank, MPI_COMM_WORLD);
+	  // Send neighbors
+	  send_neighbors(other_rank, other_rank);
+	  add_dst(this_exch);
+	  // Receive new splits from children 
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
-	    send_exch(other_rank, 4*size+rank, dst_exch[i]);
+	    MPI_Recv(&n_new_split, 1, MPI_INT, dst_exch[i]->dst,
+		     dst_exch[i]->dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    for (int j = 0; j < n_new_split; j++) {
+	      some_exch = recv_exch(dst_exch[i]->dst, dst_exch[i]->dst);
+	      // add_split(some_exch);
+	      new_splits.push_back(some_exch);
+	    }
 	  }
-	  // Recieve new split from parent
+	  new_splits.push_back(this_exch);
+	  n_new_split = new_splits.size();
+	  // Send new splits to parent
 	  if (src_exch != NULL) {
-	    some_exch = recv_exch(src_exch->src, 5*size+src_exch->src);
-	    pdst_exch_after.insert(pdst_exch_after.begin(), some_exch);
+	    MPI_Send(&n_new_split, 1, MPI_INT, src_exch->src, rank,
+		     MPI_COMM_WORLD);
+	    for (int j = 0; j < n_new_split; j++) {
+	      send_exch(src_exch->src, rank, new_splits[j]);
+	    }
 	  }
-	  // Send new split to prior children
-	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
-	    send_exch(dst_exch[i]->dst, 5*size+rank, this_exch);
+	  // Receive new splits from parent
+	  if (src_exch != NULL) {
+	    new_splits.clear();
+	    MPI_Recv(&n_new_split, 1, MPI_INT, src_exch->src, src_exch->src,
+		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	    for (int j = 0; j < n_new_split; j++) {
+	      some_exch = recv_exch(src_exch->src, src_exch->src);
+	      new_splits.push_back(some_exch);
+	    }
 	  }
-	  // Update local info
+	  // Add new child to list of destinations (at the front)
 	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
+	  // Send new splits to children (including the new child)
+	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
+	    MPI_Send(&n_new_split, 1, MPI_INT, dst_exch[i]->dst, rank,
+	  	     MPI_COMM_WORLD);
+	    for (int j = 0; j < n_new_split; j++) {
+	      send_exch(dst_exch[i]->dst, rank, new_splits[j]);
+	    }
+	  }	
+	  // Update local info
 	  tree->domain_maxs[dsplit] = split_val;
 	  tree->domain_right_edge[dsplit] = split_val;
 	  tree->periodic_right[dsplit] = false;
@@ -436,8 +594,14 @@ public:
 	  }
 	}
       }
+      // Add splits
+      n_new_split = new_splits.size();
+      for (int j = 0; j < n_new_split; j++) 
+	add_split(new_splits[j]);
+      new_splits.clear();
       nrecv = total_available(true);
     }
+    // print_neighbors();
     free(exch_mins);
     free(exch_maxs);
     free(exch_le);
@@ -457,6 +621,15 @@ public:
     consolidate_idx();
     consolidate_neighbors(include_self);
     leaves = tree->leaves;
+  }
+
+  void consolidate_splits() {
+    // Receive splits from child processes
+    // list of all splits that occured after
+    // determine neighbors from those splits
+    // Send splits to parent process
+    // Receive splits from parent processes
+    // Send splits from parent to children
   }
 
   void consolidate_neighbors(bool include_self) {
