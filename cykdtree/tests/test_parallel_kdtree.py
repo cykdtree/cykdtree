@@ -67,20 +67,20 @@ def test_search():
             assert_raises(AssertionError, tree.get, np.zeros(ndim+1, 'double'))
 
 
-# def test_search_periodic():
-#     comm = MPI.COMM_WORLD
-#     rank = comm.Get_rank()
-#     for periodic in (True,):
-#         for ndim in (2, 3):
-#             pts, le, re, ls = fake_input(ndim)
-#             tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
-#                                              periodic=periodic)
-#             for v in [0, 0.5, 1.0]:
-#                 pos = v*np.ones(ndim, 'double')
-#                 out = tree.get(pos)
-#                 if out is not None:
-#                     out.neighbors
-#             assert_raises(AssertionError, tree.get, np.zeros(ndim+1, 'double'))
+def test_search_periodic():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    for periodic in (True,):
+        for ndim in (2, ):
+            pts, le, re, ls = fake_input(ndim)
+            tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
+                                             periodic=periodic)
+            for v in [0, 0.5, 1.0]:
+                pos = v*np.ones(ndim, 'double')
+                out = tree.get(pos)
+                if out is not None:
+                    out.neighbors
+            assert_raises(AssertionError, tree.get, np.zeros(ndim+1, 'double'))
 
 
 def test_neighbors():
@@ -100,22 +100,6 @@ def test_neighbors():
     #                 plotfile='test_neighbors.png')
 
     # 2D
-    # left_neighbors_x = [[],  # None
-    #                     [0],
-    #                     [1],
-    #                     [2],
-    #                     [],  # None
-    #                     [],  # None
-    #                     [4, 5],
-    #                     [5]]
-    # left_neighbors_y = [[],  # None
-    #                     [],  # None
-    #                     [],  # None
-    #                     [],  # None
-    #                     [0, 1],
-    #                     [4],
-    #                     [1, 2, 3],
-    #                     [6]]
     left_neighbors = [left_neighbors_x, left_neighbors_y]
     right_neighbors = [[[] for i in range(tree.tot_num_leaves)] for _
                        in range(tree.ndim)]

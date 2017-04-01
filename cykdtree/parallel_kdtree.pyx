@@ -134,6 +134,7 @@ cdef class PyParallelKDTree:
         return np.asarray(view)
 
     cdef object _get(self, np.ndarray[double, ndim=1] pos):
+        cdef object out = None
         assert(<uint32_t>len(pos) == self.ndim)
         cdef object comm = MPI.COMM_WORLD
         cdef Node* leafnode = self._tree.search(&pos[0])
@@ -143,9 +144,8 @@ cdef class PyParallelKDTree:
         if sum(all_found) != 1:
             raise ValueError("Position is not within the kdtree root node.")
         if leafnode != NULL:
-            return self.leaves[leafnode.leafid]
-        else:
-            return None
+            out = self.leaves[leafnode.leafid]
+        return out
 
     def get(self, np.ndarray[double, ndim=1] pos):
         r"""Return the leaf containing a given position.

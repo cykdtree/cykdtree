@@ -391,19 +391,6 @@ public:
     Node *prev;
     uint64_t i, j;
 
-    // Periodicity in each dimension
-    // for (i = 0; i < num_leaves; i++) {
-    //   leaf = leaves[i];
-    //   for (d = 0; d < ndim; d++) {
-    // 	if (periodic[d]) {
-    // 	  if (leaf->left_neighbors[d].size() == 0)
-    // 	    leaf->periodic_left[d] = true;
-    // 	  if (leaf->right_neighbors[d].size() == 0)
-    // 	    leaf->periodic_right[d] = true;
-    // 	}
-    //   }
-    // }
-
     // Periodic neighbors
     for (i = 0; i < num_leaves; i++) {
       leaf = leaves[i];

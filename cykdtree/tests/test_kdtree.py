@@ -145,9 +145,10 @@ def test_neighbors_periodic():
     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2,
                              leafsize=10, periodic=True)
 
-    from cykdtree.plot import plot2D_serial
-    plot2D_serial(tree, label_boxes=True,
-                  plotfile='test_neighbors_serial.png')
+    # from cykdtree.plot import plot2D_serial
+    # plot2D_serial(tree, label_boxes=True,
+    #               plotfile='test_neighbors_serial.png')
+
     # 2D
     left_neighbors = [left_neighbors_x, left_neighbors_y]
     right_neighbors = [[[] for i in range(tree.num_leaves)] for

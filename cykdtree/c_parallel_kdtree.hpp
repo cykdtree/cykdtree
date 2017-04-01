@@ -76,6 +76,7 @@ public:
   KDTree *tree = NULL;
   double* all_pts = NULL;
   uint64_t* all_idx = NULL;
+  bool any_periodic;
   bool *periodic = NULL;
   bool *periodic_left = NULL;
   bool *periodic_right = NULL;
@@ -121,8 +122,10 @@ public:
     domain_left_edge = (double*)malloc(ndim*sizeof(double));
     domain_right_edge = (double*)malloc(ndim*sizeof(double));
     domain_width = (double*)malloc(ndim*sizeof(double));
+    periodic = (bool*)malloc(ndim*sizeof(bool));
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
+    any_periodic = false;
     if (rank == root) {
       available = 0;
       all_pts = pts;
@@ -131,15 +134,18 @@ public:
 	domain_left_edge[d] = left_edge[d];
 	domain_right_edge[d] = right_edge[d];
 	domain_width[d] = right_edge[d] - left_edge[d];
+	periodic[d] = periodic0[d];
 	periodic_left[d] = periodic0[d];
 	periodic_right[d] = periodic0[d];
 	if (periodic0[d]) {
+	  any_periodic = true;
 	  lsplit[d].push_back(rank);
 	  rsplit[d].push_back(rank);
 	}
       }
     } else {
       for (uint32_t d = 0; d < ndim; d++) {
+	periodic[d] = false;
 	periodic_left[d] = false;
 	periodic_right[d] = false;
       }
@@ -168,6 +174,7 @@ public:
     free(domain_left_edge);
     free(domain_right_edge);
     free(domain_width);
+    free(periodic);
     free(periodic_left);
     free(periodic_right);
     if (leaf2rank != NULL)
@@ -910,9 +917,38 @@ public:
     return -1;
   }
 
+  double* wrap_pos(double* pos) {
+    uint32_t d;
+    double* wrapped_pos = (double*)malloc(ndim*sizeof(double));
+    for (d = 0; d < ndim; d++) {
+      if (periodic[d]) {
+        if (pos[d] < domain_left_edge[d]) {
+          wrapped_pos[d] = domain_right_edge[d] - fmod((domain_right_edge[d] - pos[d]),domain_width[d]);
+        } else {
+          wrapped_pos[d] = domain_left_edge[d] + fmod((pos[d] - domain_left_edge[d]),domain_width[d]);
+        }
+      } else {
+        wrapped_pos[d] = pos[d];
+      }
+    }
+    return wrapped_pos;
+  }
+
   Node* search(double* pos0)
   {
-    Node* out = tree->search(pos0);
+    // Wrap positions
+    double* pos;
+    if (rank == root) {
+      if (any_periodic) {
+	pos = wrap_pos(pos0); // allocates new array
+      } else {
+	pos = pos0;
+      }
+    } else {
+      pos = (double*)malloc(ndim*sizeof(double));
+    }
+    MPI_Bcast(pos, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
+    Node* out = tree->search(pos);
     // if (rank == root) {
     //   if (out == NULL) {
     // 	int src;
@@ -927,6 +963,12 @@ public:
     // 	out = NULL;
     //   }
     // }
+    if (rank == root) {
+      if (any_periodic)
+	free(pos);
+    } else {
+      free(pos);
+    }
     return out;
   }
 
