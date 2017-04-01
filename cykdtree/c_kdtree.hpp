@@ -386,11 +386,10 @@ public:
 
   void set_neighbors_periodic() 
   {
-    uint32_t d, d0;
+    uint32_t d0;
     Node* leaf;
     Node *prev;
     uint64_t i, j;
-    bool match;
 
     // Periodicity in each dimension
     // for (i = 0; i < num_leaves; i++) {
@@ -415,29 +414,45 @@ public:
 	  prev = leaves[j];
 	  if (not prev->periodic_right[d0])
 	    continue;
-	  match = true;
-	  for (d = 0; d < ndim; d++) {
-	    if (d == d0)
-	      continue;
-	    if (leaf->left_edge[d] > prev->right_edge[d]) {
-	      if (!(leaf->periodic_right[d] && prev->periodic_left[d])) {
-		match = false;
-		break;
-	      }
-	    }
-	    if (leaf->right_edge[d] < prev->left_edge[d]) {
-	      if (!(prev->periodic_right[d] && leaf->periodic_left[d])) {
-		match = false;
-		break;
-	      }
-	    }
-	  }
-	  if (match) {
-	    leaf->left_neighbors[d0].push_back(prev->leafid);
-	    prev->right_neighbors[d0].push_back(leaf->leafid);
-	  }
+	  add_neighbors_periodic(leaf, prev, d0);
 	}
       }
+    }
+  }
+
+  void add_neighbors_periodic(Node *leaf, Node *prev, uint32_t d0) {
+    uint32_t d, ndim_escape;
+    bool match;
+    if (not leaf->periodic_left[d0])
+      return;
+    if (not prev->periodic_right[d0])
+      return;
+    match = true;
+    ndim_escape = 0;
+    for (d = 0; d < ndim; d++) {
+      if (d == d0)
+	continue;
+      if (leaf->left_edge[d] >= prev->right_edge[d]) {
+	if (!(leaf->periodic_right[d] && prev->periodic_left[d])) {
+	  match = false;
+	  break;
+	} else {
+	  ndim_escape++;
+	}
+      }
+      if (leaf->right_edge[d] <= prev->left_edge[d]) {
+	if (!(prev->periodic_right[d] && leaf->periodic_left[d])) {
+	  match = false;
+	  break;
+	} else {
+	  ndim_escape++;
+	}
+      }
+    }
+    if ((match) and (ndim_escape < (ndim-1))) {
+      // printf("%d: %d, %d (%d)\n", d0, leaf->leafid, prev->leafid, ndim_escape);
+      leaf->left_neighbors[d0].push_back(prev->leafid);
+      prev->right_neighbors[d0].push_back(leaf->leafid);
     }
   }
 

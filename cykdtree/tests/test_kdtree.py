@@ -15,6 +15,31 @@ left_edge3 = np.zeros(3, 'float64')
 right_edge3 = np.ones(3, 'float64')
 rand_state = np.random.get_state()
 
+left_neighbors_x = [[3],
+                    [0],
+                    [1],
+                    [2],
+                    [6],
+                    [6, 7],
+                    [4, 5],
+                    [5]]
+left_neighbors_y = [[5],
+                    [5, 7],
+                    [7],
+                    [7],
+                    [0, 1],
+                    [4],
+                    [1, 2, 3],
+                    [6]]
+
+# Add corners
+# left_neighbors_x[0].append(6)
+# left_neighbors_x[0].append(7)
+# left_neighbors_x[4].append(3) # not fully periodic
+# left_neighbors_x[5].append(3)
+# left_neighbors_y[3].append(5)
+# left_neighbors_y[4].append(3) # not fully periodic
+# left_neighbors_y[6].append(0) # not fully periodic
 
 def fake_input(ndim, N=100, leafsize=10):
     np.random.seed(100)
@@ -119,23 +144,11 @@ def test_neighbors_periodic():
     pts = np.random.rand(50, 2).astype('float64')
     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2,
                              leafsize=10, periodic=True)
+
+    from cykdtree.plot import plot2D_serial
+    plot2D_serial(tree, label_boxes=True,
+                  plotfile='test_neighbors_serial.png')
     # 2D
-    left_neighbors_x = [[3, 6, 7],
-                        [0],
-                        [1],
-                        [2],
-                        [6],
-                        [6, 7],
-                        [4, 5],
-                        [5]]
-    left_neighbors_y = [[5, 7],
-                        [5, 7],
-                        [7],
-                        [5, 7],
-                        [0, 1],
-                        [4],
-                        [1, 2, 3],
-                        [6]]
     left_neighbors = [left_neighbors_x, left_neighbors_y]
     right_neighbors = [[[] for i in range(tree.num_leaves)] for
                        _ in range(tree.ndim)]
@@ -146,24 +159,26 @@ def test_neighbors_periodic():
         for i in range(tree.num_leaves):
             right_neighbors[d][i] = list(set(right_neighbors[d][i]))
     for leaf in tree.leaves:
-        print(leaf.id, leaf.left_edge, leaf.right_edge)
-    for leaf in tree.leaves:
-        print(leaf.id)
-        for d in range(tree.ndim):
-            print('    ', d, leaf.left_neighbors[d],
-                  left_neighbors[d][leaf.id])
-            assert(len(left_neighbors[d][leaf.id]) ==
-                   len(leaf.left_neighbors[d]))
-            for i in range(len(leaf.left_neighbors[d])):
-                assert(left_neighbors[d][leaf.id][i] ==
-                       leaf.left_neighbors[d][i])
-            print('    ', d, leaf.right_neighbors[d],
-                  right_neighbors[d][leaf.id])
-            assert(len(right_neighbors[d][leaf.id]) ==
-                   len(leaf.right_neighbors[d]))
-            for i in range(len(leaf.right_neighbors[d])):
-                assert(right_neighbors[d][leaf.id][i] ==
-                       leaf.right_neighbors[d][i])
+        out_str = str(leaf.id)
+        try:
+            for d in range(tree.ndim):
+                out_str += '\nleft:  {} {} {}'.format(d, leaf.left_neighbors[d],
+                                               left_neighbors[d][leaf.id])
+                assert(len(left_neighbors[d][leaf.id]) ==
+                       len(leaf.left_neighbors[d]))
+                for i in range(len(leaf.left_neighbors[d])):
+                    assert(left_neighbors[d][leaf.id][i] ==
+                           leaf.left_neighbors[d][i])
+                out_str += '\nright: {} {} {}'.format(d, leaf.right_neighbors[d],
+                                                right_neighbors[d][leaf.id])
+                assert(len(right_neighbors[d][leaf.id]) ==
+                       len(leaf.right_neighbors[d]))
+                for i in range(len(leaf.right_neighbors[d])):
+                    assert(right_neighbors[d][leaf.id][i] ==
+                           leaf.right_neighbors[d][i])
+        except:
+            print(out_str)
+            raise
 
 
 def test_get_neighbor_ids():
