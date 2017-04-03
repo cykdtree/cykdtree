@@ -955,5 +955,15 @@ public:
     return out;
   }
 
+  std::vector<uint32_t> get_neighbor_ids(double* pos)
+  {
+    Node* leaf;
+    std::vector<uint32_t> neighbors;
+    leaf = search(pos);
+    if (leaf != NULL)
+      neighbors = leaf->all_neighbors;
+    return neighbors;
+  }
+
 
 };

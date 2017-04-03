@@ -133,22 +133,55 @@ cdef class PyParallelKDTree:
         cdef cbool[:] view = <cbool[:self.ndim]> self._tree.periodic
         return np.asarray(view)
 
-    cdef object _get(self, np.ndarray[double, ndim=1] pos):
+    cdef object _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
+        cdef object comm = MPI.COMM_WORLD
         cdef object out = None
         assert(<uint32_t>len(pos) == self.ndim)
+        cdef np.uint32_t i
+        cdef vector[uint32_t] vout = self._tree.get_neighbor_ids(&pos[0]);
+        cdef pybool found = (vout.size() != 0)
+        cdef object all_found = comm.allgather(found)
+        if sum(all_found) != 1:
+            raise ValueError("Position is not within the kdtree root node.")
+        if found:
+            out = np.empty(vout.size(), 'uint32')
+            for i in xrange(vout.size()):
+                out[i] = vout[i]
+        return out
+
+    def get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
+        r"""Return the IDs of leaves containing & neighboring a given position.
+        If the position is not owned by this process, None is returned.
+
+        Args:
+            pos (np.ndarray of double): Coordinates.
+
+        Returns:
+            np.ndarray of uint32: Leaves containing/neighboring `pos`.
+
+        Raises:
+            ValueError: If pos is not contained withing the KDTree.
+
+        """
+        return self._get_neighbor_ids(pos)
+
+    cdef object _get(self, np.ndarray[double, ndim=1] pos):
         cdef object comm = MPI.COMM_WORLD
+        cdef object out = None
+        assert(<uint32_t>len(pos) == self.ndim)
         cdef Node* leafnode = self._tree.search(&pos[0])
         # cdef PyNode out = PyNode()
         cdef pybool found = (leafnode != NULL)
         cdef object all_found = comm.allgather(found)
         if sum(all_found) != 1:
             raise ValueError("Position is not within the kdtree root node.")
-        if leafnode != NULL:
+        if found:
             out = self.leaves[leafnode.leafid]
         return out
 
     def get(self, np.ndarray[double, ndim=1] pos):
-        r"""Return the leaf containing a given position.
+        r"""Return the leaf containing a given position. If the position is
+        not owned by this process, None is returned.
 
         Args:
             pos (np.ndarray of double): Coordinates.

@@ -182,17 +182,17 @@ def test_neighbors_periodic():
             print(out_str)
             raise
 
-# def test_get_neighbor_ids():
-#     # 2D
-#     tree2 = cykdtree.PyKDTree(pts2, left_edge2, right_edge2,
-#                               leafsize=leafsize, periodic=True)
-#     for pos in [left_edge2, (left_edge2+right_edge2)/2., right_edge2]:
-#         tree2.get_neighbor_ids(pos)
-#     # 3D
-#     tree3 = cykdtree.PyKDTree(pts3, left_edge3, right_edge3,
-#                               leafsize=leafsize, periodic=True)
-#     for pos in [left_edge3, (left_edge3+right_edge3)/2., right_edge3]:
-#         tree3.get_neighbor_ids(pos)
+def test_get_neighbor_ids():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    for periodic in (True,):
+        for ndim in (2, 3):
+            pts, le, re, ls = fake_input(ndim)
+            tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
+                                             periodic=periodic)
+            for v in [0., 0.5, 1.0]:
+                pos = v*np.ones(ndim, 'float')
+                tree.get_neighbor_ids(pos)
 
 
 # def time_tree_construction(Ntime, LStime):

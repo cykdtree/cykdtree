@@ -25,6 +25,7 @@ cdef extern from "c_parallel_kdtree.hpp":
         ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
                        uint32_t leafsize, double *left_edge0,
                        double *right_edge0, bool *periodic0)
+        vector[uint32_t] get_neighbor_ids(double* pos)
         Node* search(double* pos)
 
 cdef class PyParallelKDTree:
@@ -42,6 +43,7 @@ cdef class PyParallelKDTree:
     cdef readonly object leaves
     cdef readonly object idx
     cdef void _make_tree(self, double *pts)
-    # cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
+    cdef object _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
     # cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])
     cdef object _get(self, np.ndarray[double, ndim=1] pos)
+    
