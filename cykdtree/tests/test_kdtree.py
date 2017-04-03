@@ -58,6 +58,9 @@ left_neighbors_y_periodic = [[5],
 # left_neighbors_y_periodic[6].append(0) # not fully periodic
 
 def fake_input(ndim, N=100, leafsize=10):
+    ndim = int(ndim)
+    N = int(N)
+    leafsize = int(leafsize)
     np.random.seed(100)
     pts = np.random.rand(N, ndim).astype('float64')
     left_edge = np.zeros(ndim, 'float64')
@@ -195,18 +198,18 @@ def test_get_neighbor_ids():
         tree3.get_neighbor_ids(pos)
 
 
-def time_tree_construction(Ntime, LStime):
-    pts = np.random.rand(Ntime, 2).astype('float64')
+def time_tree_construction(Ntime, LStime, ndim=2):
+    pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
     t0 = time.time()
-    cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
+    cykdtree.PyKDTree(pts, le, re, leafsize=LStime)
     t1 = time.time()
-    print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
+    print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))
 
 
-def time_neighbor_search(Ntime, LStime):
-    pts = np.random.rand(Ntime, 2).astype('float64')
-    tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
+def time_neighbor_search(Ntime, LStime, ndim=2):
+    pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
+    tree = cykdtree.PyKDTree(pts, le, re, leafsize=LStime)
     t0 = time.time()
     tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
     t1 = time.time()
-    print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
+    print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))

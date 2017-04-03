@@ -23,6 +23,9 @@ rand_state = np.random.get_state()
 
 
 def fake_input(ndim, N=100, leafsize=10):
+    ndim = int(ndim)
+    N = int(N)
+    leafsize=int(leafsize)
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
@@ -195,18 +198,18 @@ def test_get_neighbor_ids():
                 tree.get_neighbor_ids(pos)
 
 
-# def time_tree_construction(Ntime, LStime):
-#     pts = np.random.rand(Ntime, 2).astype('float64')
-#     t0 = time.time()
-#     cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
-#     t1 = time.time()
-#     print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
+def time_tree_construction(Ntime, LStime, ndim=2):
+    pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
+    t0 = time.time()
+    cykdtree.PyParallelKDTree(pts, le, re, leafsize=LStime)
+    t1 = time.time()
+    print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))
 
 
-# def time_neighbor_search(Ntime, LStime):
-#     pts = np.random.rand(Ntime, 2).astype('float64')
-#     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=LStime)
-#     t0 = time.time()
-#     tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
-#     t1 = time.time()
-#     print("{} points, leafsize {}: took {} s".format(Ntime, LStime, t1-t0))
+def time_neighbor_search(Ntime, LStime, ndim=2):
+    pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
+    tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=LStime)
+    t0 = time.time()
+    tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
+    t1 = time.time()
+    print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))
