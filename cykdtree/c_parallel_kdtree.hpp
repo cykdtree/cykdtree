@@ -667,13 +667,77 @@ public:
     }
   }
 
-  void consolidate_neighbors(bool include_self) {
-    uint32_t d, i;
+  void exch_neigh(uint32_t d, std::vector<std::vector<Node*>> lsend,
+		  bool p) {
+    int i, k;
+    uint32_t j;
+    int nsend, nrecv;
     Node *node;
+    std::vector<Node*>::iterator it;
+    nsend = lsend[d].size();
+    for (i = 0; i < size; i++) {
+      if (i == rank) {
+	if (p == tree->periodic_right[d]) {
+	  // Receive from right
+	  for (j = 0; j < rsplit[d].size(); j++) {
+	    if (rsplit[d][j] == rank) {
+	      // Add periodic neighbor from this process
+	      if (p) {
+		for (k = 0; k < nsend; k++) {
+		  node = lsend[d][k];
+		  node->add_neighbors(tree->root, d);
+		}
+	      }
+	    } else {
+	      // Add neighbors from right
+	      // printf("%d: Recieving from %d\n", rank, rsplit[d][j]);
+	      MPI_Recv(&nrecv, 1, MPI_INT, rsplit[d][j], rsplit[d][j], 
+		       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	      // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][j]);
+	      for (k = 0; k < nrecv; k++) {
+		node = recv_node(rsplit[d][j]);
+		node->left_nodes[d] = tree->root;
+		if (p) {
+		  for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
+		    add_neighbors_periodic(node, *it);
+		} else {
+		  node->add_neighbors(tree->root, d);
+		}
+		// Send neighbors back
+		send_node_neighbors(rsplit[d][j], node);
+	      }
+	    }
+	  }
+	}
+      } else {
+	if (p == tree->periodic_left[d]) {
+	  // Send to left
+	  for (j = 0; j < lsplit[d].size(); j++) {
+	    if (lsplit[d][j] == i) {
+	      // printf("%d: Sending to %d\n", rank, lsplit[d][j]);
+	      MPI_Send(&nsend, 1, MPI_INT, lsplit[d][j], rank,
+		       MPI_COMM_WORLD);
+	      // printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][j]);
+	      for (k = 0; k < nsend; k++) {
+		node = lsend[d][k];
+		send_node(lsplit[d][j], node);
+		// Recieve neighbors back
+		recv_node_neighbors(lsplit[d][j], node);
+	      }
+	      break;
+	    }
+	  }
+	}
+      }
+    }
+  }
+
+
+  void consolidate_neighbors(bool include_self) {
+    uint32_t d;
     std::vector<Node*>::iterator it;
     std::vector<std::vector<Node*>> leaves_send;
     leaves_send = std::vector<std::vector<Node*>>(ndim);
-    int nrecv, nsend, j;
     // Identify local leaves with missing neighbors
     for (it = tree->leaves.begin();
 	 it != tree->leaves.end(); ++it) {
@@ -684,92 +748,11 @@ public:
       }
     }
     // Non-periodic neighbors
-    for (d = 0; d < ndim; d++) {
-      // Receive from right
-      if (!(tree->periodic_right[d])) {
-	for (i = 0; i < rsplit[d].size(); i++) {
-	  if (rsplit[d][i] != rank) {
-	    // printf("%d: Receiving from %d\n", rank, rsplit[d][i]);
-	    MPI_Recv(&nrecv, 1, MPI_INT, rsplit[d][i], rsplit[d][i], 
-		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	    // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][i]);
-	    for (j = 0; j < nrecv; j++) {
-	      node = recv_node(rsplit[d][i]);
-	      node->left_nodes[d] = tree->root;
-	      node->add_neighbors(tree->root, d);
-	      send_node_neighbors(rsplit[d][i], node);
-	    }
-	  }
-	}
-      }
-      // Send to left
-      if (!(tree->periodic_left[d])) {
-	nsend = leaves_send[d].size();
-	for (i = 0; i < lsplit[d].size(); i++) {
-	  if (lsplit[d][i] == rank) {
-	    for (j = 0; j < nsend; j++) {
-	      node = leaves_send[d][j];
-	      node->add_neighbors(tree->root, d);
-	    }
-	  } else {
-	    // printf("%d: Sending to %d\n", rank, lsplit[d][i]);
-	    MPI_Send(&nsend, 1, MPI_INT, lsplit[d][i], rank,
-		   MPI_COMM_WORLD);
-	    // printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][i]);
-	    for (j = 0; j < nsend; j++) {
-	      node = leaves_send[d][j];
-	      send_node(lsplit[d][i], node);
-	      recv_node_neighbors(lsplit[d][i], node);
-	    }
-	  }
-	}
-      }
-    }
+    for (d = 0; d < ndim; d++)
+      exch_neigh(d, leaves_send, false);
     // Periodic neighbors
-    for (d = 0; d < ndim; d++) {
-      // Receive from right
-      if (tree->periodic_right[d]) {
-    	for (i = 0; i < rsplit[d].size(); i++) {
-    	  if (rsplit[d][i] != rank) {
-    	    // printf("%d: Receiving from %d\n", rank, rsplit[d][i]);
-    	    MPI_Recv(&nrecv, 1, MPI_INT, rsplit[d][i], rsplit[d][i], 
-    		     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    	    // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][i]);
-    	    for (j = 0; j < nrecv; j++) {
-    	      node = recv_node(rsplit[d][i]);
-    	      node->left_nodes[d] = tree->root;
-	      for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it) {
-		add_neighbors_periodic(node, *it);
-	      }
-    	      send_node_neighbors(rsplit[d][i], node);
-    	    }
-    	  }
-    	}
-      }
-      // Send to left
-      if (tree->periodic_left[d]) {
-    	nsend = leaves_send[d].size();
-    	for (i = 0; i < lsplit[d].size(); i++) {
-    	  if (lsplit[d][i] == rank) {
-    	    for (j = 0; j < nsend; j++) {
-    	      node = leaves_send[d][j];
-    	      node->add_neighbors(tree->root, d);
-    	    }
-    	  } else {
-    	    // printf("%d: Sending to %d\n", rank, lsplit[d][i]);
-    	    MPI_Send(&nsend, 1, MPI_INT, lsplit[d][i], rank,
-    		   MPI_COMM_WORLD);
-    	    // printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][i]);
-    	    for (j = 0; j < nsend; j++) {
-    	      node = leaves_send[d][j];
-    	      send_node(lsplit[d][i], node);
-    	      recv_node_neighbors(lsplit[d][i], node);
-    	    }
-    	  }
-    	}
-      }
-    }
-
+    for (d = 0; d < ndim; d++)
+      exch_neigh(d, leaves_send, true);
     // Finalize neighbors
     tree->finalize_neighbors(include_self);
   }

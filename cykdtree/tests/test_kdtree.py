@@ -15,31 +15,47 @@ left_edge3 = np.zeros(3, 'float64')
 right_edge3 = np.ones(3, 'float64')
 rand_state = np.random.get_state()
 
-left_neighbors_x = [[3],
+
+left_neighbors_x = [[],  # None
                     [0],
                     [1],
                     [2],
-                    [6],
-                    [6, 7],
+                    [],  # None
+                    [],  # None
                     [4, 5],
                     [5]]
-left_neighbors_y = [[5],
-                    [5, 7],
-                    [7],
-                    [7],
+left_neighbors_y = [[],  # None
+                    [],  # None
+                    [],  # None
+                    [],  # None
                     [0, 1],
                     [4],
                     [1, 2, 3],
                     [6]]
-
+left_neighbors_x_periodic = [[3],
+                             [0],
+                             [1],
+                             [2],
+                             [6],
+                             [6, 7],
+                             [4, 5],
+                             [5]]
+left_neighbors_y_periodic = [[5],
+                             [5, 7],
+                             [7],
+                             [7],
+                             [0, 1],
+                             [4],
+                             [1, 2, 3],
+                             [6]]
 # Add corners
-# left_neighbors_x[0].append(6)
-# left_neighbors_x[0].append(7)
-# left_neighbors_x[4].append(3) # not fully periodic
-# left_neighbors_x[5].append(3)
-# left_neighbors_y[3].append(5)
-# left_neighbors_y[4].append(3) # not fully periodic
-# left_neighbors_y[6].append(0) # not fully periodic
+# left_neighbors_x_periodic[0].append(6)
+# left_neighbors_x_periodic[0].append(7)
+# left_neighbors_x_periodic[4].append(3) # not fully periodic
+# left_neighbors_x_periodic[5].append(3)
+# left_neighbors_y_periodic[3].append(5)
+# left_neighbors_y_periodic[4].append(3) # not fully periodic
+# left_neighbors_y_periodic[6].append(0) # not fully periodic
 
 def fake_input(ndim, N=100, leafsize=10):
     np.random.seed(100)
@@ -93,22 +109,6 @@ def test_neighbors():
     pts = np.random.rand(50, 2).astype('float64')
     tree = cykdtree.PyKDTree(pts, left_edge2, right_edge2, leafsize=10)
     # 2D
-    left_neighbors_x = [[],  # None
-                        [0],
-                        [1],
-                        [2],
-                        [],  # None
-                        [],  # None
-                        [4, 5],
-                        [5]]
-    left_neighbors_y = [[],  # None
-                        [],  # None
-                        [],  # None
-                        [],  # None
-                        [0, 1],
-                        [4],
-                        [1, 2, 3],
-                        [6]]
     left_neighbors = [left_neighbors_x, left_neighbors_y]
     right_neighbors = [[[] for i in range(tree.num_leaves)] for _
                        in range(tree.ndim)]
@@ -150,7 +150,7 @@ def test_neighbors_periodic():
     #               plotfile='test_neighbors_serial.png')
 
     # 2D
-    left_neighbors = [left_neighbors_x, left_neighbors_y]
+    left_neighbors = [left_neighbors_x_periodic, left_neighbors_y_periodic]
     right_neighbors = [[[] for i in range(tree.num_leaves)] for
                        _ in range(tree.ndim)]
     for d in range(tree.ndim):
