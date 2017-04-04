@@ -35,6 +35,11 @@ struct exch_rec {
   double split_val = 0.0;
 };
 
+void print_exch(exch_rec e) {
+  printf("src = %d, dst = %d, split_dim = %u, split_val = %f\n",
+	 e.src, e.dst, e.split_dim, e.split_val);
+}
+
 exch_rec init_exch_rec(int src0, int dst0, uint32_t split_dim0, double split_val0) {
   exch_rec out;
   out.src = src0;
@@ -460,6 +465,92 @@ public:
     }
   }
 
+  void send_part(exch_rec dst, int64_t split_idx, int *exch_ple, int *exch_pre) {
+    // Get variables to send
+    for (uint32_t d = 0; d < ndim; d++) {
+      exch_ple[d] = (int)(tree->periodic_left[d]);
+      exch_pre[d] = (int)(tree->periodic_right[d]);
+    }
+    uint64_t left_idx_send = left_idx + split_idx + 1;
+    uint64_t npts_send = npts - split_idx - 1;
+    double *pts_send;
+    // Send variables
+    MPI_Send(&left_idx_send, 1, MPI_UNSIGNED_LONG, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(&npts_send, 1, MPI_UNSIGNED_LONG, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(tree->domain_mins, ndim, MPI_DOUBLE, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(tree->domain_maxs, ndim, MPI_DOUBLE, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(tree->domain_left_edge, ndim, MPI_DOUBLE, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(tree->domain_right_edge, ndim, MPI_DOUBLE, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(exch_ple, ndim, MPI_INT, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    MPI_Send(exch_pre, ndim, MPI_INT, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    // Send points
+    pts_send = (double*)malloc(npts_send*ndim*sizeof(double));
+    for (uint64_t i = 0; i < npts_send; i++) {
+      memcpy(pts_send + ndim*i,
+	     all_pts + ndim*(all_idx[i + split_idx + 1]),
+	     ndim*sizeof(double));
+    }
+    MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, dst.dst, rank,
+	     MPI_COMM_WORLD);
+    free(pts_send);
+  }
+
+  void recv_part(exch_rec src, int *exch_ple, int *exch_pre) {
+    // Receive information about incoming domain
+    MPI_Recv(&(left_idx), 1, MPI_UNSIGNED_LONG, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&(npts), 1, MPI_UNSIGNED_LONG, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(tree->domain_mins, ndim, MPI_DOUBLE, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(tree->domain_maxs, ndim, MPI_DOUBLE, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(tree->domain_left_edge, ndim, MPI_DOUBLE, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(tree->domain_right_edge, ndim, MPI_DOUBLE, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(exch_ple, ndim, MPI_INT, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(exch_pre, ndim, MPI_INT, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    // Receive points
+    all_pts = (double*)malloc(npts*ndim*sizeof(double));
+    MPI_Recv(all_pts, ndim*npts, MPI_DOUBLE, src.src, src.src,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    // Create indices
+    all_idx = (uint64_t*)malloc(npts*sizeof(uint64_t));
+    for (uint64_t i = 0; i < npts; i++)
+      all_idx[i] = i;
+    // Update local info
+    available = 0;
+    src_exch = src;
+    npts_orig = npts;
+    tree->npts = npts;
+    tree->left_idx = left_idx;
+    tree->domain_mins[src.split_dim] = src.split_val;
+    tree->domain_left_edge[src.split_dim] = src.split_val;
+    exch_ple[src.split_dim] = 0;
+    tree->all_pts = all_pts;
+    tree->all_idx = all_idx;
+    for (uint32_t d = 0; d < ndim; d++) {
+      tree->periodic_left[d] = (bool)exch_ple[d];
+      tree->periodic_right[d] = (bool)exch_pre[d];
+      tree->domain_width[d] = tree->domain_right_edge[d] - tree->domain_left_edge[d];
+      if ((tree->periodic_left[d]) && (tree->periodic_right[d])) {
+	tree->periodic[d] = true;
+	tree->any_periodic = true;
+      }
+    }
+  }
+
   void partition() {
     double _t0 = begin_time();
     // Partition points until every process has points
@@ -475,9 +566,6 @@ public:
     uint32_t dsplit;
     int64_t split_idx = 0;
     double split_val = 0.0;
-    uint64_t left_idx_send;
-    uint64_t npts_send;
-    double *pts_send;
     exch_rec this_exch;
     std::vector<exch_rec> new_splits;
     while (nrecv > 0) {
@@ -489,48 +577,7 @@ public:
 	  // Get information about split that creates this domain
 	  other_rank = (root + rrank - nsend) % size;
 	  this_exch = recv_exch(other_rank, rank);
-	  // Receive information about incoming domain
-	  MPI_Recv(&(left_idx), 1, MPI_UNSIGNED_LONG, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(&(npts), 1, MPI_UNSIGNED_LONG, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(tree->domain_mins, ndim, MPI_DOUBLE, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(tree->domain_maxs, ndim, MPI_DOUBLE, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(tree->domain_left_edge, ndim, MPI_DOUBLE, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(tree->domain_right_edge, ndim, MPI_DOUBLE, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(exch_ple, ndim, MPI_INT, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(exch_pre, ndim, MPI_INT, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  // Receive points
-	  all_pts = (double*)malloc(npts*ndim*sizeof(double));
-	  MPI_Recv(all_pts, ndim*npts, MPI_DOUBLE, other_rank, rank,
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  // Create indices
-	  all_idx = (uint64_t*)malloc(npts*sizeof(uint64_t));
-	  for (uint64_t i = 0; i < npts; i++)
-	    all_idx[i] = i;
-	  // Update local info
-	  available = 0;
-	  src_exch = this_exch;
-	  npts_orig = npts;
-	  tree->npts = npts;
-	  tree->left_idx = left_idx;
-	  tree->all_pts = all_pts;
-	  tree->all_idx = all_idx;
-	  for (uint32_t d = 0; d < ndim; d++) {
-	    tree->periodic_left[d] = (bool)exch_ple[d];
-	    tree->periodic_right[d] = (bool)exch_pre[d];
-	    tree->domain_width[d] = tree->domain_right_edge[d]-tree->domain_left_edge[d];
-	    if ((tree->periodic_left[d]) && (tree->periodic_right[d])) {
-	      tree->periodic[d] = true;
-	      tree->any_periodic = true;
-	    }
-	  }
+	  recv_part(this_exch, exch_ple, exch_pre);
 	  // Recieve neighbors and previous splits
 	  recv_neighbors(other_rank, rank);
 	  add_src(this_exch);
@@ -545,46 +592,7 @@ public:
 			       split_idx, split_val);
 	  this_exch = init_exch_rec(rank, other_rank, dsplit, split_val);
 	  send_exch(other_rank, other_rank, this_exch);
-	  // Get variables to send
-	  memcpy(exch_mins, tree->domain_mins, ndim*sizeof(double));
-	  memcpy(exch_maxs, tree->domain_maxs, ndim*sizeof(double));
-	  memcpy(exch_le, tree->domain_left_edge, ndim*sizeof(double));
-	  memcpy(exch_re, tree->domain_right_edge, ndim*sizeof(double));
-	  for (uint32_t d = 0; d < ndim; d++) {
-	    exch_ple[d] = (int)(tree->periodic_left[d]);
-	    exch_pre[d] = (int)(tree->periodic_right[d]);
-	  }
-	  exch_mins[dsplit] = split_val;
-	  exch_le[dsplit] = split_val;
-	  exch_ple[dsplit] = 0;
-	  npts_send = npts - split_idx - 1;
-	  left_idx_send = left_idx + split_idx + 1;
-	  MPI_Send(&left_idx_send, 1, MPI_UNSIGNED_LONG, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(&npts_send, 1, MPI_UNSIGNED_LONG, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(exch_mins, ndim, MPI_DOUBLE, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(exch_maxs, ndim, MPI_DOUBLE, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(exch_le, ndim, MPI_DOUBLE, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(exch_re, ndim, MPI_DOUBLE, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(exch_ple, ndim, MPI_INT, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  MPI_Send(exch_pre, ndim, MPI_INT, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  // Send points
-	  pts_send = (double*)malloc(npts_send*ndim*sizeof(double));
-	  for (uint64_t i = 0; i < npts_send; i++) {
-	    memcpy(pts_send + ndim*i,
-		   all_pts + ndim*(all_idx[i + split_idx + 1]),
-		   ndim*sizeof(double));
-	  }
-	  MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, other_rank, other_rank,
-		   MPI_COMM_WORLD);
-	  free(pts_send);
+	  send_part(this_exch, split_idx, exch_ple, exch_pre);
 	  // Send neighbors
 	  send_neighbors(other_rank, other_rank);
 	  add_dst(this_exch);
@@ -611,8 +619,8 @@ public:
 	  tree->periodic_right[dsplit] = false;
 	  tree->periodic[dsplit] = false;
 	  tree->domain_width[dsplit] = split_val - tree->domain_left_edge[dsplit];
-	  tree->npts -= npts_send;
-	  npts -= npts_send;
+	  tree->npts = split_idx + 1;
+	  npts = split_idx + 1;
 	  tree->any_periodic = false;
 	  for (uint32_t d = 0; d < ndim; d++) {
 	    if (tree->periodic[d]) {
@@ -625,6 +633,7 @@ public:
       add_splits(new_splits);
       new_splits.clear();
       nrecv = total_available(true);
+
     }
     // print_neighbors();
     free(exch_mins);
