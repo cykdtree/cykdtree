@@ -24,7 +24,7 @@ ext_options = dict(language="c++",
                    include_dirs=[numpy.get_include()],
                    libraries=[],
                    extra_link_args=[],
-                   extra_compile_args=["-std=gnu++11"])
+                   extra_compile_args=["-std=c++03"])
 
 
 def call_subprocess(args):

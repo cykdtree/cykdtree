@@ -29,13 +29,22 @@ void end_time(double in, const char* name) {
 }
 
 struct exch_rec {
-  int src = -1;
-  int dst = -1;
-  uint32_t split_dim = 0;
-  double split_val = 0.0;
-  int64_t split_idx = -1;
-  uint64_t left_idx = 0;
-  uint64_t npts = 0;
+  int src;
+  int dst;
+  uint32_t split_dim;
+  double split_val;
+  int64_t split_idx;
+  uint64_t left_idx;
+  uint64_t npts;
+  exch_rec() {
+    src = -1;
+    dst = -1;
+    split_dim = 0;
+    split_val = 0.0;
+    split_idx = -1;
+    left_idx = 0;
+    npts = 0;
+  }
 };
 
 void print_exch(exch_rec e) {
@@ -84,40 +93,59 @@ public:
   int root;
   int rrank;
   MPI_Datatype mpi_exch_type;
-  std::vector<std::vector<int>> lsplit;
-  std::vector<std::vector<int>> rsplit;
+  std::vector<std::vector<int> > lsplit;
+  std::vector<std::vector<int> > rsplit;
   exch_rec src_exch;
   std::vector<exch_rec> dst_exch;
   uint32_t ndim;
-  uint64_t npts = 0;
+  uint64_t npts;
   uint64_t npts_orig;
-  int available = 1;
-  int *all_avail = NULL;
-  bool is_root = false;
-  KDTree *tree = NULL;
-  double* all_pts = NULL;
-  uint64_t* all_idx = NULL;
+  int available;
+  int *all_avail;
+  bool is_root;
+  KDTree *tree;
+  double* all_pts;
+  uint64_t* all_idx;
   bool any_periodic;
-  bool *periodic = NULL;
-  bool *periodic_left = NULL;
-  bool *periodic_right = NULL;
-  double *domain_left_edge = NULL;
-  double *domain_right_edge = NULL;
+  bool *periodic;
+  bool *periodic_left;
+  bool *periodic_right;
+  double *domain_left_edge;
+  double *domain_right_edge;
   double *domain_width;
-  uint64_t left_idx = 0;
+  uint64_t left_idx;
   std::vector<Node*> leaves;
-  uint32_t tot_num_leaves = 0;
-  int *leaf2rank = NULL;
-  double *leaves_le = NULL;
-  double *leaves_re = NULL;
-  double *all_lbounds = NULL;
-  double *all_rbounds = NULL;
+  uint32_t tot_num_leaves;
+  int *leaf2rank;
+  double *leaves_le;
+  double *leaves_re;
+  double *all_lbounds;
+  double *all_rbounds;
   std::vector<int> proc_order;
   std::vector<uint32_t> leaf_count;
   
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize, double *left_edge, double *right_edge,
 		 bool *periodic0, bool include_self = true) {
+    npts = 0;
+    available = 1;
+    all_avail = NULL;
+    is_root = false;
+    tree = NULL;
+    all_pts = NULL;
+    all_idx = NULL;
+    periodic = NULL;
+    periodic_left = NULL;
+    periodic_right = NULL;
+    domain_left_edge = NULL;
+    domain_right_edge = NULL;
+    left_idx = 0;
+    tot_num_leaves = 0;
+    leaf2rank = NULL;
+    leaves_le = NULL;
+    leaves_re = NULL;
+    all_lbounds = NULL;
+    all_rbounds = NULL;
     double _t0 = begin_time();
     MPI_Comm_size ( MPI_COMM_WORLD, &size);
     MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
@@ -142,8 +170,8 @@ public:
     MPI_Bcast(&ndim, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     MPI_Bcast(&leafsize, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     // Domain information
-    lsplit = std::vector<std::vector<int>>(ndim);
-    rsplit = std::vector<std::vector<int>>(ndim);
+    lsplit = std::vector<std::vector<int> >(ndim);
+    rsplit = std::vector<std::vector<int> >(ndim);
     domain_left_edge = (double*)malloc(ndim*sizeof(double));
     domain_right_edge = (double*)malloc(ndim*sizeof(double));
     domain_width = (double*)malloc(ndim*sizeof(double));
@@ -461,8 +489,8 @@ public:
     uint32_t d;
     int np;
     int tag = isrc;
-    lsplit = std::vector<std::vector<int>>(ndim);
-    rsplit = std::vector<std::vector<int>>(ndim);
+    lsplit = std::vector<std::vector<int> >(ndim);
+    rsplit = std::vector<std::vector<int> >(ndim);
     // Left split
     for (d = 0; d < ndim; d++) {
       MPI_Recv(&np, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -713,7 +741,7 @@ public:
     }
   }
 
-  void exch_neigh(uint32_t d, std::vector<std::vector<Node*>> lsend,
+  void exch_neigh(uint32_t d, std::vector<std::vector<Node*> > lsend,
 		  bool p) {
     int i, k;
     uint32_t j;
@@ -782,8 +810,8 @@ public:
   void consolidate_neighbors(bool include_self) {
     uint32_t d;
     std::vector<Node*>::iterator it;
-    std::vector<std::vector<Node*>> leaves_send;
-    leaves_send = std::vector<std::vector<Node*>>(ndim);
+    std::vector<std::vector<Node*> > leaves_send;
+    leaves_send = std::vector<std::vector<Node*> >(ndim);
     // Identify local leaves with missing neighbors
     for (it = tree->leaves.begin();
 	 it != tree->leaves.end(); ++it) {

@@ -21,8 +21,8 @@ public:
   uint64_t children;
   bool *periodic_left;
   bool *periodic_right;
-  std::vector<std::vector<uint32_t>> left_neighbors;
-  std::vector<std::vector<uint32_t>> right_neighbors;
+  std::vector<std::vector<uint32_t> > left_neighbors;
+  std::vector<std::vector<uint32_t> > right_neighbors;
   std::vector<uint32_t> all_neighbors;
   std::vector<Node*> left_nodes;
   // innernode parameters
@@ -63,8 +63,8 @@ public:
       left_nodes.push_back(left_nodes0[d]);
     }
 
-    left_neighbors = std::vector<std::vector<uint32_t>>(ndim);
-    right_neighbors = std::vector<std::vector<uint32_t>>(ndim);
+    left_neighbors = std::vector<std::vector<uint32_t> >(ndim);
+    right_neighbors = std::vector<std::vector<uint32_t> >(ndim);
   }
   // leafnode constructor
   Node(uint32_t ndim0, double *le, double *re, bool *ple, bool *pre,
@@ -93,8 +93,8 @@ public:
       left_nodes.push_back(left_nodes0[d]);
     }
 
-    left_neighbors = std::vector<std::vector<uint32_t>>(ndim);
-    right_neighbors = std::vector<std::vector<uint32_t>>(ndim);
+    left_neighbors = std::vector<std::vector<uint32_t> >(ndim);
+    right_neighbors = std::vector<std::vector<uint32_t> >(ndim);
 
     for (uint32_t d = 0; d < ndim; d++) {
       if ((left_nodes[d] != NULL) && (!(left_nodes[d]->is_empty)))
@@ -214,8 +214,8 @@ public:
   uint32_t num_leaves;
   std::vector<Node*> leaves;
   Node* root;
-  double* leaves_le = NULL;
-  double* leaves_re = NULL;
+  double* leaves_le;
+  double* leaves_re;
 
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
@@ -226,6 +226,8 @@ public:
   {
     is_partial = true;
     left_idx = left_idx0;
+    leaves_le = NULL;
+    leaves_re = NULL;
 
     all_pts = pts;
     all_idx = idx;
@@ -269,6 +271,8 @@ public:
   {
     is_partial = false;
     left_idx = 0;
+    leaves_le = NULL;
+    leaves_re = NULL;
 
     all_pts = pts;
     all_idx = idx;
