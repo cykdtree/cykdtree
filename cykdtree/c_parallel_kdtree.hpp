@@ -501,6 +501,23 @@ public:
     MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, dst.dst, rank,
 	     MPI_COMM_WORLD);
     free(pts_send);
+    // Update local info
+    tree->domain_maxs[dst.split_dim] = dst.split_val;
+    tree->domain_right_edge[dst.split_dim] = dst.split_val;
+    tree->periodic_right[dst.split_dim] = false;
+    tree->periodic[dst.split_dim] = false;
+    tree->domain_width[dst.split_dim] = dst.split_val - tree->domain_left_edge[dst.split_dim];
+    tree->npts = split_idx + 1;
+    npts = split_idx + 1;
+    tree->any_periodic = false;
+    for (uint32_t d = 0; d < ndim; d++) {
+      if (tree->periodic[d]) {
+	tree->any_periodic = true;
+      }
+    }
+    // Send neighbors
+    send_neighbors(dst.dst, rank);
+    add_dst(dst);
   }
 
   void recv_part(exch_rec src, int *exch_ple, int *exch_pre) {
@@ -549,6 +566,9 @@ public:
 	tree->any_periodic = true;
       }
     }
+    // Recieve neighbors and previous splits
+    recv_neighbors(src.src, src.src);
+    add_src(src);
   }
 
   void partition() {
@@ -578,9 +598,7 @@ public:
 	  other_rank = (root + rrank - nsend) % size;
 	  this_exch = recv_exch(other_rank, rank);
 	  recv_part(this_exch, exch_ple, exch_pre);
-	  // Recieve neighbors and previous splits
-	  recv_neighbors(other_rank, rank);
-	  add_src(this_exch);
+	  // Receive splits from parent
 	  new_splits = recv_exch_vec(src_exch.src, src_exch.src);
 	}
       } else {
@@ -593,9 +611,6 @@ public:
 	  this_exch = init_exch_rec(rank, other_rank, dsplit, split_val);
 	  send_exch(other_rank, other_rank, this_exch);
 	  send_part(this_exch, split_idx, exch_ple, exch_pre);
-	  // Send neighbors
-	  send_neighbors(other_rank, other_rank);
-	  add_dst(this_exch);
 	  // Receive new splits from children 
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
 	    new_splits = recv_exch_vec(dst_exch[i].dst, dst_exch[i].dst,
@@ -612,20 +627,6 @@ public:
 	  // Send new splits to children (including the new child)
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
 	    send_exch_vec(dst_exch[i].dst, rank, new_splits);
-	  }	
-	  // Update local info
-	  tree->domain_maxs[dsplit] = split_val;
-	  tree->domain_right_edge[dsplit] = split_val;
-	  tree->periodic_right[dsplit] = false;
-	  tree->periodic[dsplit] = false;
-	  tree->domain_width[dsplit] = split_val - tree->domain_left_edge[dsplit];
-	  tree->npts = split_idx + 1;
-	  npts = split_idx + 1;
-	  tree->any_periodic = false;
-	  for (uint32_t d = 0; d < ndim; d++) {
-	    if (tree->periodic[d]) {
-	      tree->any_periodic = true;
-	    }
 	  }
 	}
       }
