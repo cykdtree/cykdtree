@@ -362,29 +362,18 @@ public:
       free(ids);
   }
 
-  void add_dst(ExchangeRecord* e) {
-    rsplit[e->split_dim].clear();
-    rsplit[e->split_dim].push_back(e->dst);
-  }
-
-  void add_src(ExchangeRecord* e) {
-    add_split(e, true);
-    lsplit[e->split_dim].clear();
-    lsplit[e->split_dim].push_back(e->src);
-  }
-
-  void add_dst_rec(exch_rec e) {
+  void add_dst(exch_rec e) {
     rsplit[e.split_dim].clear();
     rsplit[e.split_dim].push_back(e.dst);
   }
 
-  void add_src_rec(exch_rec e) {
-    add_split_rec(e, true);
+  void add_src(exch_rec e) {
+    add_split(e, true);
     lsplit[e.split_dim].clear();
     lsplit[e.split_dim].push_back(e.src);
   }
 
-  void add_split_rec(exch_rec e, bool add_self = false) {
+  void add_split(exch_rec e, bool add_self = false) {
     uint32_t i, d;
     if ((e.dst == rank) and (!(add_self)))
       return;
@@ -433,53 +422,7 @@ public:
   void add_splits(std::vector<exch_rec> evec, bool add_self = false) {
     std::vector<exch_rec>::iterator it;
     for (it = evec.begin(); it != evec.end(); ++it) {
-      add_split_rec(*it);
-    }
-  }
-
-  void add_split(ExchangeRecord* e, bool add_self = false) {
-    uint32_t i, d;
-    if ((e->dst == rank) and (!(add_self)))
-      return;
-    // printf("%d: Adding ", rank);
-    // e->print();
-    for (d = 0; d < ndim; d++) {
-      // Left
-      for (i = 0; i < lsplit[d].size(); i++) {
-	if (e->src == lsplit[d][i]) {
-	  if (e->split_dim == d) {
-	    // Split is along shared dimension, use right of split
-	    lsplit[d][i] = e->dst;
-	  } else if (e->split_val > tree->domain_right_edge[e->split_dim]) {
-	    // Split is farther right than domain, use left of split
-	    lsplit[d][i] = e->src;
-	  } else if (e->split_val < tree->domain_left_edge[e->split_dim]) {
-	    // Split is frather left than domain, use right of split
-	    lsplit[d][i] = e->dst;
-	  } else {
-	    // Use both left and right
-	    lsplit[d].push_back(e->dst);
-	  }
-	}
-      }
-      // Right
-      for (i = 0; i < rsplit[d].size(); i++) {
-	if (e->src == rsplit[d][i]) {
-	  if (e->split_dim == d) {
-	    // Split is along shared dimension, use left of split
-	    rsplit[d][i] = e->src;
-	  } else if (e->split_val > tree->domain_right_edge[e->split_dim]) {
-	    // Split is farther right than domain, use left of split
-	    rsplit[d][i] = e->src;
-	  } else if (e->split_val < tree->domain_left_edge[e->split_dim]) {
-	    // Split is frather left than domain, use right of split
-	    rsplit[d][i] = e->dst;
-	  } else {
-	    // Use both left and right
-	    rsplit[d].push_back(e->dst);
-	  }
-	}
-      }
+      add_split(*it);
     }
   }
 
@@ -623,7 +566,7 @@ public:
 	  }
 	  // Recieve neighbors and previous splits
 	  recv_neighbors(other_rank, rank);
-	  add_src_rec(this_exch_rec);
+	  add_src(this_exch_rec);
 	  new_splits_rec = recv_exch_vec(src_exch->src, src_exch->src);
 	}
       } else {
@@ -678,7 +621,7 @@ public:
 	  free(pts_send);
 	  // Send neighbors
 	  send_neighbors(other_rank, other_rank);
-	  add_dst_rec(this_exch_rec);
+	  add_dst(this_exch_rec);
 	  // Receive new splits from children 
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
 	    new_splits_rec = recv_exch_vec(dst_exch[i]->dst, dst_exch[i]->dst,
