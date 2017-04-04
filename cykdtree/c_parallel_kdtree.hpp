@@ -33,31 +33,35 @@ struct exch_rec {
   int dst = -1;
   uint32_t split_dim = 0;
   double split_val = 0.0;
+  int64_t split_idx = -1;
 };
 
 void print_exch(exch_rec e) {
-  printf("src = %d, dst = %d, split_dim = %u, split_val = %f\n",
-	 e.src, e.dst, e.split_dim, e.split_val);
+  printf("src = %d, dst = %d, split_dim = %u, split_val = %f, split_idx = %ld\n",
+	 e.src, e.dst, e.split_dim, e.split_val, e.split_idx);
 }
 
-exch_rec init_exch_rec(int src0, int dst0, uint32_t split_dim0, double split_val0) {
+exch_rec init_exch_rec(int src0, int dst0, uint32_t split_dim0, 
+		       double split_val0, int64_t split_idx0) {
   exch_rec out;
   out.src = src0;
   out.dst = dst0;
   out.split_dim = split_dim0;
   out.split_val = split_val0;
+  out.split_idx = split_idx0;
   return out;
 }
 
 MPI_Datatype init_mpi_exch_type() {
-  const int nitems = 3;
-  int blocklengths[nitems] = {2, 1, 1};
-  MPI_Datatype types[nitems] = {MPI_INT, MPI_UNSIGNED, MPI_DOUBLE};
+  const int nitems = 4;
+  int blocklengths[nitems] = {2, 1, 1, 1};
+  MPI_Datatype types[nitems] = {MPI_INT, MPI_UNSIGNED, MPI_DOUBLE, MPI_LONG};
   MPI_Datatype mpi_exch_type;
   MPI_Aint offsets[nitems];
   offsets[0] = offsetof(exch_rec, src);
   offsets[1] = offsetof(exch_rec, split_dim);
   offsets[2] = offsetof(exch_rec, split_val);
+  offsets[3] = offsetof(exch_rec, split_idx);
   MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_exch_type);
   MPI_Type_commit(&mpi_exch_type);
   return mpi_exch_type;
@@ -606,7 +610,8 @@ public:
 	  other_rank = (root + rrank + nsend) % size;
 	  dsplit = tree->split(0, npts, tree->domain_mins, tree->domain_maxs,
 			       split_idx, split_val);
-	  this_exch = init_exch_rec(rank, other_rank, dsplit, split_val);
+	  this_exch = init_exch_rec(rank, other_rank, dsplit,
+				    split_val, split_idx);
 	  send_exch(other_rank, other_rank, this_exch);
 	  send_part(this_exch, split_idx, exch_ple, exch_pre);
 	  // Receive new splits from children 
