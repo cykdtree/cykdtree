@@ -229,23 +229,23 @@ public:
     MPI_Type_free(&mpi_exch_type);
   }
 
-  void send_exch_rec(int idst, int tag, exch_rec st) {
+  void send_exch(int idst, int tag, exch_rec st) {
     MPI_Send(&st, 1, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
   }
 
-  exch_rec recv_exch_rec(int isrc, int tag) {
+  exch_rec recv_exch(int isrc, int tag) {
     exch_rec st;
     MPI_Recv(&st, 1, mpi_exch_type, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     return st;
   }
 
-  void send_exch_rec_vec(int idst, int tag, std::vector<exch_rec> st) {
+  void send_exch_vec(int idst, int tag, std::vector<exch_rec> st) {
     int nexch = st.size();
     MPI_Send(&nexch, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
     MPI_Send(&st[0], nexch, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
   }
 
-  std::vector<exch_rec> recv_exch_rec_vec(int isrc, int tag,
+  std::vector<exch_rec> recv_exch_vec(int isrc, int tag,
 					  std::vector<exch_rec> st = std::vector<exch_rec>()) {
     int nexch;
     MPI_Recv(&nexch, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -254,21 +254,6 @@ public:
 	     MPI_STATUS_IGNORE);
     return st;
   }
-
-  void send_exch(int idst, int tag, ExchangeRecord *e) {
-    // Using structure
-    exch_rec st = init_exch(e);
-    send_exch_rec(idst, tag, st);
-    
-  }
-
-  ExchangeRecord* recv_exch(int isrc, int tag) {
-    // Using structure
-    exch_rec st = recv_exch_rec(isrc, tag);
-    ExchangeRecord *e = new ExchangeRecord(st.src, st.dst, st.split_dim, st.split_val);
-    return e;
-  }
-
 
   void send_node(int dp, Node *node) {
     int i = 0;
@@ -591,7 +576,7 @@ public:
 	if (rrank < (nsend+nexch)) {
 	  // Get information about split that creates this domain
 	  other_rank = (root + rrank - nsend) % size;
-	  this_exch_rec = recv_exch_rec(other_rank, rank);
+	  this_exch_rec = recv_exch(other_rank, rank);
 	  this_exch = new ExchangeRecord(this_exch_rec.src, this_exch_rec.dst,
 					 this_exch_rec.split_dim, this_exch_rec.split_val);
 	  // Receive information about incoming domain
@@ -639,7 +624,7 @@ public:
 	  // Recieve neighbors and previous splits
 	  recv_neighbors(other_rank, rank);
 	  add_src_rec(this_exch_rec);
-	  new_splits_rec = recv_exch_rec_vec(src_exch->src, src_exch->src);
+	  new_splits_rec = recv_exch_vec(src_exch->src, src_exch->src);
 	}
       } else {
 	// Send a subset of points
@@ -649,7 +634,7 @@ public:
 	  dsplit = tree->split(0, npts, tree->domain_mins, tree->domain_maxs,
 			       split_idx, split_val);
 	  this_exch_rec = init_exch_rec(rank, other_rank, dsplit, split_val);
-	  send_exch_rec(other_rank, other_rank, this_exch_rec);
+	  send_exch(other_rank, other_rank, this_exch_rec);
 	  this_exch = new ExchangeRecord(rank, other_rank, dsplit, split_val);
 	  // Get variables to send
 	  memcpy(exch_mins, tree->domain_mins, ndim*sizeof(double));
@@ -696,23 +681,23 @@ public:
 	  add_dst_rec(this_exch_rec);
 	  // Receive new splits from children 
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
-	    new_splits_rec = recv_exch_rec_vec(dst_exch[i]->dst, dst_exch[i]->dst,
-					       new_splits_rec);
+	    new_splits_rec = recv_exch_vec(dst_exch[i]->dst, dst_exch[i]->dst,
+					   new_splits_rec);
 	  }
 	  new_splits_rec.push_back(this_exch_rec);
 	  // Send new splits to parent
 	  if (src_exch != NULL) {
-	    send_exch_rec_vec(src_exch->src, rank, new_splits_rec);
+	    send_exch_vec(src_exch->src, rank, new_splits_rec);
 	  }
 	  // Receive new splits from parent
 	  if (src_exch != NULL) {
-	    new_splits_rec = recv_exch_rec_vec(src_exch->src, src_exch->src);
+	    new_splits_rec = recv_exch_vec(src_exch->src, src_exch->src);
 	  }
 	  // Add new child to list of destinations (at the front)
 	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
 	  // Send new splits to children (including the new child)
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
-	    send_exch_rec_vec(dst_exch[i]->dst, rank, new_splits_rec);
+	    send_exch_vec(dst_exch[i]->dst, rank, new_splits_rec);
 	  }	
 	  // Update local info
 	  tree->domain_maxs[dsplit] = split_val;
