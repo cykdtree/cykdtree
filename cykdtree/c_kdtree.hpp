@@ -1,6 +1,5 @@
 #include <vector>
 #include <algorithm>
-#include <array>
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
