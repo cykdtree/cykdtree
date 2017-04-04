@@ -1,9 +1,9 @@
 from setuptools import setup
-from distutils.core import setup
 from distutils.extension import Extension
+from subprocess import Popen, PIPE
+import copy
 import numpy
 import os
-import copy
 
 # Set to false to enable tracking of Cython lines in profile
 release = True
@@ -26,6 +26,23 @@ ext_options = dict(language="c++",
                    extra_link_args=[],
                    extra_compile_args=["-std=gnu++11"])
 
+
+def call_subprocess(args):
+    p = Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate()
+    exit_code = p.returncode
+    if exit_code != 0:
+        return None
+    return output.decode().strip().split()
+
+
+def get_mpi_args(mpi_executable, compile_argument, link_argument):
+    compile_args = call_subprocess([mpi_executable, compile_argument])
+    link_args = call_subprocess([mpi_executable, link_argument])
+    if compile_args is None:
+        return None
+    return compile_args, link_args
+
 # CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
 if not release and use_cython:
     ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
@@ -39,26 +56,14 @@ if RTDFLAG:
 else:
     # Check for existence of mpi
     compile_parallel = True
-    try:
-        # Attempt to call MPICH first, then OpenMPI
-        try:
-            mpi_compile_args = os.popen(
-                "mpic++ -compile_info").read().strip().split(' ')[1:]
-            mpi_link_args = os.popen(
-                "mpic++ -link_info").read().strip().split(' ')[1:]
-            if len(mpi_compile_args[0]) == 0:
-                raise Exception
-        except:
-            mpi_compile_args = os.popen(
-                "mpic++ --showme:compile").read().strip().split(' ')
-            mpi_link_args = os.popen(
-                "mpic++ --showme:link").read().strip().split(' ')
-            if len(mpi_compile_args[0]) == 0:
-                raise Exception
+    ret = (
+        get_mpi_args('mpic++', '-compile_info', '-link_info') or  # MPICH
+        get_mpi_args('mpic++', '--showme:compile', '--showme:link')  # OpenMPI
+    )
+    if ret is not None:
+        mpi_compile_args, mpi_link_args = ret
         ext_options_mpi['extra_compile_args'] += mpi_compile_args
         ext_options_mpi['extra_link_args'] += mpi_link_args
-    except:
-        compile_parallel = False
 
 # Needed for line_profiler - disable for production code
 if not RTDFLAG and not release and use_cython:
