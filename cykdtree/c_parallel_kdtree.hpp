@@ -208,24 +208,28 @@ public:
     MPI_Type_free(&mpi_exch_type);
   }
 
-  void send_exch(int idst, int tag, exch_rec st) {
+  void send_exch(int idst, exch_rec st) {
+    int tag = rank;
     MPI_Send(&st, 1, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
   }
 
-  exch_rec recv_exch(int isrc, int tag) {
+  exch_rec recv_exch(int isrc) {
+    int tag = isrc;
     exch_rec st;
     MPI_Recv(&st, 1, mpi_exch_type, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     return st;
   }
 
-  void send_exch_vec(int idst, int tag, std::vector<exch_rec> st) {
+  void send_exch_vec(int idst, std::vector<exch_rec> st) {
+    int tag = rank;
     int nexch = st.size();
     MPI_Send(&nexch, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
     MPI_Send(&st[0], nexch, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
   }
 
-  std::vector<exch_rec> recv_exch_vec(int isrc, int tag,
-					  std::vector<exch_rec> st = std::vector<exch_rec>()) {
+  std::vector<exch_rec> recv_exch_vec(int isrc,
+				      std::vector<exch_rec> st = std::vector<exch_rec>()) {
+    int tag = isrc;
     int nexch;
     MPI_Recv(&nexch, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     st.resize(nexch);
@@ -467,14 +471,14 @@ public:
     }
   }
 
-  void send_part(exch_rec dst, int64_t split_idx, int *exch_ple, int *exch_pre) {
+  void send_part(exch_rec dst, int *exch_ple, int *exch_pre) {
     // Get variables to send
     for (uint32_t d = 0; d < ndim; d++) {
       exch_ple[d] = (int)(tree->periodic_left[d]);
       exch_pre[d] = (int)(tree->periodic_right[d]);
     }
-    uint64_t left_idx_send = left_idx + split_idx + 1;
-    uint64_t npts_send = npts - split_idx - 1;
+    uint64_t left_idx_send = left_idx + dst.split_idx + 1;
+    uint64_t npts_send = npts - dst.split_idx - 1;
     double *pts_send;
     // Send variables
     MPI_Send(&left_idx_send, 1, MPI_UNSIGNED_LONG, dst.dst, rank,
@@ -497,7 +501,7 @@ public:
     pts_send = (double*)malloc(npts_send*ndim*sizeof(double));
     for (uint64_t i = 0; i < npts_send; i++) {
       memcpy(pts_send + ndim*i,
-	     all_pts + ndim*(all_idx[i + split_idx + 1]),
+	     all_pts + ndim*(all_idx[i + dst.split_idx + 1]),
 	     ndim*sizeof(double));
     }
     MPI_Send(pts_send, ndim*npts_send, MPI_DOUBLE, dst.dst, rank,
@@ -509,8 +513,8 @@ public:
     tree->periodic_right[dst.split_dim] = false;
     tree->periodic[dst.split_dim] = false;
     tree->domain_width[dst.split_dim] = dst.split_val - tree->domain_left_edge[dst.split_dim];
-    tree->npts = split_idx + 1;
-    npts = split_idx + 1;
+    tree->npts = dst.split_idx + 1;
+    npts = dst.split_idx + 1;
     tree->any_periodic = false;
     for (uint32_t d = 0; d < ndim; d++) {
       if (tree->periodic[d]) {
@@ -598,10 +602,10 @@ public:
 	if (rrank < (nsend+nexch)) {
 	  // Get information about split that creates this domain
 	  other_rank = (root + rrank - nsend) % size;
-	  this_exch = recv_exch(other_rank, rank);
+	  this_exch = recv_exch(other_rank);
 	  recv_part(this_exch, exch_ple, exch_pre);
 	  // Receive splits from parent
-	  new_splits = recv_exch_vec(src_exch.src, src_exch.src);
+	  new_splits = recv_exch_vec(src_exch.src);
 	}
       } else {
 	// Send a subset of points
@@ -612,24 +616,22 @@ public:
 			       split_idx, split_val);
 	  this_exch = init_exch_rec(rank, other_rank, dsplit,
 				    split_val, split_idx);
-	  send_exch(other_rank, other_rank, this_exch);
-	  send_part(this_exch, split_idx, exch_ple, exch_pre);
+	  send_exch(other_rank, this_exch);
+	  send_part(this_exch, exch_ple, exch_pre);
 	  // Receive new splits from children 
-	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
-	    new_splits = recv_exch_vec(dst_exch[i].dst, dst_exch[i].dst,
-				       new_splits);
-	  }
+	  for (uint32_t i = 0; i < dst_exch.size(); i++)
+	    new_splits = recv_exch_vec(dst_exch[i].dst, new_splits);
 	  new_splits.push_back(this_exch);
 	  // Send new splits to parent & receive update back
 	  if (src_exch.src != -1) {
-	    send_exch_vec(src_exch.src, rank, new_splits);
-	    new_splits = recv_exch_vec(src_exch.src, src_exch.src);
+	    send_exch_vec(src_exch.src, new_splits);
+	    new_splits = recv_exch_vec(src_exch.src);
 	  }
 	  // Add new child to list of destinations (at the front)
 	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
 	  // Send new splits to children (including the new child)
 	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
-	    send_exch_vec(dst_exch[i].dst, rank, new_splits);
+	    send_exch_vec(dst_exch[i].dst, new_splits);
 	  }
 	}
       }
