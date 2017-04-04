@@ -184,6 +184,7 @@ def plot2D_parallel(tree, pts=None, label_boxes=False, label_procs=False,
 
     # Gather text
     txt = None
+    all_txt = None
     if label_boxes or label_procs:
         txt = []
         for leaf in tree.leaves.values():

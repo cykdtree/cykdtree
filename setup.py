@@ -24,7 +24,7 @@ ext_options = dict(language="c++",
                    include_dirs=[numpy.get_include()],
                    libraries=[],
                    extra_link_args=[],
-                   extra_compile_args=["-std=c++03"])
+                   extra_compile_args=["-std=gnu++11"])
 
 
 def call_subprocess(args):
@@ -33,7 +33,10 @@ def call_subprocess(args):
     exit_code = p.returncode
     if exit_code != 0:
         return None
-    return output.decode().strip().split()
+    ret = output.decode().strip().split()
+    if ret[0] == 'c++':
+        return ret[1:]
+    return ret
 
 
 def get_mpi_args(mpi_executable, compile_argument, link_argument):

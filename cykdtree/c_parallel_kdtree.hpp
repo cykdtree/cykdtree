@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <iostream>
-//#define TIMINGS 
+#define TIMINGS 
 #ifdef TIMINGS
 #include <ctime>
 #endif
