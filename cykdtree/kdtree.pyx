@@ -175,7 +175,7 @@ cdef class PyKDTree:
         free(self._periodic)
 
     cdef void _make_tree(self, double *pts):
-        cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
+        cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize, 
                                 self._left_edge, self._right_edge, self._periodic)
         self.idx = idx

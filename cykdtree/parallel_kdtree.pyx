@@ -109,7 +109,7 @@ cdef class PyParallelKDTree:
         free(self._tree)
 
     cdef void _make_tree(self, double *pts):
-        cdef np.ndarray[np.uint64_t] idx = np.arange(self.npts).astype('uint64')
+        cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         with nogil, cython.boundscheck(False), cython.wraparound(False):
             self._tree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
                                             self.leafsize, self._left_edge,

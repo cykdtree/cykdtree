@@ -63,7 +63,7 @@ def py_quickSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef uint32_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
-    cdef np.ndarray[np.uint64_t, ndim=1] idx
+    cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
     quickSort(&pos[0,0], &idx[0], ndim, d, l, r)
     return idx
@@ -82,7 +82,7 @@ def py_insertSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef uint32_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
-    cdef np.ndarray[np.uint64_t, ndim=1] idx
+    cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
     insertSort(&pos[0,0], &idx[0], ndim, d, l, r)
     return idx
@@ -104,7 +104,7 @@ def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef uint32_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
-    cdef np.ndarray[np.uint64_t, ndim=1] idx
+    cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
     cdef int64_t q = pivot(&pos[0,0], &idx[0], ndim, d, l, r)
     return q+1, idx
@@ -129,7 +129,7 @@ def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     cdef uint32_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
-    cdef np.ndarray[np.uint64_t, ndim=1] idx
+    cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
     cdef int64_t q = partition(&pos[0,0], &idx[0], ndim, d, l, r, p)
     return q+1, idx
@@ -153,7 +153,7 @@ def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     cdef uint32_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
-    cdef np.ndarray[np.uint64_t, ndim=1] idx
+    cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
     cdef int64_t q = select(&pos[0,0], &idx[0], ndim, d, l, r, t)
     return idx
