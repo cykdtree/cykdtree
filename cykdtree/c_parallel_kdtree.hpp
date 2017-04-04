@@ -423,45 +423,43 @@ public:
   }
 
 
-  void send_neighbors(int idst, int tag) {
-    int np, i;
+  void send_neighbors(int idst) {
+    int np;
     uint32_t d;
+    int tag = rank;
     // Left split
     for (d = 0; d < ndim; d++) {
       np = lsplit[d].size();
       MPI_Send(&np, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
-      for (i = 0; i < np; i++)
-	MPI_Send(&(lsplit[d][i]), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
+      MPI_Send(&(lsplit[d][0]), np, MPI_INT, idst, tag, MPI_COMM_WORLD);
     }
     // Right split
     for (d = 0; d < ndim; d++) {
       np = rsplit[d].size();
       MPI_Send(&np, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
-      for (i = 0; i < np; i++)
-	MPI_Send(&(rsplit[d][i]), 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
+      MPI_Send(&(rsplit[d][0]), np, MPI_INT, idst, tag, MPI_COMM_WORLD);
     }
   }
 
-  void recv_neighbors(int isrc, int tag) {
+  void recv_neighbors(int isrc) {
     uint32_t d;
-    int i, np, e;
+    int np;
+    int tag = isrc;
     lsplit = std::vector<std::vector<int>>(ndim);
     rsplit = std::vector<std::vector<int>>(ndim);
     // Left split
     for (d = 0; d < ndim; d++) {
       MPI_Recv(&np, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (i = 0; i < np; i++) {
-      MPI_Recv(&e, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      lsplit[d].push_back(e);
-      }
+      lsplit[d].resize(np);
+      MPI_Recv(&(lsplit[d][0]), np, MPI_INT, isrc, tag, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
     }
     // Right split
     for (d = 0; d < ndim; d++) {
       MPI_Recv(&np, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (i = 0; i < np; i++) {
-	MPI_Recv(&e, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	rsplit[d].push_back(e);
-      }
+      rsplit[d].resize(np);
+      MPI_Recv(&(rsplit[d][0]), np, MPI_INT, isrc, tag, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
     }
   }
 
@@ -516,7 +514,7 @@ public:
       }
     }
     // Send neighbors
-    send_neighbors(dst.dst, rank);
+    send_neighbors(dst.dst);
     add_dst(dst);
   }
 
@@ -567,7 +565,7 @@ public:
       }
     }
     // Recieve neighbors and previous splits
-    recv_neighbors(src.src, src.src);
+    recv_neighbors(src.src);
     add_src(src);
   }
 
