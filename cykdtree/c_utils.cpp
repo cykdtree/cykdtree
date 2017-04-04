@@ -1,5 +1,4 @@
 #include <vector>
-#include <array>
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
@@ -14,7 +13,7 @@ bool isEqual(double f1, double f2) {
 
 double* max_pts(double *pts, uint64_t n, uint32_t m)
 {
-  double* max = (double*)malloc(m*sizeof(double));
+  double* max = (double*)std::malloc(m*sizeof(double));
   uint32_t d;
   for (d = 0; d < m; d++) max[d] = -DBL_MAX; // pts[d];
   for (uint64_t i = 0; i < n; i++) {
@@ -28,7 +27,7 @@ double* max_pts(double *pts, uint64_t n, uint32_t m)
 
 double* min_pts(double *pts, uint64_t n, uint32_t m)
 {
-  double* min = (double*)malloc(m*sizeof(double));
+  double* min = (double*)std::malloc(m*sizeof(double));
   uint32_t d;
   for (d = 0; d < m; d++) min[d] = DBL_MAX; // pts[d];
   for (uint64_t i = 0; i < n; i++) {

@@ -1,11 +1,11 @@
 #include <vector>
-#include <array>
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
 #include <fstream>
 #include <stdint.h>
 #include <float.h>
+#include <cstdlib>
 
 bool isEqual(double f1, double f2);
 double* max_pts(double *pts, uint64_t n, uint32_t m);

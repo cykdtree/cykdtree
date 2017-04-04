@@ -632,11 +632,12 @@ public:
     while (nrecv > 0) {
       nsend = size - nrecv;
       nexch = std::min(nrecv, nsend);
+      //printf("%d: nrecv = %d, nsend = %d, nexch = %d\n", rank, nrecv, nsend, nexch);
       if (available) {
 	// Receive a set of points
 	if (rrank < (nsend+nexch)) {
 	  // Get information about split that creates this domain
-	  other_rank = (root + rrank - nsend) % size;
+	  other_rank = (root + rrank - nexch) % size;
 	  this_exch = recv_exch(other_rank);
 	  recv_part(this_exch, exch_ple, exch_pre);
 	  // Receive splits from parent
@@ -646,8 +647,9 @@ public:
 	// Send a subset of points
 	if (rrank < nexch) {
 	  // Determine parameters of exchange
-	  other_rank = (root + rrank + nsend) % size;
+	  other_rank = (root + rrank + nexch) % size;
 	  this_exch = split(other_rank);
+	  // Send to process
 	  send_exch(other_rank, this_exch);
 	  send_part(this_exch, exch_ple, exch_pre);
 	  // Receive new splits from children 
@@ -662,9 +664,8 @@ public:
 	  // Add new child to list of destinations (at the front)
 	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
 	  // Send new splits to children (including the new child)
-	  for (uint32_t i = 0; i < dst_exch.size(); i++) {
+	  for (uint32_t i = 0; i < dst_exch.size(); i++)
 	    send_exch_vec(dst_exch[i].dst, new_splits);
-	  }
 	}
       }
       // Add splits
