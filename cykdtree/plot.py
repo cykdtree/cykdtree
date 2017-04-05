@@ -1,8 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-from mpi4py import MPI
-
 
 def _plot2D_root(seg, pts=None, txt=None, plotfile=None, point_kw={}, box_kw={},
                  axs=None, subplot_kw={}, gridspec_kw={}, fig_kw={}, 
@@ -48,6 +44,8 @@ def _plot2D_root(seg, pts=None, txt=None, plotfile=None, point_kw={}, box_kw={},
         :obj:`matplotlib.pyplot.Axes`: Axes containing the plot.
 
     """
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
 
     # Axes creation
     if axs is None:
@@ -153,6 +151,7 @@ def plot2D_parallel(tree, pts=None, label_boxes=False, label_procs=False,
         process. None is returned on all other processes.
 
     """
+    from mpi4py import MPI
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
