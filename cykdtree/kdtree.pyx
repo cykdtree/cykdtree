@@ -47,8 +47,10 @@ cdef class PyNode:
         self.left_neighbors = [None for i in range(self.ndim)]
         self.right_neighbors = [None for i in range(self.ndim)]
         for i in range(self.ndim):
-            self.left_neighbors[i] = [node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())]
-            self.right_neighbors[i] = [node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())]
+            self.left_neighbors[i] = [node.left_neighbors[i][j] for j in
+                                      range(node.left_neighbors[i].size())]
+            self.right_neighbors[i] = [node.right_neighbors[i][j] for j in
+                                       range(node.right_neighbors[i].size())]
 
     def __repr__(self):
         nchars = 1 + len(str(self.__class__.__name__))
