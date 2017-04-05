@@ -115,7 +115,8 @@ cdef class PyKDTree:
             a leaf. Defaults to 10000.
         nleaves (int, optional): The number of leaves that should be in the 
             resulting tree. If greater than 0, leafsize is adjusted to produce a 
-            tree with 2**(ceil(log2(nleaves))) leaves. Defaults to 0.
+            tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword 
+            argument is ignored if nleaves is greater zero. Defaults to 0.
         
     Raises:
         ValueError: If `leafsize < 2`. This currectly segfaults.
