@@ -1,9 +1,6 @@
 import numpy as np
-import os
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
-from matplotlib.text import Text
 from mpi4py import MPI
 
 
