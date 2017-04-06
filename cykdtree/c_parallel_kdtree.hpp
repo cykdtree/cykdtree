@@ -161,6 +161,7 @@ public:
       }
       ndim = m;
       npts = n;
+      npts_orig = n;
     } else {
       MPI_Recv(&root, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
 	       MPI_STATUS_IGNORE);
@@ -513,14 +514,8 @@ public:
       exch_ple[d] = (int)(tree->periodic_left[d]);
       exch_pre[d] = (int)(tree->periodic_right[d]);
     }
-    // uint64_t left_idx_send = left_idx + dst.split_idx + 1;
-    // uint64_t npts_send = npts - dst.split_idx - 1;
     double *pts_send;
     // Send variables
-    // MPI_Send(&left_idx_send, 1, MPI_UNSIGNED_LONG, dst.dst, rank,
-    // 	     MPI_COMM_WORLD);
-    // MPI_Send(&npts_send, 1, MPI_UNSIGNED_LONG, dst.dst, rank,
-    // 	     MPI_COMM_WORLD);
     MPI_Send(tree->domain_mins, ndim, MPI_DOUBLE, dst.dst, rank,
 	     MPI_COMM_WORLD);
     MPI_Send(tree->domain_maxs, ndim, MPI_DOUBLE, dst.dst, rank,
@@ -565,10 +560,6 @@ public:
 
   void recv_part(exch_rec src, int *exch_ple, int *exch_pre) {
     // Receive information about incoming domain
-    // MPI_Recv(&(left_idx), 1, MPI_UNSIGNED_LONG, src.src, src.src,
-    // 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    // MPI_Recv(&(npts), 1, MPI_UNSIGNED_LONG, src.src, src.src,
-    // 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(tree->domain_mins, ndim, MPI_DOUBLE, src.src, src.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(tree->domain_maxs, ndim, MPI_DOUBLE, src.src, src.src,
@@ -840,32 +831,24 @@ public:
   }
 
   void consolidate_idx() {
-    uint64_t left_idx_exch, nexch, i, j;
+    uint64_t nexch, i, j;
     uint64_t *idx_exch;
     // Receive ids from child processes
     for (i = 0; i < dst_exch.size(); ++i) {
-      MPI_Recv(&left_idx_exch, 1, MPI_UNSIGNED_LONG, dst_exch[i].dst,
-	       dst_exch[i].dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, dst_exch[i].dst, dst_exch[i].dst,
-	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      nexch = dst_exch[i].npts;
       idx_exch = (uint64_t*)malloc(nexch*sizeof(uint64_t));
       MPI_Recv(idx_exch, nexch, MPI_UNSIGNED_LONG, dst_exch[i].dst, 
 	       dst_exch[i].dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (j = 0; j < nexch; j++) {
-	idx_exch[j] = all_idx[left_idx_exch-left_idx+idx_exch[j]];
-      }
-      memcpy(all_idx+left_idx_exch-left_idx, idx_exch, nexch*sizeof(uint64_t));
+      for (j = 0; j < nexch; j++)
+	idx_exch[j] = all_idx[dst_exch[i].split_idx + 1 + idx_exch[j]];
+      memcpy(all_idx + dst_exch[i].split_idx + 1,
+	     idx_exch, nexch*sizeof(uint64_t));
       free(idx_exch);
     }
     // Send ids to parent process
-    if (src_exch.src != -1) {
-      MPI_Send(&left_idx, 1, MPI_UNSIGNED_LONG, src_exch.src, rank,
-	       MPI_COMM_WORLD);
-      MPI_Send(&npts_orig, 1, MPI_UNSIGNED_LONG, src_exch.src, rank,
-	       MPI_COMM_WORLD);
+    if (src_exch.src != -1) 
       MPI_Send(all_idx, npts_orig, MPI_UNSIGNED_LONG, src_exch.src,
 	       rank, MPI_COMM_WORLD);
-    }
   }
 
   void consolidate_order() {

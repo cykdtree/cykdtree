@@ -10,10 +10,12 @@ from cykdtree.kdtree cimport PyNode
 cdef extern from "c_parallel_kdtree.hpp":
     cdef cppclass ParallelKDTree nogil:
         uint64_t npts
+        uint64_t npts_orig
         uint32_t ndim
         uint32_t num_leaves
         uint32_t tot_num_leaves
-        uint32_t leafsize
+        uint64_t* all_idx
+        double *all_pts
         double* domain_left_edge
         double* domain_right_edge
         double* domain_width
@@ -41,7 +43,7 @@ cdef class PyParallelKDTree:
     cdef double *_right_edge
     cdef bool *_periodic
     cdef readonly object leaves
-    cdef readonly object idx
+    cdef readonly object _idx
     cdef void _make_tree(self, double *pts)
     cdef object _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
     # cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])

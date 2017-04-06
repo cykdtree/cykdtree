@@ -48,24 +48,25 @@ def test_PyParallelKDTree():
     size = comm.Get_size()
     for periodic in (False, True):
         for ndim in (2, 3):
-            pts, le, re, ls = fake_input(ndim, N=20, leafsize=2)
+            pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
             Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                               periodic=periodic)
-            time.sleep(rank*0.5)
-            for leaf in Tpara.leaves.values():
-                print (leaf.id, leaf.left_edge, leaf.right_edge, leaf.start_idx, leaf.stop_idx)
-            print(rank, [i for i in Tpara.idx])
+            # time.sleep(rank*1)
+            # print(rank, [i for i in Tpara.all_idx])
+            # for leaf in Tpara.leaves.values():
+            #     print (leaf.id, #leaf.left_edge, leaf.right_edge, 
+            #            Tpara.all_pts[Tpara.idx[leaf.slice],:])
             if rank == 0:
-                time.sleep(size*0.5)
+                # time.sleep(size*1)
                 Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                           periodic=periodic)
-                print(rank, 'result', [i for i in Tseri.idx])
-                for leaf in Tseri.leaves:
-                    print (leaf.id, leaf.left_edge, leaf.right_edge)
-            #     np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
-            # assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
-            #               le, re, leafsize=1)
-            return
+                # print(rank, 'result', [i for i in Tseri.idx])
+                # for leaf in Tseri.leaves:
+                #     print (leaf.id, #leaf.left_edge, leaf.right_edge, 
+                #            pts[Tseri.idx[leaf.slice],:])
+                np.testing.assert_array_equal(Tpara.all_idx, Tseri.idx)
+            assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
+                          le, re, leafsize=1)
 
 
 @MPITest(Nproc)

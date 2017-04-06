@@ -114,7 +114,30 @@ cdef class PyParallelKDTree:
             self._tree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
                                             self.leafsize, self._left_edge,
                                             self._right_edge, self._periodic)
-        self.idx = idx
+        self._idx = idx
+
+    @property
+    def npts_orig(self):
+        cdef uint64_t out = self._tree.npts_orig
+        return out
+
+    @property
+    def all_pts(self):
+        cdef np.float64_t[:,:] view
+        view = <np.float64_t[:self.npts_orig,:self.ndim]> self._tree.all_pts
+        return np.asarray(view)
+
+    @property
+    def all_idx(self):
+        cdef np.uint64_t[:] view
+        view = <np.uint64_t[:self.npts_orig]> self._tree.all_idx
+        return np.asarray(view)
+
+    @property
+    def idx(self):
+        cdef np.uint64_t[:] idx
+        idx = <np.uint64_t[:self._tree.npts]> self._tree.all_idx
+        return np.asarray(idx)
 
     @property
     def left_edge(self):
