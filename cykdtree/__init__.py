@@ -33,7 +33,24 @@ def run_nose(verbose=False):
     finally:
         os.chdir(initial_dir)
 
+def get_include():
+    """
+    Return the directory that contains the NumPy \\*.h header files.
+    Extension modules that need to compile against NumPy should use this
+    function to locate the appropriate include directory.
+    Notes
+    -----
+    When using ``distutils``, for example in ``setup.py``.
+    ::
+        import numpy as np
+        ...
+        Extension('extension_name', ...
+                include_dirs=[np.get_include()])
+        ...
+    """
+    import cykdtree
+    return os.path.dirname(cykdtree.__file__)
 
 
-__all__ = ["PyKDTree", "PyNode", "tests", "run_nose",
+__all__ = ["PyKDTree", "PyNode", "tests", "run_nose", "get_include",
            "PyParallelKDTree", "plot"]

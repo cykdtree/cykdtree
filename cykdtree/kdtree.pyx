@@ -47,8 +47,24 @@ cdef class PyNode:
         self.left_neighbors = [None for i in range(self.ndim)]
         self.right_neighbors = [None for i in range(self.ndim)]
         for i in range(self.ndim):
-            self.left_neighbors[i] = [node.left_neighbors[i][j] for j in range(node.left_neighbors[i].size())]
-            self.right_neighbors[i] = [node.right_neighbors[i][j] for j in range(node.right_neighbors[i].size())]
+            self.left_neighbors[i] = [node.left_neighbors[i][j] for j in
+                                      range(node.left_neighbors[i].size())]
+            self.right_neighbors[i] = [node.right_neighbors[i][j] for j in
+                                       range(node.right_neighbors[i].size())]
+
+    def __repr__(self):
+        nchars = 1 + len(str(self.__class__.__name__))
+        return ('%s(id=%i, npts=%i, start_idx=%i, stop_idx=%i,\n' +
+                ' ' * nchars + 'left_edge=%s,\n' +
+                ' ' * nchars + 'right_edge=%s)') % (
+            self.__class__.__name__,
+            self.id,
+            self.npts,
+            self.start_idx,
+            self.stop_idx,
+            self.left_edge,
+            self.right_edge,
+        )
 
     @property
     def periodic_left(self):
@@ -101,7 +117,8 @@ cdef class PyKDTree:
             a leaf. Defaults to 10000.
         nleaves (int, optional): The number of leaves that should be in the 
             resulting tree. If greater than 0, leafsize is adjusted to produce a 
-            tree with 2**(ceil(log2(nleaves))) leaves. Defaults to 0.
+            tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword 
+            argument is ignored if nleaves is greater zero. Defaults to 0.
         
     Raises:
         ValueError: If `leafsize < 2`. This currectly segfaults.

@@ -12,7 +12,7 @@ cykdtree is released as open source software under a BSD license.
 Requirements
 ------------
  * `Python 2.7 <https://www.python.org/download/releases/2.7/>`_
- * C++11 compiler
+ * C++ compiler
  * `Cython <http://cython.org/>`_
 
 ------------

@@ -2,7 +2,6 @@ import os
 from cykdtree.plot import plot2D_serial, plot2D_parallel
 from cykdtree.kdtree import PyKDTree
 from cykdtree.parallel_kdtree import PyParallelKDTree
-from cgal4py.delaunay import Delaunay2, Delaunay3
 from cykdtree.tests.test_kdtree import fake_input as fake_input_serial
 from cykdtree.tests.test_parallel_kdtree import fake_input as fake_input_parallel
 
