@@ -32,6 +32,10 @@ public:
   // empty node constructor
   Node() {
     is_empty = true;
+    left_edge = NULL;
+    right_edge = NULL;
+    periodic_left = NULL;
+    periodic_right = NULL;
   }
   // innernode constructor
   Node(uint32_t ndim0, double *le, double *re, bool *ple, bool *pre,
@@ -101,10 +105,14 @@ public:
     }
   }
   ~Node() {
-    free(left_edge);
-    free(right_edge);
-    free(periodic_left);
-    free(periodic_right);
+    if (left_edge != NULL)
+      free(left_edge);
+    if (right_edge != NULL)
+      free(right_edge);
+    if (periodic_left != NULL)
+      free(periodic_left);
+    if (periodic_right != NULL)
+      free(periodic_right);
   }
 
   void update_ids(uint32_t add_to) {

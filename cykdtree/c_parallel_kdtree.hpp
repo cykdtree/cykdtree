@@ -28,6 +28,198 @@ void end_time(double in, const char* name) {
 #endif
 }
 
+void send_node(int dp, Node *node) {
+  int tag = 0;
+  int is_empty, is_leaf;
+  is_empty = node->is_empty;
+  MPI_Send(&is_empty, 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
+  // Empty node
+  if (node->is_empty)
+    return;
+  // Send properties innernodes and leaf nodes have
+  int *ple_i;
+  int *pre_i;
+  uint32_t ndim, d;
+  ndim = node->ndim;
+  ple_i = (int*)malloc(ndim*sizeof(int));
+  pre_i = (int*)malloc(ndim*sizeof(int));
+  for (d = 0; d < ndim; d++) {
+    ple_i[d] = (int)(node->periodic_left[d]);
+    pre_i[d] = (int)(node->periodic_right[d]);
+  }
+  MPI_Send(&ndim, 1, MPI_UNSIGNED, dp, tag++, MPI_COMM_WORLD);
+  MPI_Send(node->left_edge, ndim, MPI_DOUBLE, dp, tag++, MPI_COMM_WORLD);
+  MPI_Send(node->right_edge, ndim, MPI_DOUBLE, dp, tag++, MPI_COMM_WORLD);
+  MPI_Send(node->periodic_left, ndim, MPI_INT, dp, tag++, MPI_COMM_WORLD);
+  MPI_Send(node->periodic_right, ndim, MPI_INT, dp, tag++, MPI_COMM_WORLD);
+  MPI_Send(&(node->left_idx), 1, MPI_UNSIGNED_LONG, dp, tag++, MPI_COMM_WORLD);
+  // Proceed based on status as leaf
+  is_leaf = (int)(node->is_leaf);
+  MPI_Send(&is_leaf, 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
+  if (is_leaf) {
+    // Leaf properties
+    MPI_Send(&(node->children), 1, MPI_UNSIGNED_LONG, dp, tag++,
+	     MPI_COMM_WORLD);
+    MPI_Send(&(node->leafid), 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
+  } else {
+    // Innernode properties
+    MPI_Send(&(node->split_dim), 1, MPI_UNSIGNED, dp, tag++, MPI_COMM_WORLD);
+    MPI_Send(&(node->split), 1, MPI_DOUBLE, dp, tag++, MPI_COMM_WORLD);
+    // Child nodes
+    send_node(dp, node->less);
+    send_node(dp, node->greater);
+  }
+  // Free things
+  free(ple_i);
+  free(pre_i);
+}
+
+Node* recv_node(int sp, std::vector<Node*> left_nodes) {
+  int tag = 0;
+  Node *out;
+  int is_empty, is_leaf;
+  MPI_Recv(&is_empty, 1, MPI_INT, sp, tag++, MPI_COMM_WORLD,
+	   MPI_STATUS_IGNORE);
+  // Empty node
+  if (is_empty) {
+    out = new Node();
+    return out;
+  }
+  // Receive properties innernodes and leaf nodes have
+  uint32_t ndim, d;
+  double *le;
+  double *re;
+  bool *ple;
+  bool *pre;
+  int *ple_i;
+  int *pre_i;
+  uint64_t Lidx;
+  MPI_Recv(&ndim, 1, MPI_UNSIGNED, sp, tag++, MPI_COMM_WORLD,
+           MPI_STATUS_IGNORE);
+  le = (double*)malloc(ndim*sizeof(double));
+  re = (double*)malloc(ndim*sizeof(double));
+  ple = (bool*)malloc(ndim*sizeof(bool));
+  pre = (bool*)malloc(ndim*sizeof(bool));
+  ple_i = (int*)malloc(ndim*sizeof(int));
+  pre_i = (int*)malloc(ndim*sizeof(int));
+  MPI_Recv(le, ndim, MPI_DOUBLE, sp, tag++, MPI_COMM_WORLD,
+           MPI_STATUS_IGNORE);
+  MPI_Recv(re, ndim, MPI_DOUBLE, sp, tag++, MPI_COMM_WORLD,
+           MPI_STATUS_IGNORE);
+  MPI_Recv(ple_i, ndim, MPI_INT, sp, tag++, MPI_COMM_WORLD,
+           MPI_STATUS_IGNORE);
+  MPI_Recv(pre_i, ndim, MPI_INT, sp, tag++, MPI_COMM_WORLD,
+           MPI_STATUS_IGNORE);
+  for (d = 0; d < ndim; d++) {
+    ple[d] = (bool)(ple_i[d]);
+    pre[d] = (bool)(pre_i[d]);
+  }
+  MPI_Recv(&Lidx, 1, MPI_UNSIGNED_LONG, sp, tag++, MPI_COMM_WORLD,
+	   MPI_STATUS_IGNORE);
+  // Proceed based on status as leaf
+  MPI_Recv(&is_leaf, 1, MPI_INT, sp, tag++, MPI_COMM_WORLD,
+           MPI_STATUS_IGNORE);
+  if (is_leaf) {
+    uint64_t children;
+    int leafid;
+    // Leaf properties
+    MPI_Recv(&children, 1, MPI_UNSIGNED_LONG, sp, tag++,
+	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&leafid, 1, MPI_INT, sp, tag++, MPI_COMM_WORLD,
+	     MPI_STATUS_IGNORE);
+    out = new Node(ndim, le, re, ple, pre, Lidx, children, leafid, left_nodes);
+  } else {
+    // Innernode properties
+    uint32_t sdim;
+    double split;
+    MPI_Recv(&sdim, 1, MPI_UNSIGNED, sp, tag++, MPI_COMM_WORLD,
+	     MPI_STATUS_IGNORE);
+    MPI_Recv(&split, 1, MPI_DOUBLE, sp, tag++, MPI_COMM_WORLD,
+             MPI_STATUS_IGNORE);
+    std::vector<Node*> greater_left_nodes;
+    for (d = 0; d < ndim; d++)
+      greater_left_nodes.push_back(left_nodes[d]);
+    // Child nodes
+    Node *less = recv_node(sp, left_nodes);
+    greater_left_nodes[sdim] = less;
+    Node *greater = recv_node(sp, greater_left_nodes);
+    out = new Node(ndim, le, re, ple, pre, Lidx, sdim, split, 
+		   less, greater, left_nodes);
+  }
+  // Free things
+  free(le);
+  free(re);
+  free(ple);
+  free(pre);
+  free(ple_i);
+  free(pre_i);
+  return out;
+}
+
+
+void send_leafnode(int dp, Node *node) {
+  int i = 0;
+  uint32_t j, ndim = node->ndim;
+  int *pe = (int*)malloc(ndim*sizeof(int));
+  MPI_Send(&(node->ndim), 1, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
+  MPI_Send(node->left_edge, ndim, MPI_DOUBLE, dp, i++, MPI_COMM_WORLD);
+  MPI_Send(node->right_edge, ndim, MPI_DOUBLE, dp, i++, MPI_COMM_WORLD);
+  for (j = 0; j < ndim; j++)
+    pe[j] = (int)(node->periodic_left[j]);
+  MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
+  for (j = 0; j < ndim; j++)
+    pe[j] = (int)(node->periodic_right[j]);
+  MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
+  for (j = 0; j < ndim; j++) {
+    if (node->left_nodes[j] == NULL)
+      pe[j] = 0;
+    else 
+      pe[j] = 1;
+  }
+  MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
+  MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
+  free(pe);
+}
+
+Node* recv_leafnode(int sp) {
+  int i = 0;
+  uint32_t j, ndim;
+  uint32_t leafid;
+  MPI_Recv(&ndim, 1, MPI_UNSIGNED, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  int *pe = (int*)malloc(ndim*sizeof(int));
+  bool *ple = (bool*)malloc(ndim*sizeof(bool));
+  bool *pre = (bool*)malloc(ndim*sizeof(bool));
+  double *re = (double*)malloc(ndim*sizeof(double));
+  double *le = (double*)malloc(ndim*sizeof(double));
+  std::vector<Node*> left_nodes;
+  for (j = 0; j < ndim; j++)
+    left_nodes.push_back(NULL);
+  MPI_Recv(le, ndim, MPI_DOUBLE, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Recv(re, ndim, MPI_DOUBLE, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  for (j = 0; j < ndim; j++)
+    ple[j] = (bool)(pe[j]);
+  MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  for (j = 0; j < ndim; j++)
+    pre[j] = (bool)(pe[j]);
+  MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  for (j = 0; j < ndim; j++) {
+    if (pe[j] == 1)
+      left_nodes[j] = new Node(); // empty place holder
+  }
+  MPI_Recv(&leafid, 1, MPI_UNSIGNED, sp, i++, MPI_COMM_WORLD,
+	   MPI_STATUS_IGNORE);
+  Node *node = new Node(ndim, le, re, ple, pre, 0, 0, leafid, left_nodes);
+  free(pe);
+  free(ple);
+  free(pre);
+  free(le);
+  free(re);
+  return node;
+}
+
+
+
 struct exch_rec {
   int src;
   int dst;
@@ -95,6 +287,8 @@ public:
   MPI_Datatype mpi_exch_type;
   std::vector<std::vector<int> > lsplit;
   std::vector<std::vector<int> > rsplit;
+  int src;
+  std::vector<int> dst;
   exch_rec src_exch;
   std::vector<exch_rec> dst_exch;
   uint32_t ndim;
@@ -127,6 +321,7 @@ public:
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize, double *left_edge, double *right_edge,
 		 bool *periodic0, bool include_self = true) {
+    src = -1;
     npts = 0;
     available = 1;
     all_avail = NULL;
@@ -273,65 +468,6 @@ public:
     MPI_Recv(&st[0], nexch, mpi_exch_type, isrc, tag, MPI_COMM_WORLD,
 	     MPI_STATUS_IGNORE);
     return st;
-  }
-
-  void send_node(int dp, Node *node) {
-    int i = 0;
-    uint32_t j;
-    int *pe = (int*)malloc(ndim*sizeof(int));
-    MPI_Send(node->left_edge, ndim, MPI_DOUBLE, dp, i++, MPI_COMM_WORLD);
-    MPI_Send(node->right_edge, ndim, MPI_DOUBLE, dp, i++, MPI_COMM_WORLD);
-    for (j = 0; j < ndim; j++)
-      pe[j] = (int)(node->periodic_left[j]);
-    MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
-    for (j = 0; j < ndim; j++)
-      pe[j] = (int)(node->periodic_right[j]);
-    MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
-    for (j = 0; j < ndim; j++) {
-      if (node->left_nodes[j] == NULL)
-	pe[j] = 0;
-      else 
-	pe[j] = 1;
-    }
-    MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
-    MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
-    free(pe);
-  }
-
-  Node* recv_node(int sp) {
-    int i = 0;
-    uint32_t j;
-    uint32_t leafid;
-    int *pe = (int*)malloc(ndim*sizeof(int));
-    bool *ple = (bool*)malloc(ndim*sizeof(bool));
-    bool *pre = (bool*)malloc(ndim*sizeof(bool));
-    double *re = (double*)malloc(ndim*sizeof(double));
-    double *le = (double*)malloc(ndim*sizeof(double));
-    std::vector<Node*> left_nodes;
-    for (j = 0; j < ndim; j++)
-      left_nodes.push_back(NULL);
-    MPI_Recv(le, ndim, MPI_DOUBLE, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(re, ndim, MPI_DOUBLE, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    for (j = 0; j < ndim; j++)
-      ple[j] = (bool)(pe[j]);
-    MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    for (j = 0; j < ndim; j++)
-      pre[j] = (bool)(pe[j]);
-    MPI_Recv(pe, ndim, MPI_INT, sp, i++, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    for (j = 0; j < ndim; j++) {
-      if (pe[j] == 1)
-	left_nodes[j] = new Node(); // empty place holder
-    }
-    MPI_Recv(&leafid, 1, MPI_UNSIGNED, sp, i++, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    Node *node = new Node(ndim, le, re, ple, pre, 0, 0, leafid, left_nodes);
-    free(pe);
-    free(ple);
-    free(pre);
-    free(le);
-    free(re);
-    return node;
   }
 
   void send_node_neighbors(int dp, Node *node) {
@@ -606,66 +742,85 @@ public:
     add_src(src);
   }
 
+  void set_comm_order() {
+    double _t0 = begin_time();
+    int nrecv = total_available(true);
+    int nsend = 0, nexch = 0;
+    while (nrecv > 0) {
+      nsend = size - nrecv;
+      nexch = std::min(nrecv, nsend);
+      //printf("%d: nrecv = %d, nsend = %d, nexch = %d\n", rank, nrecv, nsend, nexch);
+      if (available) {
+	// Get source
+	if (rrank < (nsend+nexch)) {
+	  src = (root + rrank - nexch) % size;
+	  available = false;
+	}
+      } else {
+	// Get destination
+	if (rrank < nexch)
+	  dst.push_back((root + rrank + nexch) % size);
+      }
+      nrecv = total_available(true);
+    }
+    end_time(_t0, "set_comm_order");
+  }
+
+  void build_tree() {
+    double _t0 = begin_time();
+    
+
+
+    end_time(_t0, "build_tree");
+  }
+
   void partition() {
     double _t0 = begin_time();
-    // Partition points until every process has points
+    set_comm_order();
     double *exch_mins = (double*)malloc(ndim*sizeof(double));
     double *exch_maxs = (double*)malloc(ndim*sizeof(double));
     double *exch_le = (double*)malloc(ndim*sizeof(double));
     double *exch_re = (double*)malloc(ndim*sizeof(double));
     int *exch_ple = (int*)malloc(ndim*sizeof(int));
     int *exch_pre = (int*)malloc(ndim*sizeof(int));
-    int nrecv = total_available(true);
-    int nsend = 0, nexch = 0;
-    int other_rank;
     exch_rec this_exch;
     std::vector<exch_rec> new_splits;
-    while (nrecv > 0) {
-      nsend = size - nrecv;
-      nexch = std::min(nrecv, nsend);
-      //printf("%d: nrecv = %d, nsend = %d, nexch = %d\n", rank, nrecv, nsend, nexch);
-      if (available) {
-	// Receive a set of points
-	if (rrank < (nsend+nexch)) {
-	  // Get information about split that creates this domain
-	  other_rank = (root + rrank - nexch) % size;
-	  this_exch = recv_exch(other_rank);
-	  recv_part(this_exch, exch_ple, exch_pre);
-	  // Receive splits from parent
-	  new_splits = recv_exch_vec(src_exch.src);
-	}
-      } else {
-	// Send a subset of points
-	if (rrank < nexch) {
-	  // Determine parameters of exchange
-	  other_rank = (root + rrank + nexch) % size;
-	  this_exch = split(other_rank);
-	  // Send to process
-	  send_exch(other_rank, this_exch);
-	  send_part(this_exch, exch_ple, exch_pre);
-	  // Receive new splits from children 
-	  for (uint32_t i = 0; i < dst_exch.size(); i++)
-	    new_splits = recv_exch_vec(dst_exch[i].dst, new_splits);
-	  new_splits.push_back(this_exch);
-	  // Send new splits to parent & receive update back
-	  if (src_exch.src != -1) {
-	    send_exch_vec(src_exch.src, new_splits);
-	    new_splits = recv_exch_vec(src_exch.src);
-	  }
-	  // Add new child to list of destinations (at the front)
-	  dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
-	  // Send new splits to children (including the new child)
-	  for (uint32_t i = 0; i < dst_exch.size(); i++)
-	    send_exch_vec(dst_exch[i].dst, new_splits);
-	}
-      }
+    std::vector<int>::iterator it;
+    // Receive from source
+    if (src != -1) {
+      this_exch = recv_exch(src);
+      recv_part(this_exch, exch_ple, exch_pre);
+      // Receive splits from parent
+      new_splits = recv_exch_vec(src_exch.src);
       // Add splits
       add_splits(new_splits);
       new_splits.clear();
-      nrecv = total_available(true);
-
     }
-    // print_neighbors();
+    // Send to destinations
+    for (it = dst.begin(); it != dst.end(); it++) {
+      // Determine parameters of exchange
+      this_exch = split(*it);
+      // Send to process
+      send_exch(*it, this_exch);
+      send_part(this_exch, exch_ple, exch_pre);
+      // Receive new splits from children 
+      for (uint32_t i = 0; i < dst_exch.size(); i++)
+	new_splits = recv_exch_vec(dst_exch[i].dst, new_splits);
+      new_splits.push_back(this_exch);
+      // Send new splits to parent & receive update back
+      if (src_exch.src != -1) {
+	send_exch_vec(src_exch.src, new_splits);
+	new_splits = recv_exch_vec(src_exch.src);
+      }
+      // Add new child to list of destinations (at the front)
+      dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
+      // Send new splits to children (including the new child)
+      for (uint32_t i = 0; i < dst_exch.size(); i++)
+	send_exch_vec(dst_exch[i].dst, new_splits);
+      // Add splits
+      add_splits(new_splits);
+      new_splits.clear();
+    }
     free(exch_mins);
     free(exch_maxs);
     free(exch_le);
@@ -761,7 +916,7 @@ public:
 		       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	      // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][j]);
 	      for (k = 0; k < nrecv; k++) {
-		node = recv_node(rsplit[d][j]);
+		node = recv_leafnode(rsplit[d][j]);
 		node->left_nodes[d] = tree->root;
 		if (p) {
 		  for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
@@ -786,7 +941,7 @@ public:
 	      // printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][j]);
 	      for (k = 0; k < nsend; k++) {
 		node = lsend[d][k];
-		send_node(lsplit[d][j], node);
+		send_leafnode(lsplit[d][j], node);
 		// Recieve neighbors back
 		recv_node_neighbors(lsplit[d][j], node);
 	      }
@@ -1081,12 +1236,12 @@ public:
     // 	int src;
     // 	MPI_Recv(&src, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
     // 		 MPI_STATUS_IGNORE);
-    // 	out = recv_node(src);
+    // 	out = recv_leafnode(src);
     //   }
     // } else {
     //   if (out != NULL) {
     // 	MPI_Send(&rank, 1, MPI_INT, root, 0, MPI_COMM_WORLD);
-    // 	send_node(root, out);
+    // 	send_leafnode(root, out);
     // 	out = NULL;
     //   }
     // }
