@@ -1,8 +1,8 @@
-import cykdtree
 import numpy as np
 import time
 # from nose.tools import assert_equal
 from nose.tools import assert_raises
+import cykdtree
 np.random.seed(100)
 
 N = 100

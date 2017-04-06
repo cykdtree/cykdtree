@@ -1,9 +1,9 @@
-from cykdtree.kdtree import PyKDTree, PyNode
-from cykdtree.parallel_kdtree import PyParallelKDTree
-from cykdtree import tests, plot
 import nose
 import sys
 import os
+from cykdtree.kdtree import PyKDTree, PyNode
+from cykdtree.parallel_kdtree import PyParallelKDTree
+from cykdtree import tests, plot
 
 def run_nose(verbose=False):
     nose_argv = sys.argv

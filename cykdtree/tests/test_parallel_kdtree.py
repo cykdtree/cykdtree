@@ -1,15 +1,15 @@
 # mpirun -n 4 python -c 'from cykdtree.tests.test_parallel_kdtree import *; test_neighbors()'
 # mpirun -n 4 python -c 'from cykdtree.tests.test_parallel_kdtree import *; test_neighbors()'
-import cykdtree
 import numpy as np
 import time
-from cykdtree.tests.test_kdtree import left_neighbors_x, left_neighbors_y, left_neighbors_x_periodic, left_neighbors_y_periodic
-
-
 # from nose.tools import assert_equal
-from nose.tools import assert_raises
+from nose.tools import istest, nottest, assert_raises
 from mpi4py import MPI
+import cykdtree
+from cykdtree.tests import MPITest
+from cykdtree.tests.test_kdtree import left_neighbors_x, left_neighbors_y, left_neighbors_x_periodic, left_neighbors_y_periodic
 np.random.seed(100)
+Nproc = 4
 
 N = 100
 leafsize = 10
@@ -41,22 +41,34 @@ def fake_input(ndim, N=100, leafsize=10):
     return pts, left_edge, right_edge, leafsize
 
 
+@MPITest(Nproc)
 def test_PyParallelKDTree():
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
+    size = comm.Get_size()
     for periodic in (False, True):
         for ndim in (2, 3):
-            pts, le, re, ls = fake_input(ndim)
+            pts, le, re, ls = fake_input(ndim, N=20, leafsize=2)
             Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                               periodic=periodic)
+            time.sleep(rank*0.5)
+            for leaf in Tpara.leaves.values():
+                print (leaf.id, leaf.left_edge, leaf.right_edge, leaf.start_idx, leaf.stop_idx)
+            print(rank, [i for i in Tpara.idx])
             if rank == 0:
+                time.sleep(size*0.5)
                 Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                           periodic=periodic)
-                np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
-            assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
-                          le, re, leafsize=1)
+                print(rank, 'result', [i for i in Tseri.idx])
+                for leaf in Tseri.leaves:
+                    print (leaf.id, leaf.left_edge, leaf.right_edge)
+            #     np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
+            # assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
+            #               le, re, leafsize=1)
+            return
 
 
+@MPITest(Nproc)
 def test_search():
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -72,6 +84,7 @@ def test_search():
             assert_raises(AssertionError, tree.get, np.zeros(ndim+1, 'double'))
 
 
+@MPITest(Nproc)
 def test_search_periodic():
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -88,6 +101,7 @@ def test_search_periodic():
             assert_raises(AssertionError, tree.get, np.zeros(ndim+1, 'double'))
 
 
+@MPITest(Nproc)
 def test_neighbors():
 
     comm = MPI.COMM_WORLD
@@ -138,6 +152,7 @@ def test_neighbors():
             raise
 
 
+@MPITest(Nproc)
 def test_neighbors_periodic():
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
@@ -185,6 +200,7 @@ def test_neighbors_periodic():
             print(out_str)
             raise
 
+@MPITest(Nproc)
 def test_get_neighbor_ids():
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
