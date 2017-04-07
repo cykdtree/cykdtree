@@ -37,9 +37,9 @@ cdef extern from "c_kdtree.hpp":
         Node* root
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
                double *left_edge, double *right_edge, bool *periodic)
-        double* wrap_pos(double* pos)
-        vector[uint32_t] get_neighbor_ids(double* pos)
-        Node* search(double* pos)
+        double* wrap_pos(double* pos) nogil
+        vector[uint32_t] get_neighbor_ids(double* pos) nogil
+        Node* search(double* pos) nogil
 
 cdef class PyNode:
     cdef Node* _node
