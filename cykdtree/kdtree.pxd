@@ -33,6 +33,7 @@ cdef extern from "c_kdtree.hpp":
         double* domain_width
         double* domain_mins
         double* domain_maxs
+        uint32_t num_leaves
         vector[Node*] leaves
         Node* root
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,

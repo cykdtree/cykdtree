@@ -226,13 +226,12 @@ public:
 
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
-	 uint32_t leafsize0, uint64_t left_idx0,
-	 double *left_edge, double *right_edge,
+	 uint32_t leafsize0, double *left_edge, double *right_edge,
 	 bool *periodic_left0, bool *periodic_right0,
+	 double *domain_mins0, double *domain_maxs0,
 	 bool include_self = true, bool dont_build = false)
   {
     is_partial = true;
-    left_idx = left_idx0;
     leaves_le = NULL;
     leaves_re = NULL;
 
@@ -248,14 +247,25 @@ public:
     periodic = (bool*)malloc(ndim*sizeof(bool));
     num_leaves = 0;
 
-    domain_mins = min_pts(pts, n, m);
-    domain_maxs = max_pts(pts, n, m);
+    if (domain_mins0 == NULL)
+      domain_mins = min_pts(pts, n, m);
+    else
+      domain_mins = (double*)malloc(ndim*sizeof(double));
+    if (domain_maxs0 == NULL)
+      domain_maxs = max_pts(pts, n, m);
+    else
+      domain_maxs = (double*)malloc(ndim*sizeof(double));
 
     any_periodic = false;
     for (uint32_t d = 0; d < ndim; d++) {
-      periodic[d] = false;
+      if (domain_mins0 != NULL)
+	domain_mins[d] = domain_mins0[d];
+      if (domain_maxs0 != NULL)
+	domain_maxs[d] = domain_maxs0[d];
       if ((periodic_left[d]) && (periodic_right[d])) {
 	periodic[d] = true;
+      } else {
+	periodic[d] = false;
       }
       if (periodic[d]) {
 	any_periodic = true;

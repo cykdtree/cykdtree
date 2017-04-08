@@ -64,7 +64,7 @@ def test_PyParallelKDTree():
                 # for leaf in Tseri.leaves:
                 #     print (leaf.id, #leaf.left_edge, leaf.right_edge, 
                 #            pts[Tseri.idx[leaf.slice],:])
-                np.testing.assert_array_equal(Tpara.all_idx, Tseri.idx)
+                np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
             assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
                           le, re, leafsize=1)
 
@@ -121,14 +121,14 @@ def test_neighbors():
 
     # 2D
     left_neighbors = [left_neighbors_x, left_neighbors_y]
-    right_neighbors = [[[] for i in range(tree.tot_num_leaves)] for _
+    right_neighbors = [[[] for i in range(tree.total_num_leaves)] for _
                        in range(tree.ndim)]
     time.sleep(rank)
     for d in range(tree.ndim):
-        for i in range(tree.tot_num_leaves):
+        for i in range(tree.total_num_leaves):
             for j in left_neighbors[d][i]:
                 right_neighbors[d][j].append(i)
-        for i in range(tree.tot_num_leaves):
+        for i in range(tree.total_num_leaves):
             right_neighbors[d][i] = list(set(right_neighbors[d][i]))
     for leaf in tree.leaves.values():
         out_str = str(leaf.id)
@@ -171,13 +171,13 @@ def test_neighbors_periodic():
                     plotfile='test_neighbors_parallel.png')
     # 2D
     left_neighbors = [left_neighbors_x_periodic, left_neighbors_y_periodic]
-    right_neighbors = [[[] for i in range(tree.tot_num_leaves)] for
+    right_neighbors = [[[] for i in range(tree.total_num_leaves)] for
                        _ in range(tree.ndim)]
     for d in range(tree.ndim):
-        for i in range(tree.tot_num_leaves):
+        for i in range(tree.total_num_leaves):
             for j in left_neighbors[d][i]:
                 right_neighbors[d][j].append(i)
-        for i in range(tree.tot_num_leaves):
+        for i in range(tree.total_num_leaves):
             right_neighbors[d][i] = list(set(right_neighbors[d][i]))
     for leaf in tree.leaves.values():
         out_str = str(leaf.id)

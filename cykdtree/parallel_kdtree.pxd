@@ -5,22 +5,26 @@ from libcpp cimport bool
 from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
 from cykdtree.kdtree cimport Node as Node
-from cykdtree.kdtree cimport PyNode
+from cykdtree.kdtree cimport PyNode, KDTree
 
 cdef extern from "c_parallel_kdtree.hpp":
     cdef cppclass ParallelKDTree nogil:
-        uint64_t npts
-        uint64_t npts_orig
         uint32_t ndim
-        uint32_t num_leaves
-        uint32_t tot_num_leaves
-        uint64_t* all_idx
+        uint64_t npts
+        uint64_t local_npts
+        uint32_t total_num_leaves
+        uint64_t *all_idx
         double *all_pts
-        double* domain_left_edge
-        double* domain_right_edge
-        double* domain_width
-        bool* periodic
-        vector[Node*] leaves
+        double *total_domain_left_edge
+        double *total_domain_right_edge
+        double *total_domain_width
+        bool *total_periodic
+        double *local_domain_left_edge
+        double *local_domain_right_edge
+        double *local_domain_width
+        bool *local_periodic_left
+        bool *local_periodic_right
+        KDTree *tree
         ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
                        uint32_t leafsize, double *left_edge0,
                        double *right_edge0, bool *periodic0, bool include_self)
@@ -33,11 +37,12 @@ cdef extern from "c_parallel_kdtree.hpp":
 cdef class PyParallelKDTree:
     cdef int rank
     cdef int size
-    cdef ParallelKDTree *_tree
+    cdef ParallelKDTree *_ptree
     cdef readonly uint64_t npts
     cdef readonly uint32_t ndim
     cdef readonly uint32_t num_leaves
-    cdef readonly uint32_t tot_num_leaves
+    cdef readonly uint32_t total_num_leaves
+    cdef readonly uint32_t local_num_leaves
     cdef readonly uint32_t leafsize
     cdef double *_left_edge
     cdef double *_right_edge

@@ -88,17 +88,17 @@ cdef class PyParallelKDTree:
         else:
             self._make_tree(NULL)
         # Create list of Python leaves 
-        self.num_leaves = <uint32_t>self._tree.leaves.size()
-        self.tot_num_leaves = self._tree.tot_num_leaves
+        self.total_num_leaves = self._ptree.total_num_leaves
+        self.local_num_leaves = self._ptree.tree.num_leaves
         self.leaves = {}
         cdef Node* leafnode
         cdef PyNode leafnode_py
         cdef object leaf_neighbors = None
-        for k in xrange(self.num_leaves):
-            leafnode = self._tree.leaves[k]
+        for k in xrange(self.local_num_leaves):
+            leafnode = self._ptree.tree.leaves[k]
             leafnode_py = PyNode(self.ndim)
-            leafnode_py._init_node(leafnode, self.num_leaves,
-                                   self._tree.domain_width)
+            leafnode_py._init_node(leafnode, self.local_num_leaves,
+                                   self._ptree.total_domain_width)
             self.leaves[leafnode.leafid] = leafnode_py
 
     def __dealloc__(self):
@@ -106,54 +106,58 @@ cdef class PyParallelKDTree:
             free(self._left_edge)
             free(self._right_edge)
             free(self._periodic)
-        free(self._tree)
+        free(self._ptree)
 
     cdef void _make_tree(self, double *pts):
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._tree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
-                                            self.leafsize, self._left_edge,
-                                            self._right_edge, self._periodic)
+            self._ptree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
+                                             self.leafsize, self._left_edge,
+                                             self._right_edge, self._periodic)
         self._idx = idx
 
     @property
-    def npts_orig(self):
-        cdef uint64_t out = self._tree.npts_orig
+    def local_npts(self):
+        cdef uint64_t out = self._ptree.local_npts
         return out
 
-    @property
-    def all_pts(self):
-        cdef np.float64_t[:,:] view
-        view = <np.float64_t[:self.npts_orig,:self.ndim]> self._tree.all_pts
-        return np.asarray(view)
-
-    @property
-    def all_idx(self):
-        cdef np.uint64_t[:] view
-        view = <np.uint64_t[:self.npts_orig]> self._tree.all_idx
-        return np.asarray(view)
+    # @property
+    # def pts(self):
+    #     cdef np.float64_t[:,:] view
+    #     view = <np.float64_t[:self.local_npts,:self.ndim]> self._ptree.all_pts
+    #     return np.asarray(view)
 
     @property
     def idx(self):
-        cdef np.uint64_t[:] idx
-        idx = <np.uint64_t[:self._tree.npts]> self._tree.all_idx
-        return np.asarray(idx)
+        cdef np.uint64_t[:] view
+        view = <np.uint64_t[:self.local_npts]> self._ptree.all_idx
+        return np.asarray(view)
 
     @property
     def left_edge(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_left_edge
+        cdef np.float64_t[:] view
+        view = <np.float64_t[:self.ndim]> self._ptree.local_domain_left_edge
         return np.asarray(view)
     @property
     def right_edge(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_right_edge
+        cdef np.float64_t[:] view
+        view = <np.float64_t[:self.ndim]> self._ptree.local_domain_right_edge
         return np.asarray(view)
     @property
     def domain_width(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_width
+        # cdef np.float64_t[:] view
+        # view = <np.float64_t[:self.ndim]> self._ptree.local_domain_width
+        # return np.asarray(view)
+        return self.right_edge - self.left_edge
+    @property
+    def periodic_left(self):
+        cdef cbool[:] view
+        view = <cbool[:self.ndim]> self._ptree.local_periodic_left
         return np.asarray(view)
     @property
-    def periodic(self):
-        cdef cbool[:] view = <cbool[:self.ndim]> self._tree.periodic
+    def periodic_right(self):
+        cdef cbool[:] view
+        view = <cbool[:self.ndim]> self._ptree.local_periodic_right
         return np.asarray(view)
 
     cdef object _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
@@ -161,7 +165,7 @@ cdef class PyParallelKDTree:
         cdef object out = None
         assert(<uint32_t>len(pos) == self.ndim)
         cdef np.uint32_t i
-        cdef vector[uint32_t] vout = self._tree.get_neighbor_ids(&pos[0]);
+        cdef vector[uint32_t] vout = self._ptree.get_neighbor_ids(&pos[0]);
         cdef pybool found = (vout.size() != 0)
         cdef object all_found = comm.allgather(found)
         if sum(all_found) != 1:
@@ -192,7 +196,7 @@ cdef class PyParallelKDTree:
         cdef object comm = MPI.COMM_WORLD
         cdef object out = None
         assert(<uint32_t>len(pos) == self.ndim)
-        cdef Node* leafnode = self._tree.search(&pos[0])
+        cdef Node* leafnode = self._ptree.search(&pos[0])
         # cdef PyNode out = PyNode()
         cdef pybool found = (leafnode != NULL)
         cdef object all_found = comm.allgather(found)
