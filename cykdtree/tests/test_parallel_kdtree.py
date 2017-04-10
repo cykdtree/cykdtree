@@ -52,17 +52,17 @@ def test_PyParallelKDTree():
             Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                               periodic=periodic)
             # time.sleep(rank*1)
-            # print(rank, [i for i in Tpara.all_idx])
+            # print(rank, [i for i in Tpara.idx])
             # for leaf in Tpara.leaves.values():
-            #     print (leaf.id, #leaf.left_edge, leaf.right_edge, 
-            #            Tpara.all_pts[Tpara.idx[leaf.slice],:])
+            #     print (leaf.id, leaf.left_edge, leaf.right_edge)
+                       # Tpara.all_pts[Tpara.idx[leaf.slice],:])
             if rank == 0:
-                # time.sleep(size*1)
+                time.sleep(size*1)
                 Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                           periodic=periodic)
                 # print(rank, 'result', [i for i in Tseri.idx])
                 # for leaf in Tseri.leaves:
-                #     print (leaf.id, #leaf.left_edge, leaf.right_edge, 
+                #     print (leaf.id, leaf.left_edge, leaf.right_edge)
                 #            pts[Tseri.idx[leaf.slice],:])
                 np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
             assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
@@ -185,6 +185,7 @@ def test_neighbors_periodic():
             for d in range(tree.ndim):
                 out_str += '\nleft:  {} {} {}'.format(d, leaf.left_neighbors[d],
                                                left_neighbors[d][leaf.id])
+                out_str += ' {}'.format(leaf.periodic_left)
                 assert(len(left_neighbors[d][leaf.id]) ==
                        len(leaf.left_neighbors[d]))
                 for i in range(len(leaf.left_neighbors[d])):
@@ -192,6 +193,7 @@ def test_neighbors_periodic():
                            leaf.left_neighbors[d][i])
                 out_str += '\nright: {} {} {}'.format(d, leaf.right_neighbors[d],
                                                 right_neighbors[d][leaf.id])
+                out_str += ' {}'.format(leaf.periodic_right)
                 assert(len(right_neighbors[d][leaf.id]) ==
                        len(leaf.right_neighbors[d]))
                 for i in range(len(leaf.right_neighbors[d])):

@@ -58,13 +58,12 @@ public:
     right_edge = (double*)malloc(ndim*sizeof(double));
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
-    for (uint32_t d = 0; d < ndim; d++) {
-      left_edge[d] = le[d];
-      right_edge[d] = re[d];
-      periodic_left[d] = ple[d];
-      periodic_right[d] = pre[d];
+    memcpy(left_edge, le, ndim*sizeof(double));
+    memcpy(right_edge, re, ndim*sizeof(double));
+    memcpy(periodic_left, ple, ndim*sizeof(bool));
+    memcpy(periodic_right, pre, ndim*sizeof(bool));
+    for (uint32_t d = 0; d < ndim; d++)
       left_nodes.push_back(left_nodes0[d]);
-    }
 
     left_neighbors = std::vector<std::vector<uint32_t> >(ndim);
     right_neighbors = std::vector<std::vector<uint32_t> >(ndim);
@@ -88,13 +87,12 @@ public:
     right_edge = (double*)malloc(ndim*sizeof(double));
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
-    for (uint32_t d = 0; d < ndim; d++) {
-      left_edge[d] = le[d];
-      right_edge[d] = re[d];
-      periodic_left[d] = ple[d];
-      periodic_right[d] = pre[d];
+    memcpy(left_edge, le, ndim*sizeof(double));
+    memcpy(right_edge, re, ndim*sizeof(double));
+    memcpy(periodic_left, ple, ndim*sizeof(bool));
+    memcpy(periodic_right, pre, ndim*sizeof(bool));
+    for (uint32_t d = 0; d < ndim; d++)
       left_nodes.push_back(left_nodes0[d]);
-    }
 
     left_neighbors = std::vector<std::vector<uint32_t> >(ndim);
     right_neighbors = std::vector<std::vector<uint32_t> >(ndim);
@@ -145,6 +143,14 @@ public:
 	  add_neighbors(curr->greater, dim);
 	}
       }
+    }
+  }
+
+  void clear_neighbors() {
+    uint32_t d;
+    for (d = 0; d < ndim; d++) {
+      left_neighbors[d].clear();
+      right_neighbors[d].clear();
     }
   }
 
@@ -249,19 +255,21 @@ public:
 
     if (domain_mins0 == NULL)
       domain_mins = min_pts(pts, n, m);
-    else
+    else {
       domain_mins = (double*)malloc(ndim*sizeof(double));
+      for (uint32_t d = 0; d < ndim; d++)
+	domain_mins[d] = domain_mins0[d];
+    }
     if (domain_maxs0 == NULL)
       domain_maxs = max_pts(pts, n, m);
-    else
+    else {
       domain_maxs = (double*)malloc(ndim*sizeof(double));
+      for (uint32_t d = 0; d < ndim; d++)
+	domain_maxs[d] = domain_maxs0[d];
+    }
 
     any_periodic = false;
     for (uint32_t d = 0; d < ndim; d++) {
-      if (domain_mins0 != NULL)
-	domain_mins[d] = domain_mins0[d];
-      if (domain_maxs0 != NULL)
-	domain_maxs[d] = domain_maxs0[d];
       if ((periodic_left[d]) && (periodic_right[d])) {
 	periodic[d] = true;
       } else {
@@ -312,8 +320,10 @@ public:
 	periodic_left[d] = true;
 	periodic_right[d] = true;
 	any_periodic = true;
-	break;
-      }
+      } else {
+	periodic_left[d] = false;
+	periodic_right[d] = false;
+      }	
     }
 
     domain_width = (double*)malloc(ndim*sizeof(double));
@@ -405,6 +415,12 @@ public:
     }
   }
 
+  void clear_neighbors() {
+    std::vector<Node*>::iterator it;
+    for (it = leaves.begin(); it != leaves.end(); it++) 
+      (*it)->clear_neighbors();
+  }
+
   void set_neighbors_periodic() 
   {
     uint32_t d0;
@@ -466,7 +482,7 @@ public:
 
   uint32_t split(uint64_t Lidx, uint64_t n,
 		 double *mins, double *maxes,
-		 int64_t &split_idx, double &split_val) {
+		 int64_t &split_idx, double &split_val, int rank = -1) {
     // Find dimension to split along
     uint32_t dmax, d;
     dmax = 0;
@@ -483,6 +499,11 @@ public:
     select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
     split_idx = (stop/2)+Lidx;
     split_val = all_pts[ndim*all_idx[split_idx] + dmax];
+
+    // if (rank < 0)
+    //   printf("Serial split: %u at %f\n", dmax, split_val);
+    // else
+    //   printf("Parallel split on %d: %u at %f\n", rank, dmax, split_val);
 
     return dmax;
   }
