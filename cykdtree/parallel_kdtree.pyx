@@ -121,6 +121,11 @@ cdef class PyParallelKDTree:
         cdef uint64_t out = self._ptree.local_npts
         return out
 
+    @property
+    def inter_npts(self):
+        cdef uint64_t out = self._ptree.inter_npts
+        return out
+
     # @property
     # def pts(self):
     #     cdef np.float64_t[:,:] view
@@ -131,6 +136,12 @@ cdef class PyParallelKDTree:
     def idx(self):
         cdef np.uint64_t[:] view
         view = <np.uint64_t[:self.local_npts]> self._ptree.all_idx
+        return np.asarray(view)
+
+    @property
+    def inter_idx(self):
+        cdef np.uint64_t[:] view
+        view = <np.uint64_t[:self.inter_npts]> self._ptree.all_idx
         return np.asarray(view)
 
     @property
@@ -221,6 +232,18 @@ cdef class PyParallelKDTree:
 
         """
         return self._get(pos)
+
+
+    # def consolidate(self):
+    #     r"""Return the serial KDTree on process 0.
+
+    #     Returns:
+    #         :class:`cykdtree.PyKDTree`: KDTree.
+
+    #     """
+    #     cdef KDTree *stree = self._tree.consolidate_tree()
+        
+        
 
     # def build(self, pybool include_self = False):
     #     cdef cbool c_is = <cbool>include_self

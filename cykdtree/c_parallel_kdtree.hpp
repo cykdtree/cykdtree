@@ -3,11 +3,30 @@
 #include <math.h>
 #include <stdint.h>
 #include <iostream>
-#define TIMINGS 
+#include <cstdarg>
+// #define DEBUG
+// #define TIMINGS 
 #ifdef TIMINGS
 #include <ctime>
 #endif
 //#include "c_kdtree.hpp"
+
+void debug_msg(bool local_debug, const char *name, 
+	       const char* msg, ...) {
+#ifdef DEBUG
+  if (!(local_debug))
+    return;
+  int rank, size;
+  va_list args;
+  MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  printf("%d: %s: ", rank, name);
+  va_start(args, msg);
+  vprintf(msg, args);
+  va_end(args);
+  printf("\n");
+#endif  
+}
 
 double begin_time() {
   double out = 0.0;
@@ -181,6 +200,15 @@ public:
   uint32_t total_num_leaves;
   double *all_lbounds;
   double *all_rbounds;
+  // Properties of original data received by this process
+  uint64_t inter_npts;
+  double *inter_domain_left_edge;
+  double *inter_domain_right_edge;
+  double *inter_domain_mins;
+  double *inter_domain_maxs;
+  bool *inter_periodic_left;
+  bool *inter_periodic_right;
+  bool inter_any_periodic;
   // Properties for root node on this process
   KDTree *tree;
   double* all_pts;
@@ -194,10 +222,11 @@ public:
   bool *local_periodic_right;
   bool local_any_periodic;
   uint64_t local_left_idx;
+  // Properties for
+
   // Convenience properties
   int* dummy;
 
-  uint64_t npts;
   double *leaves_le;
   double *leaves_re;
   std::vector<uint32_t> leaf_count;
@@ -233,7 +262,7 @@ public:
       all_idx = idx;
       ndim = m;
       leafsize = leafsize0;
-      npts = n;
+      inter_npts = n;
       local_npts = n;
     } else {
       is_root = false;
@@ -244,7 +273,7 @@ public:
       all_idx = NULL;
       ndim = m;
       leafsize = leafsize0;
-      npts = 0;
+      inter_npts = 0;
       local_npts = 0;
     }
     // Get information about global process
@@ -255,11 +284,23 @@ public:
     dummy = (int*)malloc(ndim*sizeof(int));
     lsplit = std::vector<std::vector<int> >(ndim);
     rsplit = std::vector<std::vector<int> >(ndim);
+    // Total properties
     total_domain_left_edge = (double*)malloc(ndim*sizeof(double));
     total_domain_right_edge = (double*)malloc(ndim*sizeof(double));
     total_domain_width = (double*)malloc(ndim*sizeof(double));
     total_periodic = (bool*)malloc(ndim*sizeof(bool));
     total_any_periodic = false;
+    // Intermediate properties
+    inter_domain_left_edge = (double*)malloc(ndim*sizeof(double));
+    inter_domain_right_edge = (double*)malloc(ndim*sizeof(double));
+    if (!(is_root)) {
+      inter_domain_mins = (double*)malloc(ndim*sizeof(double));
+      inter_domain_maxs = (double*)malloc(ndim*sizeof(double));
+    }
+    inter_periodic_left = (bool*)malloc(ndim*sizeof(bool));
+    inter_periodic_right = (bool*)malloc(ndim*sizeof(bool));
+    inter_any_periodic = false;
+    // Local properties
     local_domain_left_edge = (double*)malloc(ndim*sizeof(double));
     local_domain_right_edge = (double*)malloc(ndim*sizeof(double));
     local_domain_mins = (double*)malloc(ndim*sizeof(double));
@@ -272,8 +313,16 @@ public:
       memcpy(total_domain_left_edge, left_edge, ndim*sizeof(double));
       memcpy(total_domain_right_edge, right_edge, ndim*sizeof(double));
       memcpy(total_periodic, periodic0, ndim*sizeof(bool));
+      memcpy(inter_domain_left_edge, left_edge, ndim*sizeof(double));
+      memcpy(inter_domain_right_edge, right_edge, ndim*sizeof(double));
+      inter_domain_mins = min_pts(all_pts, inter_npts, ndim);
+      inter_domain_maxs = max_pts(all_pts, inter_npts, ndim);
+      memcpy(inter_periodic_left, periodic0, ndim*sizeof(bool));
+      memcpy(inter_periodic_right, periodic0, ndim*sizeof(bool));
       memcpy(local_domain_left_edge, left_edge, ndim*sizeof(double));
       memcpy(local_domain_right_edge, right_edge, ndim*sizeof(double));
+      memcpy(local_domain_mins, inter_domain_mins, ndim*sizeof(double));
+      memcpy(local_domain_maxs, inter_domain_maxs, ndim*sizeof(double));
       memcpy(local_periodic_left, periodic0, ndim*sizeof(bool));
       memcpy(local_periodic_right, periodic0, ndim*sizeof(bool));
       for (uint32_t d = 0; d < ndim; d++) {
@@ -285,12 +334,16 @@ public:
 	  rsplit[d].push_back(rank);
 	}
       }
+      inter_any_periodic = total_any_periodic;
       local_any_periodic = total_any_periodic;
     } else {
       for (uint32_t d = 0; d < ndim; d++) {
+	inter_periodic_left[d] = false;
+	inter_periodic_right[d] = false;
 	local_periodic_left[d] = false;
 	local_periodic_right[d] = false;
       }
+      inter_any_periodic = false;
       local_any_periodic = false;
     }
     MPI_Bcast(total_domain_left_edge, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
@@ -324,6 +377,12 @@ public:
     free(total_domain_right_edge);
     free(total_domain_width);
     free(total_periodic);
+    free(inter_domain_left_edge);
+    free(inter_domain_right_edge);
+    free(inter_domain_mins);
+    free(inter_domain_maxs);
+    free(inter_periodic_left);
+    free(inter_periodic_right);
     free(local_domain_left_edge);
     free(local_domain_right_edge);
     free(local_domain_mins);
@@ -343,13 +402,15 @@ public:
     MPI_Type_free(&mpi_exch_type);
   }
 
-  void init_tree(bool include_self = false) {
-    if (is_root) {
-      tree = new KDTree(all_pts, all_idx, local_npts, ndim, leafsize,
-			local_domain_left_edge, local_domain_right_edge,
-			total_periodic, include_self, true);
-      memcpy(local_domain_mins, tree->domain_mins, ndim*sizeof(double));
-      memcpy(local_domain_maxs, tree->domain_maxs, ndim*sizeof(double));
+  void init_tree(bool include_self = false, bool use_inter = false) {
+    bool local_debug = true;
+    debug_msg(local_debug, "init_tree", "begin");
+    if (use_inter) {
+      tree = new KDTree(all_pts, all_idx, inter_npts, ndim, leafsize,
+			inter_domain_left_edge, inter_domain_right_edge,
+			inter_periodic_left, inter_periodic_right,
+			inter_domain_mins, inter_domain_maxs,
+			include_self, true);
     } else {
       tree = new KDTree(all_pts, all_idx, local_npts, ndim, leafsize,
 			local_domain_left_edge, local_domain_right_edge,
@@ -463,10 +524,10 @@ public:
 	  if (e.split_dim == d) {
 	    // Split is along shared dimension, use right of split
 	    lsplit[d][i] = e.dst;
-	  } else if (e.split_val > tree->domain_right_edge[e.split_dim]) {
+	  } else if (e.split_val > local_domain_right_edge[e.split_dim]) {
 	    // Split is farther right than domain, use left of split
 	    lsplit[d][i] = e.src;
-	  } else if (e.split_val < tree->domain_left_edge[e.split_dim]) {
+	  } else if (e.split_val < local_domain_left_edge[e.split_dim]) {
 	    // Split is frather left than domain, use right of split
 	    lsplit[d][i] = e.dst;
 	  } else {
@@ -481,10 +542,10 @@ public:
 	  if (e.split_dim == d) {
 	    // Split is along shared dimension, use left of split
 	    rsplit[d][i] = e.src;
-	  } else if (e.split_val > tree->domain_right_edge[e.split_dim]) {
+	  } else if (e.split_val > local_domain_right_edge[e.split_dim]) {
 	    // Split is farther right than domain, use left of split
 	    rsplit[d][i] = e.src;
-	  } else if (e.split_val < tree->domain_left_edge[e.split_dim]) {
+	  } else if (e.split_val < local_domain_left_edge[e.split_dim]) {
 	    // Split is frather left than domain, use right of split
 	    rsplit[d][i] = e.dst;
 	  } else {
@@ -566,29 +627,35 @@ public:
   }
 
   exch_rec send_part(int other_rank) {
+    bool local_debug = true;
     uint32_t d;
     double *pts_send;
+    debug_msg(local_debug, "send_part", "sending to %d", other_rank);
+    // Split
+    exch_rec this_exch = split_local(other_rank);
     // Send exchange record
-    exch_rec this_exch = split(other_rank);
+    debug_msg(local_debug, "send_part", "send_exch");
     send_exch(other_rank, this_exch);
     // Send variables
-    MPI_Send(tree->domain_mins, ndim, MPI_DOUBLE, this_exch.dst, rank,
+    debug_msg(local_debug, "send_part", "sending domain properties");
+    MPI_Send(local_domain_mins, ndim, MPI_DOUBLE, this_exch.dst, rank,
 	     MPI_COMM_WORLD);
-    MPI_Send(tree->domain_maxs, ndim, MPI_DOUBLE, this_exch.dst, rank,
+    MPI_Send(local_domain_maxs, ndim, MPI_DOUBLE, this_exch.dst, rank,
 	     MPI_COMM_WORLD);
-    MPI_Send(tree->domain_left_edge, ndim, MPI_DOUBLE, this_exch.dst, rank,
+    MPI_Send(local_domain_left_edge, ndim, MPI_DOUBLE, this_exch.dst, rank,
 	     MPI_COMM_WORLD);
-    MPI_Send(tree->domain_right_edge, ndim, MPI_DOUBLE, this_exch.dst, rank,
+    MPI_Send(local_domain_right_edge, ndim, MPI_DOUBLE, this_exch.dst, rank,
 	     MPI_COMM_WORLD);
     for (d = 0; d < ndim; d++)
-      dummy[d] = (int)(tree->periodic_left[d]);
+      dummy[d] = (int)(local_periodic_left[d]);
     MPI_Send(dummy, ndim, MPI_INT, this_exch.dst, rank,
 	     MPI_COMM_WORLD);
     for (d = 0; d < ndim; d++)
-      dummy[d] = (int)(tree->periodic_right[d]);
+      dummy[d] = (int)(local_periodic_right[d]);
     MPI_Send(dummy, ndim, MPI_INT, this_exch.dst, rank,
 	     MPI_COMM_WORLD);
     // Send points
+    debug_msg(local_debug, "send_part", "sending points");
     uint64_t npts_send = this_exch.npts;
     pts_send = (double*)malloc(npts_send*ndim*sizeof(double));
     for (uint64_t i = 0; i < npts_send; i++) {
@@ -600,21 +667,21 @@ public:
 	     MPI_COMM_WORLD);
     free(pts_send);
     // Update local info
+    debug_msg(local_debug, "send_part", "updating local properties");
     dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
-    tree->domain_maxs[this_exch.split_dim] = this_exch.split_val;
-    tree->domain_right_edge[this_exch.split_dim] = this_exch.split_val;
-    tree->periodic_right[this_exch.split_dim] = false;
-    tree->periodic[this_exch.split_dim] = false;
-    tree->domain_width[this_exch.split_dim] = this_exch.split_val - tree->domain_left_edge[this_exch.split_dim];
-    tree->npts = this_exch.split_idx + 1;
-    npts = this_exch.split_idx + 1;
-    tree->any_periodic = false;
+    local_domain_maxs[this_exch.split_dim] = this_exch.split_val;
+    local_domain_right_edge[this_exch.split_dim] = this_exch.split_val;
+    local_periodic_right[this_exch.split_dim] = false;
+    local_npts = this_exch.split_idx + 1;
+    local_any_periodic = false;
     for (uint32_t d = 0; d < ndim; d++) {
-      if (tree->periodic[d]) {
-	tree->any_periodic = true;
+      if ((local_periodic_left[d]) and (local_periodic_right[d])) {
+	local_any_periodic = true;
+	break;
       }
     }
     // Send existing neighbors & new splits
+    debug_msg(local_debug, "send_part", "sending neighbors");
     send_neighbors(this_exch.dst);
     add_dst(this_exch);
     consolidate_splits(&this_exch);
@@ -623,51 +690,63 @@ public:
   }
 
   void recv_part(int other_rank) {
+    bool local_debug = true;
     uint32_t d;
+    debug_msg(local_debug, "recv_part", "receiving from %d", other_rank);
     exch_rec this_exch = recv_exch(other_rank);
     // Receive information about incoming domain
-    MPI_Recv(tree->domain_mins, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
+    debug_msg(local_debug, "recv_part", "receiving domain properties");
+    MPI_Recv(local_domain_mins, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(tree->domain_maxs, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
+    MPI_Recv(local_domain_maxs, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(tree->domain_left_edge, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
+    MPI_Recv(local_domain_left_edge, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    MPI_Recv(tree->domain_right_edge, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
+    MPI_Recv(local_domain_right_edge, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(dummy, ndim, MPI_INT, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (d = 0; d < ndim; d++)
-      tree->periodic_left[d] = (bool)(dummy[d]);
+      local_periodic_left[d] = (bool)(dummy[d]);
     MPI_Recv(dummy, ndim, MPI_INT, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     for (d = 0; d < ndim; d++)
-      tree->periodic_right[d] = (bool)(dummy[d]);
+      local_periodic_right[d] = (bool)(dummy[d]);
     // Receive points
+    debug_msg(local_debug, "recv_part", "receiving points");
     all_pts = (double*)malloc(this_exch.npts*ndim*sizeof(double));
     MPI_Recv(all_pts, ndim*this_exch.npts, MPI_DOUBLE, this_exch.src, this_exch.src,
 	     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     // Create indices
+    debug_msg(local_debug, "recv_part", "creating index");
     all_idx = (uint64_t*)malloc(this_exch.npts*sizeof(uint64_t));
     for (uint64_t i = 0; i < this_exch.npts; i++)
       all_idx[i] = i;
     // Update local info
+    debug_msg(local_debug, "recv_part", "updating local properties");
     src_exch = this_exch;
-    npts = this_exch.npts;
     local_npts = this_exch.npts;
-    tree->npts = this_exch.npts;
-    tree->domain_mins[this_exch.split_dim] = this_exch.split_val;
-    tree->domain_left_edge[this_exch.split_dim] = this_exch.split_val;
-    tree->periodic_left[this_exch.split_dim] = false;
-    tree->all_pts = all_pts;
-    tree->all_idx = all_idx;
+    local_domain_mins[this_exch.split_dim] = this_exch.split_val;
+    local_domain_left_edge[this_exch.split_dim] = this_exch.split_val;
+    local_periodic_left[this_exch.split_dim] = false;
     for (d = 0; d < ndim; d++) {
-      tree->domain_width[d] = tree->domain_right_edge[d] - tree->domain_left_edge[d];
-      if ((tree->periodic_left[d]) && (tree->periodic_right[d])) {
-	tree->periodic[d] = true;
-	tree->any_periodic = true;
+      if ((local_periodic_left[d]) && (local_periodic_right[d])) {
+	local_any_periodic = true;
+	break;
       }
     }
+    // Update intermediate things
+    debug_msg(local_debug, "recv_part", "updating inter properties");
+    inter_npts = local_npts;
+    inter_any_periodic = local_any_periodic;
+    memcpy(inter_domain_mins, local_domain_mins, ndim*sizeof(double));
+    memcpy(inter_domain_maxs, local_domain_maxs, ndim*sizeof(double));
+    memcpy(inter_domain_left_edge, local_domain_left_edge, ndim*sizeof(double));
+    memcpy(inter_domain_right_edge, local_domain_right_edge, ndim*sizeof(double));
+    memcpy(inter_periodic_left, local_periodic_left, ndim*sizeof(bool));
+    memcpy(inter_periodic_right, local_periodic_right, ndim*sizeof(bool));
     // Recieve existing neighbors & new splits
+    debug_msg(local_debug, "recv_part", "receiving neighbors");
     recv_neighbors(this_exch.src);
     add_src(this_exch);
     consolidate_splits();
@@ -930,8 +1009,8 @@ public:
 		       local_domain_mins, local_domain_maxs);
     }
 
-    // Create tree
-    init_tree(include_self);
+    // Create tree, starting at intermediate level
+    init_tree(include_self, true);
     // Build tree
     double _t0 = begin_time();
     tree->root = build(0, tree->npts,
@@ -1074,21 +1153,26 @@ public:
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
     tree->build_tree(include_self);
+    debug_msg(true, "build_tree0", "num_leaves = %u", tree->num_leaves);
     end_time(_t0, "build_tree0");
     consolidate(include_self);
   }
 
   void partition(bool include_self = false) {
+    bool local_debug = true;
     double _t0 = begin_time();
     exch_rec this_exch;
     std::vector<int>::iterator it;
-    init_tree(include_self);
+    debug_msg(local_debug, "partition", "begin");
     // Receive from source
     if (src != -1) 
       recv_part(src);
     // Send to destinations
-    for (it = dst.begin(); it != dst.end(); it++) 
+    for (it = dst.begin(); it != dst.end(); it++) {
       this_exch = send_part(*it);
+    }
+    // Initialize tree at local
+    init_tree(include_self);
     end_time(_t0, "partition");
   }
 
@@ -1112,19 +1196,36 @@ public:
     add_splits(new_splits);
   }
   
-  exch_rec split(int other_rank) {
+  exch_rec split_local(int other_rank) {
     double _t0 = begin_time();
     exch_rec this_exch;
     uint32_t dsplit;
     int64_t split_idx = 0;
     double split_val = 0.0;
-    dsplit = tree->split(0, npts, tree->domain_mins, tree->domain_maxs,
-			 split_idx, split_val);
+    dsplit = split(all_pts, all_idx, 0, local_npts, ndim,
+		   local_domain_mins, local_domain_maxs,
+		   split_idx, split_val);
+    // dsplit = tree->split(0, local_npts, local_domain_mins, local_domain_maxs,
+    // 			 split_idx, split_val);
     this_exch = exch_rec(rank, other_rank, dsplit, split_val, split_idx,
 			 local_left_idx + split_idx + 1,
-			 npts - split_idx - 1);
+			 local_npts - split_idx - 1);
     end_time(_t0, "split");
     return this_exch;
+  }
+
+  void consolidate_tree(bool include_self) {
+    double _t0 = begin_time();
+    if (is_root) {
+      // Node* recv_node(int sp, uint64_t prev_Lidx,
+      // 		  double *le, double *re, bool *ple, bool *pre,
+      // 		  std::vector<Node*> left_nodes) {
+      
+    } else {
+
+    }
+
+    end_time(_t0, "consolidate_tree");
   }
 
   void consolidate(bool include_self) {
@@ -1276,7 +1377,7 @@ public:
     }
     // Send ids to parent process
     if (src_exch.src != -1) 
-      MPI_Send(all_idx, local_npts, MPI_UNSIGNED_LONG, src_exch.src,
+      MPI_Send(all_idx, inter_npts, MPI_UNSIGNED_LONG, src_exch.src,
 	       rank, MPI_COMM_WORLD);
   }
 
@@ -1326,7 +1427,8 @@ public:
 	total_count = total_num_leaves;
       total_num_leaves += leaf_count[j];
     }
-    // printf("%d: nprev = %d\n", rank, total_count);
+    debug_msg(true, "consolidate_leaves", "num_leaves = %u, nprev = %u", 
+	      tree->num_leaves, total_count);
     for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
       (*it)->update_ids(total_count);
   }

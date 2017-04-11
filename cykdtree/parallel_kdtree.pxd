@@ -10,7 +10,7 @@ from cykdtree.kdtree cimport PyNode, KDTree
 cdef extern from "c_parallel_kdtree.hpp":
     cdef cppclass ParallelKDTree nogil:
         uint32_t ndim
-        uint64_t npts
+        uint64_t inter_npts
         uint64_t local_npts
         uint32_t total_num_leaves
         uint64_t *all_idx

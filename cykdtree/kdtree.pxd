@@ -5,6 +5,10 @@ from libcpp cimport bool
 from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
 cdef extern from "c_kdtree.hpp":
+    uint32_t split(double *all_pts, uint64_t *all_idx,
+                   uint64_t Lidx, uint64_t n, uint32_t ndim,
+                   double *mins, double *maxes,
+                   int64_t &split_idx, double &split_val)
     cdef cppclass Node:
         bool is_leaf
         uint32_t leafid
@@ -33,6 +37,7 @@ cdef extern from "c_kdtree.hpp":
         double* domain_width
         double* domain_mins
         double* domain_maxs
+        bool* periodic
         uint32_t num_leaves
         vector[Node*] leaves
         Node* root
@@ -66,7 +71,10 @@ cdef class PyKDTree:
     cdef bool *_periodic
     cdef readonly object leaves
     cdef readonly object idx
+    cdef void _init_tree(self, KDTree* tree, uint32_t num_leaves,
+                         double *domain_width)
     cdef void _make_tree(self, double *pts)
+    cdef void _make_leaves(self)
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])
     cdef PyNode _get(self, np.ndarray[double, ndim=1] pos)

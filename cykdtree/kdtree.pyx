@@ -138,6 +138,16 @@ cdef class PyKDTree:
 
     """
 
+    cdef void _init_tree(self, KDTree* tree, uint32_t num_leaves,
+                         double *domain_width):
+        self._tree = tree
+        self.ndim = tree.ndim
+        self.npts = tree.npts
+        self.leafsize = tree.leafsize
+        self._left_edge = tree.domain_left_edge
+        self._right_edge = tree.domain_right_edge
+        self._periodic = tree.periodic
+
     def __cinit__(self, np.ndarray[double, ndim=2] pts, 
                   np.ndarray[double, ndim=1] left_edge = None, 
                   np.ndarray[double, ndim=1] right_edge = None,
@@ -172,8 +182,25 @@ cdef class PyKDTree:
         else:
             for i in range(self.ndim):
                 self._periodic[i] = <cbool>periodic[i]
+        # Create tree and leaves
         self._make_tree(&pts[0,0])
-        # Create list of Python leaves
+        self._make_leaves()
+
+    def __dealloc__(self):
+        free(self._tree)
+        free(self._left_edge)
+        free(self._right_edge)
+        free(self._periodic)
+
+    cdef void _make_tree(self, double *pts):
+        r"""Carry out creation of KDTree at C++ level."""
+        cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
+        self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize, 
+                                self._left_edge, self._right_edge, self._periodic)
+        self.idx = idx
+
+    cdef void _make_leaves(self):
+        r"""Create a list of Python leaf objects from C++ leaves."""
         self.num_leaves = <uint32_t>self._tree.leaves.size()
         self.leaves = [None for _ in xrange(self.num_leaves)]
         cdef Node* leafnode
@@ -185,17 +212,6 @@ cdef class PyKDTree:
             leafnode_py._init_node(leafnode, self.num_leaves, 
                                    self._tree.domain_width)
             self.leaves[leafnode.leafid] = leafnode_py
-
-    def __dealloc__(self):
-        free(self._left_edge)
-        free(self._right_edge)
-        free(self._periodic)
-
-    cdef void _make_tree(self, double *pts):
-        cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
-        self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize, 
-                                self._left_edge, self._right_edge, self._periodic)
-        self.idx = idx
 
     @property
     def left_edge(self):
