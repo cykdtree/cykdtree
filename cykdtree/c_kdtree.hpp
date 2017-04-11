@@ -32,10 +32,32 @@ public:
   // empty node constructor
   Node() {
     is_empty = true;
+    is_leaf = false;
+    leafid = 4294967295;
+    ndim = 0;
     left_edge = NULL;
     right_edge = NULL;
     periodic_left = NULL;
     periodic_right = NULL;
+    less = NULL;
+    greater = NULL;
+  }
+  // emtpy node with some info
+  Node(uint32_t ndim0, double *le, double *re, bool *ple, bool *pre) {
+    is_empty = true;
+    is_leaf = false;
+    leafid = 4294967295;
+    ndim = ndim0;
+    left_edge = (double*)malloc(ndim*sizeof(double));
+    right_edge = (double*)malloc(ndim*sizeof(double));
+    periodic_left = (bool*)malloc(ndim*sizeof(bool));
+    periodic_right = (bool*)malloc(ndim*sizeof(bool));
+    memcpy(left_edge, le, ndim*sizeof(double));
+    memcpy(right_edge, re, ndim*sizeof(double));
+    memcpy(periodic_left, ple, ndim*sizeof(bool));
+    memcpy(periodic_right, pre, ndim*sizeof(bool));
+    less = NULL;
+    greater = NULL;
   }
   // innernode constructor
   Node(uint32_t ndim0, double *le, double *re, bool *ple, bool *pre,
@@ -482,7 +504,7 @@ public:
 
   uint32_t split(uint64_t Lidx, uint64_t n,
 		 double *mins, double *maxes,
-		 int64_t &split_idx, double &split_val, int rank = -1) {
+		 int64_t &split_idx, double &split_val) {
     // Find dimension to split along
     uint32_t dmax, d;
     dmax = 0;
@@ -499,11 +521,6 @@ public:
     select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
     split_idx = (stop/2)+Lidx;
     split_val = all_pts[ndim*all_idx[split_idx] + dmax];
-
-    // if (rank < 0)
-    //   printf("Serial split: %u at %f\n", dmax, split_val);
-    // else
-    //   printf("Parallel split on %d: %u at %f\n", rank, dmax, split_val);
 
     return dmax;
   }
