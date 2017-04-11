@@ -665,9 +665,13 @@ public:
 	tree->any_periodic = true;
       }
     }
-    // Recieve neighbors and previous splits
+    // Recieve existing neighbors
     recv_neighbors(this_exch.src);
     add_src(this_exch);
+    // Add new splits
+    std::vector<exch_rec> new_splits;
+    new_splits = recv_exch_vec(this_exch.src);
+    add_splits(new_splits);
   }
 
   exch_rec split_partition(int other_rank) {
@@ -1202,11 +1206,6 @@ public:
 
   void build_tree0(bool include_self = false) {
     // Create trees and partition
-    // tree = new KDTree(all_pts, all_idx, local_npts, ndim, leafsize,
-    // 		      total_domain_left_edge, total_domain_right_edge,
-    // 		      local_periodic_left, local_periodic_right,
-    // 		      NULL, NULL,
-    // 		      include_self, true);
     partition(include_self);
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
@@ -1225,15 +1224,7 @@ public:
     if (src != -1) {
       // this_exch = recv_split(src);
       recv_part(src);
-      // Receive splits from parent
-      new_splits = recv_exch_vec(src_exch.src);
-      // Add splits
-      add_splits(new_splits);
-      new_splits.clear();
     }
-    // printf("%d: before init\n", rank);
-    // init_tree(include_self);
-    // printf("%d: init\n", rank);
     // Send to destinations
     for (it = dst.begin(); it != dst.end(); it++) {
       // this_exch = split_partition(*it);
