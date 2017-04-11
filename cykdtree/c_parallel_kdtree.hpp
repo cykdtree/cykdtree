@@ -600,6 +600,7 @@ public:
 	     MPI_COMM_WORLD);
     free(pts_send);
     // Update local info
+    dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
     tree->domain_maxs[this_exch.split_dim] = this_exch.split_val;
     tree->domain_right_edge[this_exch.split_dim] = this_exch.split_val;
     tree->periodic_right[this_exch.split_dim] = false;
@@ -613,9 +614,10 @@ public:
 	tree->any_periodic = true;
       }
     }
-    // Send neighbors
+    // Send neighbors & new splits
     send_neighbors(this_exch.dst);
     add_dst(this_exch);
+    consolidate_splits(&this_exch);
     // Return
     return this_exch;
   }
@@ -665,13 +667,10 @@ public:
 	tree->any_periodic = true;
       }
     }
-    // Recieve existing neighbors
+    // Recieve existing neighbors & new splits
     recv_neighbors(this_exch.src);
     add_src(this_exch);
-    // Add new splits
-    std::vector<exch_rec> new_splits;
-    new_splits = recv_exch_vec(this_exch.src);
-    add_splits(new_splits);
+    consolidate_splits();
   }
 
   exch_rec split_partition(int other_rank) {
@@ -1217,40 +1216,37 @@ public:
   void partition(bool include_self = false) {
     double _t0 = begin_time();
     exch_rec this_exch;
-    std::vector<exch_rec> new_splits;
     std::vector<int>::iterator it;
     init_tree(include_self);
     // Receive from source
-    if (src != -1) {
-      // this_exch = recv_split(src);
+    if (src != -1) 
       recv_part(src);
-    }
     // Send to destinations
-    for (it = dst.begin(); it != dst.end(); it++) {
-      // this_exch = split_partition(*it);
-      // Determine parameters of exchange
+    for (it = dst.begin(); it != dst.end(); it++) 
       this_exch = send_part(*it);
-      // Receive new splits from children 
-      for (uint32_t i = 0; i < dst_exch.size(); i++)
-      	new_splits = recv_exch_vec(dst_exch[i].dst, new_splits);
-      new_splits.push_back(this_exch);
-      // Send new splits to parent & receive update back
-      if (src_exch.src != -1) {
-      	send_exch_vec(src_exch.src, new_splits);
-      	new_splits = recv_exch_vec(src_exch.src);
-      }
-      // Add new child to list of destinations (at the front)
-      dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
-      // Send new splits to children (including the new child)
-      for (uint32_t i = 0; i < dst_exch.size(); i++)
-      	send_exch_vec(dst_exch[i].dst, new_splits);
-      // Add splits
-      add_splits(new_splits);
-      new_splits.clear();
-    }
     end_time(_t0, "partition");
   }
 
+  void consolidate_splits(exch_rec *this_exch = NULL) {
+    std::vector<exch_rec> new_splits;
+    std::vector<exch_rec>::iterator it;
+    // Receive new splits from children 
+    for (it = dst_exch.begin(); it != dst_exch.end(); it++)
+      new_splits = recv_exch_vec((*it).dst, new_splits);
+    if (this_exch != NULL) // Must go after
+      new_splits.push_back(*this_exch);
+    // Send new splits to parent & receive update back
+    if (src_exch.src != -1) {
+      send_exch_vec(src_exch.src, new_splits);
+      new_splits = recv_exch_vec(src_exch.src);
+    }
+    // Send new splits to children (including the new child)
+    for (it = dst_exch.begin(); it != dst_exch.end(); it++)
+      send_exch_vec((*it).dst, new_splits);
+    // Add splits
+    add_splits(new_splits);
+  }
+  
   exch_rec split(int other_rank) {
     double _t0 = begin_time();
     exch_rec this_exch;
