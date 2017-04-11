@@ -1217,12 +1217,6 @@ public:
 
   void partition(bool include_self = false) {
     double _t0 = begin_time();
-    double *exch_mins = (double*)malloc(ndim*sizeof(double));
-    double *exch_maxs = (double*)malloc(ndim*sizeof(double));
-    double *exch_le = (double*)malloc(ndim*sizeof(double));
-    double *exch_re = (double*)malloc(ndim*sizeof(double));
-    int *exch_ple = (int*)malloc(ndim*sizeof(int));
-    int *exch_pre = (int*)malloc(ndim*sizeof(int));
     exch_rec this_exch;
     std::vector<exch_rec> new_splits;
     std::vector<int>::iterator it;
@@ -1263,12 +1257,6 @@ public:
       add_splits(new_splits);
       new_splits.clear();
     }
-    free(exch_mins);
-    free(exch_maxs);
-    free(exch_le);
-    free(exch_re);
-    free(exch_ple);
-    free(exch_pre);
     end_time(_t0, "partition");
   }
 
