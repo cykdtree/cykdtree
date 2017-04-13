@@ -5,10 +5,6 @@ from libcpp cimport bool
 from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
 cdef extern from "c_kdtree.hpp":
-    uint32_t split(double *all_pts, uint64_t *all_idx,
-                   uint64_t Lidx, uint64_t n, uint32_t ndim,
-                   double *mins, double *maxes,
-                   int64_t &split_idx, double &split_val)
     cdef cppclass Node:
         bool is_leaf
         uint32_t leafid

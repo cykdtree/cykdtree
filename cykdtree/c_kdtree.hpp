@@ -7,29 +7,6 @@
 #include <stdint.h>
 #include "c_utils.hpp"
 
-uint32_t split(double *all_pts, uint64_t *all_idx,
-	       uint64_t Lidx, uint64_t n, uint32_t ndim,
-	       double *mins, double *maxes,
-	       int64_t &split_idx, double &split_val) {
-  // Find dimension to split along
-  uint32_t dmax, d;
-  dmax = 0;
-  for (d = 1; d < ndim; d++) 
-    if ((maxes[d]-mins[d]) > (maxes[dmax]-mins[dmax]))
-      dmax = d;
-  if (maxes[dmax] == mins[dmax]) {
-    // all points singular
-    return ndim;
-  }
-  
-  // Find median along dimension
-  int64_t stop = n-1;
-  select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
-  split_idx = (stop/2)+Lidx;
-  split_val = all_pts[ndim*all_idx[split_idx] + dmax];
-  
-  return dmax;
-}
 
 class Node
 {
@@ -526,29 +503,6 @@ public:
     }
   }
 
-  uint32_t split(uint64_t Lidx, uint64_t n,
-		 double *mins, double *maxes,
-		 int64_t &split_idx, double &split_val) {
-    // Find dimension to split along
-    uint32_t dmax, d;
-    dmax = 0;
-    for (d = 1; d < ndim; d++) 
-      if ((maxes[d]-mins[d]) > (maxes[dmax]-mins[dmax]))
-	dmax = d;
-    if (maxes[dmax] == mins[dmax]) {
-      // all points singular
-      return ndim;
-    }
-      
-    // Find median along dimension
-    int64_t stop = n-1;
-    select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
-    split_idx = (stop/2)+Lidx;
-    split_val = all_pts[ndim*all_idx[split_idx] + dmax];
-
-    return dmax;
-  }
-
   Node* build(uint64_t Lidx, uint64_t n, 
 	      double *LE, double *RE, 
 	      bool *PLE, bool *PRE,
@@ -567,7 +521,8 @@ public:
       uint32_t dmax, d;
       int64_t split_idx = 0;
       double split_val = 0.0;
-      dmax = split(Lidx, n, mins, maxes, split_idx, split_val);
+      dmax = split(all_pts, all_idx, Lidx, n, ndim, mins, maxes,
+		   split_idx, split_val);
       if (maxes[dmax] == mins[dmax]) {
 	// all points singular
 	Node* out = new Node(ndim, LE, RE, PLE, PRE, Lidx, n, num_leaves,

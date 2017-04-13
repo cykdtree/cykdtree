@@ -1092,7 +1092,8 @@ public:
       uint32_t dmax, d;
       int64_t split_idx = 0;
       double split_val = 0.0;
-      dmax = tree->split(Lidx, n, mins, maxs, split_idx, split_val);
+      dmax = split(all_pts, all_idx, Lidx, n, ndim, mins, maxs,
+		   split_idx, split_val);
 
       // Determine boundaries
       uint64_t lN = split_idx - Lidx + 1;
