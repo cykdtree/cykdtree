@@ -96,7 +96,7 @@ def MPITest(Nproc, **pargs):
                 comm.Allreduce(error_flag, flag_count)
                 if flag_count[0] > 0:
                     if error_flag[0]:
-                        raise error
+                        raise
                     sys.exit()
                     # raise Exception("Process %d: There were errors on %d processes." %
                     #                 (rank, flag_count[0]))

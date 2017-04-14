@@ -102,6 +102,24 @@ cdef class PyNode:
         out = [vout[i] for i in range(<np.uint32_t>vout.size())]
         return out
 
+    def assert_equal(self, PyNode solf):
+        """Assert that node properties are equal."""
+        np.testing.assert_equal(self.npts, solf.npts)
+        np.testing.assert_equal(self.ndim, solf.ndim)
+        np.testing.assert_equal(self.num_leaves, solf.num_leaves)
+        np.testing.assert_equal(self.id, solf.id)
+        np.testing.assert_equal(self.start_idx, solf.start_idx)
+        np.testing.assert_equal(self.stop_idx, solf.stop_idx)
+        np.testing.assert_array_equal(self.left_edge, solf.left_edge)
+        np.testing.assert_array_equal(self.right_edge, solf.right_edge)
+        np.testing.assert_array_equal(self.periodic_left, solf.periodic_left)
+        np.testing.assert_array_equal(self.periodic_right, solf.periodic_right)
+        for i in range(self.ndim):
+            np.testing.assert_equal(self.left_neighbors[i], solf.left_neighbors[i])
+            np.testing.assert_equal(self.right_neighbors[i], solf.right_neighbors[i])
+        np.testing.assert_equal(self.neighbors, solf.neighbors)
+        
+
 cdef class PyKDTree:
     r"""Construct a KDTree for a set of points.
 
@@ -207,10 +225,26 @@ cdef class PyKDTree:
         self._make_leaves()
 
     def __dealloc__(self):
-        free(self._tree)
-        free(self._left_edge)
-        free(self._right_edge)
-        free(self._periodic)
+        if self._tree != NULL:
+            free(self._tree)
+        if self._tree != NULL:
+            free(self._left_edge)
+        if self._tree != NULL:
+            free(self._right_edge)
+        if self._tree != NULL:
+            free(self._periodic)
+
+    def assert_equal(self, PyKDTree solf):
+        np.testing.assert_equal(self.npts, solf.npts)
+        np.testing.assert_equal(self.ndim, solf.ndim)
+        np.testing.assert_equal(self.leafsize, solf.leafsize)
+        np.testing.assert_equal(self.num_leaves, solf.num_leaves)
+        np.testing.assert_array_equal(self.left_edge, solf.left_edge)
+        np.testing.assert_array_equal(self.right_edge, solf.right_edge)
+        np.testing.assert_array_equal(self.periodic, solf.periodic)
+        np.testing.assert_array_equal(self.idx, solf.idx)
+        for i in range(self.num_leaves):
+            self.leaves[i].assert_equal(solf.leaves[i])
 
     cdef void _make_tree(self, double *pts):
         r"""Carry out creation of KDTree at C++ level."""

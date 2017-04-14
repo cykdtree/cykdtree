@@ -362,8 +362,7 @@ public:
     }
     end_time(_t0, "init");
     set_comm_order();
-    // build_tree();
-    build_tree0();
+    build_tree();
   }
   ~ParallelKDTree() {
     delete(tree);
@@ -778,50 +777,51 @@ public:
     end_time(_t0, "set_comm_order");
   }
 
-  Node *recv_build_final(int sp, uint64_t Lidx, uint64_t n,
-			 double *LE, double *RE,
-			 bool *PLE, bool *PRE,
-			 std::vector<Node*> r_left_nodes) {
-    double _t0 = begin_time();
-    // printf("%d: Receiving final build from %d\n", rank, sp);
-    int tag = sp;
-    // Receive idx
-    uint64_t j;
-    // uint64_t n, j;
-    // MPI_Recv(&n, 1, MPI_UNSIGNED_LONG, sp, tag, MPI_COMM_WORLD, 
-    // 	     MPI_STATUS_IGNORE);
-    uint64_t *idx_exch = (uint64_t*)malloc(n*sizeof(uint64_t));
-    MPI_Recv(idx_exch, n, MPI_UNSIGNED_LONG, sp, tag, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
-    for (j = 0; j < n; j++)
-      idx_exch[j] = all_idx[Lidx + idx_exch[j]];
-    memcpy(all_idx + Lidx, idx_exch, n*sizeof(uint64_t));
-    free(idx_exch);
-    // Receive node & count leaves it adds
-    dst_nleaves_begin.push_back(tree->num_leaves);
-    Node *rnode = recv_node(sp, Lidx, LE, RE, PLE, PRE, r_left_nodes);
-    dst_nleaves_final.push_back(tree->num_leaves);
-    dst_past.push_back(sp);
-    // printf("%d: Received final build from %d\n", rank, sp);
-    end_time(_t0, "recv_build_final");
-    return rnode;
-  }
+  // Node *recv_build_final(int sp, uint64_t Lidx, uint64_t n,
+  // 			 double *LE, double *RE,
+  // 			 bool *PLE, bool *PRE,
+  // 			 std::vector<Node*> r_left_nodes) {
+  //   double _t0 = begin_time();
+  //   // printf("%d: Receiving final build from %d\n", rank, sp);
+  //   int tag = sp;
+  //   // Receive idx
+  //   uint64_t j;
+  //   // uint64_t n, j;
+  //   // MPI_Recv(&n, 1, MPI_UNSIGNED_LONG, sp, tag, MPI_COMM_WORLD, 
+  //   // 	     MPI_STATUS_IGNORE);
+  //   uint64_t *idx_exch = (uint64_t*)malloc(n*sizeof(uint64_t));
+  //   MPI_Recv(idx_exch, n, MPI_UNSIGNED_LONG, sp, tag, MPI_COMM_WORLD,
+  //            MPI_STATUS_IGNORE);
+  //   for (j = 0; j < n; j++)
+  //     idx_exch[j] = all_idx[Lidx + idx_exch[j]];
+  //   memcpy(all_idx + Lidx, idx_exch, n*sizeof(uint64_t));
+  //   free(idx_exch);
+  //   // Receive node & count leaves it adds
+  //   dst_nleaves_begin.push_back(tree->num_leaves);
+  //   Node *rnode = recv_node(sp, Lidx, LE, RE, PLE, PRE, r_left_nodes);
+  //   dst_nleaves_final.push_back(tree->num_leaves);
+  //   dst_past.push_back(sp);
+  //   // printf("%d: Received final build from %d\n", rank, sp);
+  //   end_time(_t0, "recv_build_final");
+  //   return rnode;
+  // }
 
-  void send_build_final(int dp) {
-    // printf("%d: Sending final build to %d\n", rank, dp);
-    int tag = rank;
-    // Send idx
-    // MPI_Send(&(tree->npts), 1, MPI_UNSIGNED_LONG, dp, tag, MPI_COMM_WORLD);
-    MPI_Send(all_idx, tree->npts, MPI_UNSIGNED_LONG, dp, tag,
-	     MPI_COMM_WORLD);
-    // Send node
-    send_node(dp, tree->root);
-    // printf("%d: Sent final build to %d\n", rank, dp);
-  }
+  // void send_build_final(int dp) {
+  //   // printf("%d: Sending final build to %d\n", rank, dp);
+  //   int tag = rank;
+  //   // Send idx
+  //   // MPI_Send(&(tree->npts), 1, MPI_UNSIGNED_LONG, dp, tag, MPI_COMM_WORLD);
+  //   MPI_Send(all_idx, tree->npts, MPI_UNSIGNED_LONG, dp, tag,
+  // 	     MPI_COMM_WORLD);
+  //   // Send node
+  //   send_node(dp, tree->root);
+  //   // printf("%d: Sent final build to %d\n", rank, dp);
+  // }
 
-  Node* recv_node(int sp, uint64_t prev_Lidx,
+  Node* recv_node(int sp, KDTree *this_tree, uint64_t prev_Lidx,
 		  double *le, double *re, bool *ple, bool *pre,
 		  std::vector<Node*> left_nodes) {
+    // TODO: Add neighbors
     int tag = 0;
     Node *out;
     int is_empty, is_leaf;
@@ -850,9 +850,9 @@ public:
       // 	       MPI_STATUS_IGNORE);
       out = new Node(ndim, le, re, ple, pre, 
 		     prev_Lidx + Lidx, children, 
-		     tree->num_leaves, left_nodes);
-      tree->leaves.push_back(out);
-      tree->num_leaves++;
+		     this_tree->num_leaves, left_nodes);
+      this_tree->leaves.push_back(out);
+      this_tree->num_leaves++;
     } else {
       // Innernode properties
       uint32_t sdim;
@@ -878,10 +878,10 @@ public:
       for (d = 0; d < ndim; d++)
 	greater_left_nodes.push_back(left_nodes[d]);
       // Child nodes
-      Node *less = recv_node(sp, prev_Lidx,
+      Node *less = recv_node(sp, this_tree, prev_Lidx,
 			     le, re_l, ple, pre_l, left_nodes);
       greater_left_nodes[sdim] = less;
-      Node *greater = recv_node(sp, prev_Lidx,
+      Node *greater = recv_node(sp, this_tree, prev_Lidx,
 				le_r, re, ple_r, pre, greater_left_nodes);
       out = new Node(ndim, le, re, ple, pre, prev_Lidx+Lidx, sdim, split, 
 		     less, greater, left_nodes);
@@ -923,38 +923,38 @@ public:
     }
   }
 
-  void build_tree() {
-    uint32_t d;
-    std::vector<Node*> left_nodes;
-    for (d = 0; d < ndim; d++)
-      left_nodes.push_back(NULL);
+  // void build_tree_broken() {
+  //   uint32_t d;
+  //   std::vector<Node*> left_nodes;
+  //   for (d = 0; d < ndim; d++)
+  //     left_nodes.push_back(NULL);
 
-    // Receive tree info
-    if (!(is_root))
-      recv_part(src);
+  //   // Receive tree info
+  //   if (!(is_root))
+  //     recv_part(src);
 
-    // Create tree, starting at intermediate level
-    init_tree(true);
-    // Build tree
-    double _t0 = begin_time();
-    tree->root = build(0, tree->npts,
-		       tree->domain_left_edge, tree->domain_right_edge,
-		       tree->periodic_left, tree->periodic_right,
-		       tree->domain_mins, tree->domain_maxs, left_nodes, _t0);
-    end_time(_t0, "build_tree");
+  //   // Create tree, starting at intermediate level
+  //   init_tree(true);
+  //   // Build tree
+  //   double _t0 = begin_time();
+  //   tree->root = build(0, tree->npts,
+  // 		       tree->domain_left_edge, tree->domain_right_edge,
+  // 		       tree->periodic_left, tree->periodic_right,
+  // 		       tree->domain_mins, tree->domain_maxs, left_nodes, _t0);
+  //   end_time(_t0, "build_tree_broken");
 
-    // Send root back to source
-    if (!(is_root))
-      send_build_final(src);
+  //   // Send root back to source
+  //   if (!(is_root))
+  //     send_build_final(src);
 
-    // Finalize neighbors
-    finalize_neighbors();
+  //   // Finalize neighbors
+  //   finalize_neighbors();
 
-    // Send leaf info
-    if (is_root)
-      total_num_leaves = tree->num_leaves;
-    MPI_Bcast(&total_num_leaves, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
-  }
+  //   // Send leaf info
+  //   if (is_root)
+  //     total_num_leaves = tree->num_leaves;
+  //   MPI_Bcast(&total_num_leaves, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
+  // }
 
   void finalize_neighbors() {
     double _t0 = begin_time();
@@ -998,87 +998,72 @@ public:
     end_time(_t0, "finalize_neighbors");
   }
 
-  Node* build(uint64_t Lidx, uint64_t n,
+  Node* build(KDTree *new_tree, uint64_t Lidx, uint64_t n,
 	      double *LE, double *RE,
 	      bool *PLE, bool *PRE,
 	      double *mins, double *maxs,
-	      std::vector<Node*> left_nodes, double _t0 = 0.0) {
-    if (dst.size() == 0) {
-      end_time(_t0, "build (sending to destinations)");
-      // Build tree
-      return tree->build(Lidx, n, LE, RE, PLE, PRE,
-			 mins, maxs, left_nodes);
-    } else {
-      int idst = dst[0];
-      dst.erase(dst.begin());
+	      std::vector<Node*> left_nodes, uint32_t dst_count = 0) {
+    // Return root if no more splits happened
+    if (dst_count >= dst_exch.size()) 
+      return tree->root;
 
-      // Split
-      uint32_t dmax, d;
-      int64_t split_idx = 0;
-      double split_val = 0.0;
-      dmax = split(all_pts, all_idx, Lidx, n, ndim, mins, maxs,
-		   split_idx, split_val);
+    // Get split info and advance the count
+    exch_rec idst = dst_exch[dst_exch.size() - dst_count - 1];
 
-      // Determine boundaries
-      uint64_t lN = split_idx - Lidx + 1;
-      uint64_t rN = n - lN;
-      double *lRE = (double*)malloc(ndim*sizeof(double));
-      double *rLE = (double*)malloc(ndim*sizeof(double));
-      bool *lPRE = (bool*)malloc(ndim*sizeof(bool));
-      bool *rPLE = (bool*)malloc(ndim*sizeof(bool));
-      double *lmaxs = (double*)malloc(ndim*sizeof(double));
-      double *rmins = (double*)malloc(ndim*sizeof(double));
-      std::vector<Node*> r_left_nodes;
-      memcpy(lmaxs, maxs, ndim*sizeof(double));
-      memcpy(rmins, mins, ndim*sizeof(double));
-      memcpy(lRE, RE, ndim*sizeof(double));
-      memcpy(rLE, LE, ndim*sizeof(double));
-      memcpy(lPRE, PRE, ndim*sizeof(double));
-      memcpy(rPLE, PLE, ndim*sizeof(double));
-      for (d = 0; d < ndim; d++) 
-        r_left_nodes.push_back(left_nodes[d]);
-      lmaxs[dmax] = split_val;
-      rmins[dmax] = split_val;
-      lRE[dmax] = split_val;
-      rLE[dmax] = split_val;
-      lPRE[dmax] = false;
-      rPLE[dmax] = false;
+    // Determine boundaries
+    uint32_t d;
+    uint64_t lN = idst.split_idx - Lidx + 1;
+    // uint64_t rN = n - lN;
+    double *lRE = (double*)malloc(ndim*sizeof(double));
+    double *rLE = (double*)malloc(ndim*sizeof(double));
+    bool *lPRE = (bool*)malloc(ndim*sizeof(bool));
+    bool *rPLE = (bool*)malloc(ndim*sizeof(bool));
+    double *lmaxs = (double*)malloc(ndim*sizeof(double));
+    double *rmins = (double*)malloc(ndim*sizeof(double));
+    std::vector<Node*> r_left_nodes;
+    memcpy(lmaxs, maxs, ndim*sizeof(double));
+    memcpy(rmins, mins, ndim*sizeof(double));
+    memcpy(lRE, RE, ndim*sizeof(double));
+    memcpy(rLE, LE, ndim*sizeof(double));
+    memcpy(lPRE, PRE, ndim*sizeof(double));
+    memcpy(rPLE, PLE, ndim*sizeof(double));
+    for (d = 0; d < ndim; d++) 
+      r_left_nodes.push_back(left_nodes[d]);
+    lmaxs[idst.split_dim] = idst.split_val;
+    rmins[idst.split_dim] = idst.split_val;
+    lRE[idst.split_dim] = idst.split_val;
+    rLE[idst.split_dim] = idst.split_val;
+    lPRE[idst.split_dim] = false;
+    rPLE[idst.split_dim] = false;
 
-      // Send right half to another process
-      send_part(idst);
-       
-      // Build left node
-      Node *lnode = build(Lidx, lN, LE, lRE, PLE, lPRE,
-			  mins, lmaxs, left_nodes, _t0);
-      
-      // Receive right node
-      r_left_nodes[dmax] = lnode;
-      Node *rnode = recv_build_final(idst, Lidx+lN, rN,
-				     rLE, RE, rPLE, PRE,
-				     r_left_nodes);
+    // Build left node & receive right node
+    Node *lnode = build(new_tree, Lidx, lN, LE, lRE, PLE, lPRE,
+			mins, lmaxs, left_nodes, dst_count+1);
+    r_left_nodes[idst.split_dim] = lnode;
+    Node *rnode = recv_node(idst.dst, new_tree, Lidx+lN, rLE, RE, rPLE, PRE, 
+			    r_left_nodes);
 
-      // Create innernode
-      Node* out = new Node(ndim, LE, RE, PLE, PRE, Lidx, dmax, split_val,
-                           lnode, rnode, left_nodes);
+    // Create innernode
+    Node* out = new Node(ndim, LE, RE, PLE, PRE, Lidx, idst.split_dim, 
+			 idst.split_val, lnode, rnode, left_nodes);
 
-      free(lRE);
-      free(rLE);
-      free(lPRE);
-      free(rPLE);
-      free(lmaxs);
-      free(rmins);
-      return out;
-    }
+    free(lRE);
+    free(rLE);
+    free(lPRE);
+    free(rPLE);
+    free(lmaxs);
+    free(rmins);
+    return out;
   }
 
-  void build_tree0() {
+  void build_tree() {
     // Create trees and partition
     partition();
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
     tree->build_tree(include_self);
-    debug_msg(true, "build_tree0", "num_leaves = %u", tree->num_leaves);
-    end_time(_t0, "build_tree0");
+    debug_msg(true, "build_tree", "num_leaves = %u", tree->num_leaves);
+    end_time(_t0, "build_tree");
     consolidate();
   }
 
@@ -1141,23 +1126,27 @@ public:
   KDTree* consolidate_tree() {
     double _t0 = begin_time();
     KDTree* out = NULL;
-    // Consolidate splits
-    if (is_root) {
-      out = new KDTree(all_pts, all_idx, inter_npts, ndim, leafsize,
-		       inter_domain_left_edge, inter_domain_right_edge,
-		       total_periodic, include_self, true);
-    } else {
-
-    }
+    uint32_t d;
+    std::vector<Node*> left_nodes;
+    for (d = 0; d < ndim; d++)
+      left_nodes.push_back(NULL);
+    // TODO: Add self as neighbor on root for periodic domain?
+    // Initialize tree
+    out = new KDTree(all_pts, all_idx, inter_npts, ndim, leafsize,
+		     inter_domain_left_edge, inter_domain_right_edge,
+		     inter_periodic_left, inter_periodic_right,
+		     inter_domain_mins, inter_domain_maxs,
+		     include_self, true);
     // Consolidate nodes
-    if (is_root) {
-      // Node* recv_node(int sp, uint64_t prev_Lidx,
-      // 		  double *le, double *re, bool *ple, bool *pre,
-      // 		  std::vector<Node*> left_nodes) {
-      
-    } else {
-
-    }
+    double _tb = begin_time();
+    out->root = build(out, 0, out->npts,
+    		      out->domain_left_edge, out->domain_right_edge,
+    		      out->periodic_left, out->periodic_right,
+    		      out->domain_mins, out->domain_maxs, left_nodes);
+    end_time(_tb, "total build");
+    // Send root back to source
+    if (src_exch.src != -1)
+      send_node(src_exch.src, out->root);
     // Consolidate idx
     consolidate_idx();
     end_time(_t0, "consolidate_tree");
