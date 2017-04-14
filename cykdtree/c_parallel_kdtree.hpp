@@ -1155,7 +1155,6 @@ public:
     double _t0 = begin_time();
     consolidate_order();
     consolidate_leaves();
-    // consolidate_leaf_edges();
     consolidate_idx();
     consolidate_neighbors(include_self);
     end_time(_t0, "consolidate");
@@ -1335,6 +1334,7 @@ public:
     leaf_count.resize(size);
     uint32_t local_count = tree->num_leaves;
     uint32_t total_count = 0;
+    uint32_t child_count;
     std::vector<Node*>::iterator it;
     int j;
     MPI_Allgather(&local_count, 1, MPI_UNSIGNED,

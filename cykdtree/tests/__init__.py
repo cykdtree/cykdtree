@@ -3,17 +3,29 @@ from nose.tools import istest, nottest
 from mpi4py import MPI
 import numpy as np
 import itertools
+import sys
 
 
-def call_subprocess(args):
-    args = ' '.join(args)
-    p = Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+def call_subprocess(np, func, args, kwargs):
+    # Create string with arguments & kwargs
+    args_str = ""
+    for a in args:
+        args_str += str(a)+","
+    for k, v in kwargs.items():
+        args_str += k+"="+str(v)+","
+    if args_str.endswith(","):
+        args_str = args_str[:-1]
+    cmd = ["mpirun", "-n", str(np), "python", "-c",
+           "'from %s import %s; %s(%s)'" % (func.__module__, func.__name__,
+                                            func.__name__, args_str)] 
+    cmd = ' '.join(cmd)
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
     output, err = p.communicate()
     exit_code = p.returncode
-    print(output, err, exit_code)
-    if exit_code != 0:
-        return None
     print(output)
+    if exit_code != 0:
+        print(err)
+        return None
     return output
 
 def iter_dict(dicts):
@@ -62,24 +74,32 @@ def MPITest(Nproc, **pargs):
 
         # First do setup
         if (size not in Nproc):
-            def spawn(s):
-                def wrapped(*args, **kwargs):
-                    # call function on size processes
-                    args = ["mpirun", "-n", str(s), "python", "-c",
-                            "'from %s import %s; %s()'" % (
-                                func.__module__, func.__name__, func.__name__)]
-                    call_subprocess(args)
+            @parametrize(Nproc=Nproc)
+            def wrapped(*args, **kwargs):
+                s = kwargs.pop('Nproc', 1)
+                call_subprocess(s, func, args, kwargs)
 
-                wrapped.__name__ = func.__name__ + "_%d" % s
-                return wrapped
-            # spawn.__name__ = func.__name__
-            # return spawn
-            def generator():
-                for s in Nproc:
-                    yield spawn(s)
-            generator.__name__ = func.__name__
+            wrapped.__name__ = func.__name__
+            return wrapped
 
-            return generator
+            # def spawn(s):
+            #     def wrapped(*args, **kwargs):
+            #         # call function on size processes
+            #         args = ["mpirun", "-n", str(s), "python", "-c",
+            #                 "'from %s import %s; %s()'" % (
+            #                     func.__module__, func.__name__, func.__name__)]
+            #         call_subprocess(args)
+
+            #     wrapped.__name__ = func.__name__ + "_%d" % s
+            #     return wrapped
+            # # spawn.__name__ = func.__name__
+            # # return spawn
+            # def generator():
+            #     for s in Nproc:
+            #         yield spawn(s)
+            # generator.__name__ = func.__name__
+
+            # return generator
         # Then just call the function
         else:
             @parametrize(**pargs)
@@ -96,8 +116,9 @@ def MPITest(Nproc, **pargs):
                 if flag_count[0] > 0:
                     if error_flag[0]:
                         raise error
-                    raise Exception("Process %d: There were errors on %d processes." %
-                                    (rank, flag_count[0]))
+                    sys.exit()
+                    # raise Exception("Process %d: There were errors on %d processes." %
+                    #                 (rank, flag_count[0]))
                 return out
             return try_func
     return dec
