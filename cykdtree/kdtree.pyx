@@ -138,21 +138,41 @@ cdef class PyKDTree:
 
     """
 
-    cdef void _init_tree(self, KDTree* tree, uint32_t num_leaves,
-                         double *domain_width):
+    cdef void _init_tree(self, KDTree* tree):
         self._tree = tree
         self.ndim = tree.ndim
         self.npts = tree.npts
+        self.num_leaves = tree.num_leaves
         self.leafsize = tree.leafsize
         self._left_edge = tree.domain_left_edge
         self._right_edge = tree.domain_right_edge
         self._periodic = tree.periodic
+        self._make_leaves()
+        self.idx = np.empty(self.npts, 'uint64')
+        cdef uint64_t i
+        for i in range(self.npts):
+            self.idx[i] = tree.all_idx[i]
 
-    def __cinit__(self, np.ndarray[double, ndim=2] pts, 
+    def __cinit__(self, np.ndarray[double, ndim=2] pts = None, 
                   np.ndarray[double, ndim=1] left_edge = None, 
                   np.ndarray[double, ndim=1] right_edge = None,
                   object periodic = False, int leafsize = 10000,
                   int nleaves = 0):
+        # Initialize everthing to NULL/0/None to prevent seg fault
+        self._tree = NULL
+        self.npts = 0
+        self.ndim = 0
+        self.num_leaves = 0
+        self.leafsize = 0
+        self._left_edge = NULL
+        self._right_edge = NULL
+        self._periodic = NULL
+        self.leaves = None
+        self.idx = None
+        # Return with nothing set if points not provided
+        if pts is None:
+            return
+        # Set leafsize of number of leaves provided
         if nleaves > 0:
             nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
             leafsize = pts.shape[0]/nleaves + 1

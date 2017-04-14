@@ -25,6 +25,7 @@ def call_subprocess(np, func, args, kwargs):
     print(output)
     if exit_code != 0:
         print(err)
+        raise Exception("Error on spawned process. See output.")
         return None
     return output
 
@@ -82,30 +83,10 @@ def MPITest(Nproc, **pargs):
             wrapped.__name__ = func.__name__
             return wrapped
 
-            # def spawn(s):
-            #     def wrapped(*args, **kwargs):
-            #         # call function on size processes
-            #         args = ["mpirun", "-n", str(s), "python", "-c",
-            #                 "'from %s import %s; %s()'" % (
-            #                     func.__module__, func.__name__, func.__name__)]
-            #         call_subprocess(args)
-
-            #     wrapped.__name__ = func.__name__ + "_%d" % s
-            #     return wrapped
-            # # spawn.__name__ = func.__name__
-            # # return spawn
-            # def generator():
-            #     for s in Nproc:
-            #         yield spawn(s)
-            # generator.__name__ = func.__name__
-
-            # return generator
         # Then just call the function
         else:
             @parametrize(**pargs)
             def try_func(*args, **kwargs):
-                # if rank == 0:
-                #     print kwargs
                 error_flag = np.array([0], 'int')
                 try: 
                     out = func(*args, **kwargs)

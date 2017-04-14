@@ -200,6 +200,7 @@ public:
   uint32_t total_num_leaves;
   double *all_lbounds;
   double *all_rbounds;
+  bool include_self;
   // Properties of original data received by this process
   uint64_t inter_npts;
   double *inter_domain_left_edge;
@@ -233,7 +234,7 @@ public:
   
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize0, double *left_edge, double *right_edge,
-		 bool *periodic0, bool include_self = true) {
+		 bool *periodic0, bool include_self0 = true) {
     MPI_Comm_size ( MPI_COMM_WORLD, &size);
     MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
     mpi_exch_type = init_mpi_exch_type();
@@ -249,6 +250,7 @@ public:
     all_rbounds = NULL;
     double _t0 = begin_time();
     all_avail = (int*)malloc(size*sizeof(int));
+    include_self = include_self0;
     // Determine root
     if (pts != NULL) {
       root = rank;
@@ -402,7 +404,7 @@ public:
     MPI_Type_free(&mpi_exch_type);
   }
 
-  void init_tree(bool include_self = false, bool use_inter = false) {
+  void init_tree(bool use_inter = false) {
     bool local_debug = true;
     debug_msg(local_debug, "init_tree", "begin");
     if (use_inter) {
@@ -921,8 +923,7 @@ public:
     }
   }
 
-  void build_tree(bool include_self = false) {
-    bool local_debug = true;
+  void build_tree() {
     uint32_t d;
     std::vector<Node*> left_nodes;
     for (d = 0; d < ndim; d++)
@@ -933,7 +934,7 @@ public:
       recv_part(src);
 
     // Create tree, starting at intermediate level
-    init_tree(include_self, true);
+    init_tree(true);
     // Build tree
     double _t0 = begin_time();
     tree->root = build(0, tree->npts,
@@ -947,7 +948,7 @@ public:
       send_build_final(src);
 
     // Finalize neighbors
-    finalize_neighbors(include_self);
+    finalize_neighbors();
 
     // Send leaf info
     if (is_root)
@@ -955,7 +956,7 @@ public:
     MPI_Bcast(&total_num_leaves, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
   }
 
-  void finalize_neighbors(bool include_self = false) {
+  void finalize_neighbors() {
     double _t0 = begin_time();
     std::vector<Node*>::iterator it;
     int tag;
@@ -1070,18 +1071,18 @@ public:
     }
   }
 
-  void build_tree0(bool include_self = false) {
+  void build_tree0() {
     // Create trees and partition
-    partition(include_self);
+    partition();
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
     tree->build_tree(include_self);
     debug_msg(true, "build_tree0", "num_leaves = %u", tree->num_leaves);
     end_time(_t0, "build_tree0");
-    consolidate(include_self);
+    consolidate();
   }
 
-  void partition(bool include_self = false) {
+  void partition() {
     bool local_debug = true;
     double _t0 = begin_time();
     exch_rec this_exch;
@@ -1095,7 +1096,7 @@ public:
       this_exch = send_part(*it);
     }
     // Initialize tree at local
-    init_tree(include_self);
+    init_tree();
     end_time(_t0, "partition");
   }
 
@@ -1137,8 +1138,18 @@ public:
     return this_exch;
   }
 
-  void consolidate_tree(bool include_self) {
+  KDTree* consolidate_tree() {
     double _t0 = begin_time();
+    KDTree* out = NULL;
+    // Consolidate splits
+    if (is_root) {
+      out = new KDTree(all_pts, all_idx, inter_npts, ndim, leafsize,
+		       inter_domain_left_edge, inter_domain_right_edge,
+		       total_periodic, include_self, true);
+    } else {
+
+    }
+    // Consolidate nodes
     if (is_root) {
       // Node* recv_node(int sp, uint64_t prev_Lidx,
       // 		  double *le, double *re, bool *ple, bool *pre,
@@ -1147,16 +1158,17 @@ public:
     } else {
 
     }
-
+    // Consolidate idx
+    consolidate_idx();
     end_time(_t0, "consolidate_tree");
+    return out;
   }
 
-  void consolidate(bool include_self) {
+  void consolidate() {
     double _t0 = begin_time();
     consolidate_order();
     consolidate_leaves();
-    consolidate_idx();
-    consolidate_neighbors(include_self);
+    consolidate_neighbors();
     end_time(_t0, "consolidate");
   }
 
@@ -1251,7 +1263,7 @@ public:
   }
 
 
-  void consolidate_neighbors(bool include_self) {
+  void consolidate_neighbors() {
     uint32_t d;
     std::vector<Node*>::iterator it;
     std::vector<std::vector<Node*> > leaves_send;
@@ -1334,7 +1346,6 @@ public:
     leaf_count.resize(size);
     uint32_t local_count = tree->num_leaves;
     uint32_t total_count = 0;
-    uint32_t child_count;
     std::vector<Node*>::iterator it;
     int j;
     MPI_Allgather(&local_count, 1, MPI_UNSIGNED,

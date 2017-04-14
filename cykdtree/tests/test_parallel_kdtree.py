@@ -55,21 +55,6 @@ def test_PyParallelKDTree(periodic=False, ndim=2):
     pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
     Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                       periodic=periodic)
-    # time.sleep(rank*1)
-    # print(rank, [i for i in Tpara.inter_idx])
-    # for leaf in Tpara.leaves.values():
-    #     print(leaf.id, leaf.left_edge, leaf.right_edge)
-    #          #Tpara.all_pts[Tpara.inter_idx[leaf.slice],:])
-    # print(rank, Tpara.left_edge, Tpara.right_edge)
-    if rank == 0:
-        Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
-                                  periodic=periodic)
-        # time.sleep(size*1)
-        # print(rank, 'result', [i for i in Tseri.idx])
-        # for leaf in Tseri.leaves:
-        #     print(leaf.id, leaf.left_edge, leaf.right_edge)
-        #          #pts[Tseri.idx[leaf.slice],:])
-        np.testing.assert_array_equal(Tpara.inter_idx, Tseri.idx)
 
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
@@ -101,6 +86,8 @@ def test_consolidate(periodic=False, ndim=2):
         #     print (leaf.id, leaf.left_edge, leaf.right_edge)
         #            pts[Tseri.idx[leaf.slice],:])
         np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
+    else:
+        assert(Tpara is None)
 
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))

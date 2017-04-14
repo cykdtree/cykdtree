@@ -234,18 +234,27 @@ cdef class PyParallelKDTree:
         return self._get(pos)
 
 
-    # def consolidate(self):
-    #     r"""Return the serial KDTree on process 0.
+    cdef object _consolidate(self):
+        cdef KDTree *stree = NULL
+        cdef PyKDTree out = PyKDTree()
+        # cdef ParallelKDTree *ptree = self._ptree
+        stree = self._ptree.consolidate_tree()
+        if self.rank == 0:
+            out._init_tree(stree)
+            return out
+        else:
+            return None
 
-    #     Returns:
-    #         :class:`cykdtree.PyKDTree`: KDTree.
+    def consolidate(self):
+        r"""Return the serial KDTree on process 0.
 
-    #     """
-    #     cdef KDTree *stree = self._tree.consolidate_tree()
-        
-        
+        Returns:
+            :class:`cykdtree.PyKDTree`: KDTree.
+
+        """
+        return self._consolidate()
 
     # def build(self, pybool include_self = False):
     #     cdef cbool c_is = <cbool>include_self
     #     with nogil, cython.boundscheck(False), cython.wraparound(False):
-    #         self._tree.build(c_is)
+    #         self._ptree.build(c_is)
