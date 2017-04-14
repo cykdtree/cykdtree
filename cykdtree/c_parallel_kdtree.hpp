@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdarg>
-// #define DEBUG
-// #define TIMINGS 
+#define DEBUG
+#define TIMINGS 
 #ifdef TIMINGS
 #include <ctime>
 #endif
@@ -360,8 +360,8 @@ public:
     }
     end_time(_t0, "init");
     set_comm_order();
-    // build_tree();
-    build_tree0();
+    build_tree();
+    // build_tree0();
   }
   ~ParallelKDTree() {
     delete(tree);
@@ -996,6 +996,7 @@ public:
   }
 
   void build_tree(bool include_self = false) {
+    bool local_debug = true;
     uint32_t d;
     std::vector<Node*> left_nodes;
     for (d = 0; d < ndim; d++)
@@ -1003,10 +1004,19 @@ public:
 
     // Receive tree info
     if (!(is_root)) {
-      recv_build_begin(src, local_left_idx, local_npts,
-		       local_domain_left_edge, local_domain_right_edge,
-		       local_periodic_left, local_periodic_right,
-		       local_domain_mins, local_domain_maxs);
+      debug_msg(local_debug, "build_tree", "recv_build_begin");
+      recv_part(src);
+      // recv_build_begin(src, local_left_idx, local_npts,
+      // 		       local_domain_left_edge, local_domain_right_edge,
+      // 		       local_periodic_left, local_periodic_right,
+      // 		       local_domain_mins, local_domain_maxs);
+      // inter_npts = local_npts;
+      // memcpy(inter_domain_left_edge, local_domain_left_edge, ndim*sizeof(double));
+      // memcpy(inter_domain_right_edge, local_domain_right_edge, ndim*sizeof(double));
+      // memcpy(inter_periodic_left, local_periodic_left, ndim*sizeof(bool));
+      // memcpy(inter_periodic_right, local_periodic_right, ndim*sizeof(bool));
+      // memcpy(inter_domain_mins, local_domain_mins, ndim*sizeof(double));
+      // memcpy(inter_domain_maxs, local_domain_maxs, ndim*sizeof(double));
     }
 
     // Create tree, starting at intermediate level
@@ -1121,8 +1131,9 @@ public:
       rPLE[dmax] = false;
 
       // Send right half to another process
-      send_build_begin(idst, Lidx+lN, rN, rLE, RE, rPLE, PRE, 
-		       rmins, maxs);
+      send_part(idst);
+      // send_build_begin(idst, Lidx+lN, rN, rLE, RE, rPLE, PRE, 
+      // 		       rmins, maxs);
        
       // Build left node
       Node *lnode = build(Lidx, lN, LE, lRE, PLE, lPRE,
