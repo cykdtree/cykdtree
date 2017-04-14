@@ -1004,8 +1004,19 @@ public:
 	      double *mins, double *maxs,
 	      std::vector<Node*> left_nodes, uint32_t dst_count = 0) {
     // Return root if no more splits happened
-    if (dst_count >= dst_exch.size()) 
+    if (dst_count >= dst_exch.size()) {
+      std::vector<Node*>::iterator it;
+      Node *out;
+      for (it = tree->leaves.begin(); it != tree->leaves.end(); it++) {
+	out = new Node(ndim, (*it)->left_edge, (*it)->right_edge, 
+		       (*it)->periodic_left, (*it)->periodic_right,
+		       (*it)->left_idx, (*it)->children, 
+		       new_tree->num_leaves, (*it)->left_nodes);
+	new_tree->leaves.push_back(out);
+	new_tree->num_leaves++;
+      }
       return tree->root;
+    }
 
     // Get split info and advance the count
     exch_rec idst = dst_exch[dst_exch.size() - dst_count - 1];

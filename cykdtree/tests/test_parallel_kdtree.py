@@ -85,7 +85,6 @@ def test_consolidate(periodic=False, ndim=2):
         # for leaf in Tseri.leaves:
         #     print (leaf.id, leaf.left_edge, leaf.right_edge)
         #            pts[Tseri.idx[leaf.slice],:])
-        print(Tpara.num_leaves, Tseri.num_leaves)
         np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
         Tpara.assert_equal(Tseri)
         # TODO: Test equality of trees (including leaves)
