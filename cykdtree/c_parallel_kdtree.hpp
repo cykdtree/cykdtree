@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdarg>
-#define DEBUG
+// #define DEBUG
 #define TIMINGS 
 #ifdef TIMINGS
 #include <ctime>
@@ -360,8 +360,8 @@ public:
     }
     end_time(_t0, "init");
     set_comm_order();
-    build_tree();
-    // build_tree0();
+    // build_tree();
+    build_tree0();
   }
   ~ParallelKDTree() {
     delete(tree);
@@ -776,80 +776,6 @@ public:
     end_time(_t0, "set_comm_order");
   }
 
-  void recv_build_begin(int sp, uint64_t &Lidx, uint64_t &n,
-			double *LE, double *RE,
-			bool *PLE, bool *PRE,
-			double *mins, double *maxs) {
-    int tag = sp;
-    uint32_t d;
-    // Receive domain bounds
-    // printf("%d: Receiving beginning build from %d\n", rank, sp);
-    MPI_Recv(LE, ndim, MPI_DOUBLE, sp, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    MPI_Recv(RE, ndim, MPI_DOUBLE, sp, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    MPI_Recv(dummy, ndim, MPI_INT, sp, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    for (d = 0; d < ndim; d++)
-      PLE[d] = (bool)(dummy[d]);
-    MPI_Recv(dummy, ndim, MPI_INT, sp, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    for (d = 0; d < ndim; d++)
-      PRE[d] = (bool)(dummy[d]);
-    MPI_Recv(mins, ndim, MPI_DOUBLE, sp, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    MPI_Recv(maxs, ndim, MPI_DOUBLE, sp, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    // Receive scalars
-    MPI_Recv(&Lidx, 1, MPI_UNSIGNED_LONG, sp, tag, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
-    MPI_Recv(&n, 1, MPI_UNSIGNED_LONG, sp, tag, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
-    // Allocate points and create local index
-    all_pts = (double*)malloc(ndim*n*sizeof(double));
-    all_idx = (uint64_t*)malloc(n*sizeof(uint64_t));
-    for (uint64_t i = 0; i < n; i++)
-      all_idx[i] = i;
-    // Receive points
-    MPI_Recv(all_pts, ndim*n, MPI_DOUBLE, sp, tag, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
-    // printf("%d: Received beginning build from %d\n", rank, sp);
-  }
-
-  void send_build_begin(int dp, uint64_t Lidx, uint64_t n,
-			double *LE, double *RE,
-			bool *PLE, bool *PRE,
-			double *mins, double *maxs) {
-    // printf("%d: Sending beginning build to %d\n", rank, dp);
-    int tag = rank;
-    uint32_t d;
-    // Send domain bounds
-    MPI_Send(LE, ndim, MPI_DOUBLE, dp, tag, MPI_COMM_WORLD);
-    MPI_Send(RE, ndim, MPI_DOUBLE, dp, tag, MPI_COMM_WORLD);
-    for (d = 0; d < ndim; d++) 
-      dummy[d] = (int)(PLE[d]);
-    MPI_Send(dummy, ndim, MPI_INT, dp, tag, MPI_COMM_WORLD);
-    for (d = 0; d < ndim; d++) 
-      dummy[d] = (int)(PRE[d]);
-    MPI_Send(dummy, ndim, MPI_INT, dp, tag, MPI_COMM_WORLD);
-    MPI_Send(mins, ndim, MPI_DOUBLE, dp, tag, MPI_COMM_WORLD);
-    MPI_Send(maxs, ndim, MPI_DOUBLE, dp, tag, MPI_COMM_WORLD);
-    // Send scalars
-    MPI_Send(&Lidx, 1, MPI_UNSIGNED_LONG, dp, tag, MPI_COMM_WORLD);
-    MPI_Send(&n, 1, MPI_UNSIGNED_LONG, dp, tag, MPI_COMM_WORLD);
-    // Allocate points and copy over using index
-    double *pts_send = (double*)malloc(ndim*n*sizeof(double));
-    for (uint64_t i = 0; i < n; i++) {
-      memcpy(pts_send + ndim*i,
-	     all_pts + ndim*all_idx[Lidx+i],
-	     ndim*sizeof(double));
-    }
-    // Send points
-    MPI_Send(pts_send, ndim*n, MPI_DOUBLE, dp, tag, MPI_COMM_WORLD);
-    free(pts_send);
-    // printf("%d: Sent beginning build to %d\n", rank, dp);
-  }
-
   Node *recv_build_final(int sp, uint64_t Lidx, uint64_t n,
 			 double *LE, double *RE,
 			 bool *PLE, bool *PRE,
@@ -1003,21 +929,8 @@ public:
       left_nodes.push_back(NULL);
 
     // Receive tree info
-    if (!(is_root)) {
-      debug_msg(local_debug, "build_tree", "recv_build_begin");
+    if (!(is_root))
       recv_part(src);
-      // recv_build_begin(src, local_left_idx, local_npts,
-      // 		       local_domain_left_edge, local_domain_right_edge,
-      // 		       local_periodic_left, local_periodic_right,
-      // 		       local_domain_mins, local_domain_maxs);
-      // inter_npts = local_npts;
-      // memcpy(inter_domain_left_edge, local_domain_left_edge, ndim*sizeof(double));
-      // memcpy(inter_domain_right_edge, local_domain_right_edge, ndim*sizeof(double));
-      // memcpy(inter_periodic_left, local_periodic_left, ndim*sizeof(bool));
-      // memcpy(inter_periodic_right, local_periodic_right, ndim*sizeof(bool));
-      // memcpy(inter_domain_mins, local_domain_mins, ndim*sizeof(double));
-      // memcpy(inter_domain_maxs, local_domain_maxs, ndim*sizeof(double));
-    }
 
     // Create tree, starting at intermediate level
     init_tree(include_self, true);
@@ -1132,8 +1045,6 @@ public:
 
       // Send right half to another process
       send_part(idst);
-      // send_build_begin(idst, Lidx+lN, rN, rLE, RE, rPLE, PRE, 
-      // 		       rmins, maxs);
        
       // Build left node
       Node *lnode = build(Lidx, lN, LE, lRE, PLE, lPRE,
@@ -1404,7 +1315,6 @@ public:
     for (i = 0; i < dst_exch.size(); ++i) {
       MPI_Recv(&nexch, 1, MPI_INT, dst_exch[i].dst, dst_exch[i].dst,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      // proc_order.resize(nprev+nexch);
       MPI_Recv(&proc_order[nprev], nexch, MPI_INT, dst_exch[i].dst,
 	       dst_exch[i].dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       nprev += nexch;
@@ -1415,15 +1325,13 @@ public:
       MPI_Send(&proc_order[0], nprev, MPI_INT, src_exch.src, rank,
 	       MPI_COMM_WORLD);
     }
-    // Broadcast to all processors
+    // Broadcast order from root to all processors
     nprev = size;
-    // MPI_Bcast(&nprev, 1, MPI_INT, root, MPI_COMM_WORLD);
-    // printf("%d: nprev = %d, size = %d\n", rank, nprev, size);
-    // proc_order.resize(nprev);
     MPI_Bcast(&proc_order[0], nprev, MPI_INT, root, MPI_COMM_WORLD);
   }
 
   void consolidate_leaves() {
+    bool local_debug = true;
     leaf_count.resize(size);
     uint32_t local_count = tree->num_leaves;
     uint32_t total_count = 0;
@@ -1437,9 +1345,9 @@ public:
     for (j = 0; j < size; j++) {
       if (proc_order[j] == rank)
 	total_count = total_num_leaves;
-      total_num_leaves += leaf_count[j];
+      total_num_leaves += leaf_count[proc_order[j]];
     }
-    debug_msg(true, "consolidate_leaves", "num_leaves = %u, nprev = %u", 
+    debug_msg(local_debug, "consolidate_leaves", "num_leaves = %u, nprev = %u", 
 	      tree->num_leaves, total_count);
     for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
       (*it)->update_ids(total_count);
@@ -1474,79 +1382,6 @@ public:
     		 MPI_COMM_WORLD);
     	MPI_Send(tree->leaves[i]->right_edge, ndim, MPI_DOUBLE, root, rank,
     		 MPI_COMM_WORLD);
-      }
-    }
-    MPI_Bcast(leaves_le, total_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
-    MPI_Bcast(leaves_re, total_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
-  }
-
-  void consolidate_leaves0() {
-    uint32_t i, nprev;
-    int dst;
-    uint32_t local_count = 0, total_count = 0, child_count = 0;
-    std::vector<Node*>::iterator it;
-    // Wait for max leafid from parent process and update local ids
-    if (src_exch.src != -1) {
-      MPI_Recv(&total_count, 1, MPI_UNSIGNED, src_exch.src, rank,
-	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (it = tree->leaves.begin();
-	   it != tree->leaves.end(); ++it) {
-	(*it)->update_ids(total_count);
-      }
-    }
-    local_count = tree->num_leaves;
-    total_count += tree->num_leaves;
-    // Send max leaf id on this process to child processes updating
-    // count along the way
-    leaf2rank = (int*)malloc(local_count*sizeof(int));
-    for (i = 0; i < local_count; i++)
-      leaf2rank[i] = rank;
-    for (i = 0; i < dst_exch.size(); ++i) {
-      dst = dst_exch[i].dst;
-      MPI_Send(&total_count, 1, MPI_UNSIGNED, dst, dst, MPI_COMM_WORLD);
-      MPI_Recv(&child_count, 1, MPI_UNSIGNED, dst, dst, MPI_COMM_WORLD,
-	       MPI_STATUS_IGNORE);
-      leaf2rank = (int*)realloc(leaf2rank, (local_count+child_count)*sizeof(int));
-      MPI_Recv(leaf2rank+local_count, child_count, MPI_INT, dst, dst,
-	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      local_count += child_count;
-      total_count += child_count;
-    }
-    // Send final count back to source
-    if (src_exch.src != -1) {
-      MPI_Send(&local_count, 1, MPI_UNSIGNED, src_exch.src, rank,
-	       MPI_COMM_WORLD);
-      MPI_Send(leaf2rank, local_count, MPI_INT, src_exch.src, rank,
-	       MPI_COMM_WORLD);
-    }
-    // Consolidate count
-    if (rank == root)
-      total_num_leaves = total_count;
-    MPI_Bcast(&total_num_leaves, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
-    leaf2rank = (int*)realloc(leaf2rank, total_num_leaves*sizeof(int));
-    MPI_Bcast(leaf2rank, total_num_leaves, MPI_INT, root, MPI_COMM_WORLD);
-    // Consolidate left/right edges of all leaves
-    // TODO: This could be done using Gatherv...
-    leaves_le = (double*)malloc(total_num_leaves*ndim*sizeof(double));
-    leaves_re = (double*)malloc(total_num_leaves*ndim*sizeof(double));
-    nprev = 0;
-    if (rank == root) {
-      for (i = 0; i < tree->num_leaves; i++, nprev++) {
-	memcpy(leaves_le + ndim*nprev, tree->leaves[i]->left_edge, ndim*sizeof(double));
-	memcpy(leaves_re + ndim*nprev, tree->leaves[i]->right_edge, ndim*sizeof(double));
-      }
-      for (i = tree->num_leaves; i < total_num_leaves; i++, nprev++) {
-	MPI_Recv(leaves_le + ndim*nprev, ndim, MPI_DOUBLE, leaf2rank[i],
-		 leaf2rank[i], MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	MPI_Recv(leaves_re + ndim*nprev, ndim, MPI_DOUBLE, leaf2rank[i],
-		 leaf2rank[i], MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      }
-    } else {
-      for (i = 0; i < tree->num_leaves; i++, nprev++) {
-	MPI_Send(tree->leaves[i]->left_edge, ndim, MPI_DOUBLE, root, rank,
-		 MPI_COMM_WORLD);
-	MPI_Send(tree->leaves[i]->right_edge, ndim, MPI_DOUBLE, root, rank,
-		 MPI_COMM_WORLD);
       }
     }
     MPI_Bcast(leaves_le, total_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
