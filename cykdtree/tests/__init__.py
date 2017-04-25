@@ -22,15 +22,20 @@ def call_subprocess(np, func, args, kwargs):
     p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
     output, err = p.communicate()
     exit_code = p.returncode
-    print(output)
+    print(output.decode('utf-8'))
     if exit_code != 0:
-        print(err)
+        print(err.decode('utf-8'))
         raise Exception("Error on spawned process. See output.")
         return None
-    return output
+    return output.decode('utf-8')
 
 def iter_dict(dicts):
-    return (dict(itertools.izip(dicts, x)) for x in itertools.product(*dicts.itervalues()))
+    try:
+        return (dict(itertools.izip(dicts, x)) for x in
+                itertools.product(*dicts.itervalues()))
+    except AttributeError:
+        # python 3
+        return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
 def parametrize(**pargs):
     for k in pargs.keys():
