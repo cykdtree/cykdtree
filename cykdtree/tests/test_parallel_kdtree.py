@@ -73,21 +73,15 @@ def test_consolidate(periodic=False, ndim=2):
     Tpara0 = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                        periodic=periodic)
     Tpara = Tpara0.consolidate()
-    # time.sleep(rank*1)
-    # print(rank, [i for i in Tpara.idx])
-    # for leaf in Tpara.leaves.values():
-    #     print (leaf.id, leaf.left_edge, leaf.right_edge)
-               # Tpara.all_pts[Tpara.idx[leaf.slice],:])
     if rank == 0:
+        if False:
+            from cykdtree.plot import plot2D_serial
+            plot2D_serial(Tpara, label_boxes=True,
+                          plotfile='test_consolidate.png')
         Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                   periodic=periodic)
-        # print(rank, 'result', [i for i in Tseri.idx])
-        # for leaf in Tseri.leaves:
-        #     print (leaf.id, leaf.left_edge, leaf.right_edge)
-        #            pts[Tseri.idx[leaf.slice],:])
         np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
         Tpara.assert_equal(Tseri)
-        # TODO: Test equality of trees (including leaves)
     else:
         assert(Tpara is None)
 

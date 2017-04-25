@@ -282,7 +282,12 @@ cdef class PyKDTree:
     @property
     def periodic(self):
         cdef cbool[:] view = <cbool[:self.ndim]> self._periodic
-        return np.asarray(view)
+        # return np.asarray(view)
+        cdef object out = np.empty(self.ndim, 'bool')
+        cdef np.uint32_t i
+        for i in range(self.ndim):
+            out[i] = view[i]
+        return out
 
     def leaf_idx(self, np.uint32_t leafid):
         r"""Get array of indices for points in a leaf.

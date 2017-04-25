@@ -1008,11 +1008,7 @@ public:
       std::vector<Node*>::iterator it;
       Node *out;
       for (it = tree->leaves.begin(); it != tree->leaves.end(); it++) {
-	out = new Node(ndim, (*it)->left_edge, (*it)->right_edge, 
-		       (*it)->periodic_left, (*it)->periodic_right,
-		       (*it)->left_idx, (*it)->children, 
-		       new_tree->num_leaves, (*it)->left_nodes);
-	new_tree->leaves.push_back(out);
+	new_tree->leaves.push_back(*it);
 	new_tree->num_leaves++;
       }
       return tree->root;
@@ -1159,6 +1155,7 @@ public:
     if (src_exch.src != -1)
       send_node(src_exch.src, out->root);
     // Consolidate idx
+    out->finalize_neighbors(include_self);
     consolidate_idx();
     end_time(_t0, "consolidate_tree");
     return out;
@@ -1226,12 +1223,14 @@ public:
 	      // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][j]);
 	      for (k = 0; k < nrecv; k++) {
 		node = recv_leafnode(rsplit[d][j]);
-		node->left_nodes[d] = tree->root;
-		if (p) {
-		  for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
-		    add_neighbors_periodic(node, *it);
-		} else {
-		  node->add_neighbors(tree->root, d);
+		if (node->is_left_node(tree->root, d)) {
+		  node->left_nodes[d] = tree->root;
+		  if (p) {
+		    for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
+		      add_neighbors_periodic(node, *it);
+		  } else {
+		    node->add_neighbors(tree->root, d);
+		  }
 		}
 		// Send neighbors back
 		send_node_neighbors(rsplit[d][j], node);

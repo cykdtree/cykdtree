@@ -149,6 +149,28 @@ public:
       all_neighbors[i] += add_to;
   }
 
+  void print_neighbors() {
+    uint32_t i, j;
+    // Left
+    printf("left:  [");
+    for (i = 0; i < ndim; i++) {
+      printf("[");
+      for (j = 0; j < left_neighbors[i].size(); j++) 
+	printf("%u ", left_neighbors[i][j]);
+      printf("] ");
+    }
+    printf("]\n");
+    // Right
+    printf("right: [");
+    for (i = 0; i < ndim; i++) {
+      printf("[");
+      for (j = 0; j < right_neighbors[i].size(); j++) 
+	printf("%u ", right_neighbors[i][j]);
+      printf("] ");
+    }
+    printf("]\n");
+  }
+
   void add_neighbors(Node* curr, uint32_t dim) {
     if (curr->is_leaf) {
       left_neighbors[dim].push_back(curr->leafid);
@@ -175,6 +197,19 @@ public:
       left_neighbors[d].clear();
       right_neighbors[d].clear();
     }
+  }
+
+  bool is_left_node(Node *lnode, uint32_t ldim) {
+    uint32_t d;
+    for (d = 0; d < ndim; d++) {
+      if (d == ldim)
+	continue;
+      if (right_edge[d] < lnode->left_edge[d])
+	return false;
+      if (left_edge[d] > lnode->right_edge[d])
+	return false;
+    }
+    return true;
   }
 
   void select_unique_neighbors() {
