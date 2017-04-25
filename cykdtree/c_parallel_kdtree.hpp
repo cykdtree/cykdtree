@@ -177,6 +177,7 @@ public:
   bool is_root;
   int *leaf2rank;
   std::vector<int> proc_order;
+  std::vector<uint32_t> leaf_count;
   // Properties specifying source/destination
   std::vector<std::vector<int> > lsplit;
   std::vector<std::vector<int> > rsplit;
@@ -222,8 +223,6 @@ public:
 
   // Convenience properties
   int* dummy;
-
-  std::vector<uint32_t> leaf_count;
   
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize0, double *left_edge, double *right_edge,
