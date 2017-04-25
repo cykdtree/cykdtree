@@ -35,6 +35,8 @@ cdef extern from "c_parallel_kdtree.hpp":
         Node* search(double* pos)
         KDTree* consolidate_tree()
         void consolidate_edges(double *leaves_le, double *leaves_re)
+        void consolidate_process_bounds(double *all_lbounds, double *all_rbounds)
+
 
 cdef class PyParallelKDTree:
     cdef int rank

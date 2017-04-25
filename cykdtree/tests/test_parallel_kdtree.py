@@ -1,9 +1,6 @@
-# mpirun -n 4 python -c 'from cykdtree.tests.test_parallel_kdtree import *; test_neighbors()'
-# mpirun -n 4 python -c 'from cykdtree.tests.test_parallel_kdtree import *; test_neighbors()'
 import numpy as np
 import time
-# from nose.tools import assert_equal
-from nose.tools import istest, nottest, assert_raises
+from nose.tools import istest, nottest, assert_raises, assert_equal
 from mpi4py import MPI
 import cykdtree
 from cykdtree.tests import MPITest
@@ -202,6 +199,21 @@ def test_consolidate_edges(periodic=False, ndim=2):
     LEseri, REseri = comm.bcast((LEseri, REseri), root=0)
     np.testing.assert_allclose(LEpara, LEseri)
     np.testing.assert_allclose(REpara, REseri)
+
+
+@MPITest(Nproc, periodic=(False, True), ndim=(2,3))
+def test_consolidate_process_bounds(periodic=False, ndim=2):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
+                                      periodic=periodic)
+    LEpara, REpara = Tpara.consolidate_process_bounds()
+    assert_equal(LEpara.shape, (size, ndim))
+    assert_equal(REpara.shape, (size, ndim))
+    np.testing.assert_allclose(LEpara[rank,:], Tpara.left_edge)
+    np.testing.assert_allclose(REpara[rank,:], Tpara.right_edge)
 
 
 def time_tree_construction(Ntime, LStime, ndim=2):

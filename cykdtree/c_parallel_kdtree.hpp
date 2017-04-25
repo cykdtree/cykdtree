@@ -196,8 +196,6 @@ public:
   bool *total_periodic;
   bool total_any_periodic;
   uint32_t total_num_leaves;
-  double *all_lbounds;
-  double *all_rbounds;
   bool include_self;
   // Properties of original data received by this process
   uint64_t inter_npts;
@@ -239,8 +237,6 @@ public:
     local_left_idx = 0;
     total_num_leaves = 0;
     leaf2rank = NULL;
-    all_lbounds = NULL;
-    all_rbounds = NULL;
     double _t0 = begin_time();
     all_avail = (int*)malloc(size*sizeof(int));
     include_self = include_self0;
@@ -385,10 +381,6 @@ public:
     free(local_periodic_right);
     if (leaf2rank != NULL)
       free(leaf2rank);
-    if (all_lbounds != NULL)
-      free(all_lbounds);
-    if (all_rbounds != NULL)
-      free(all_rbounds);
     MPI_Type_free(&mpi_exch_type);
   }
 
@@ -920,7 +912,6 @@ public:
     // Return root if no more splits happened
     if (dst_count >= dst_exch.size()) {
       std::vector<Node*>::iterator it;
-      Node *out;
       for (it = tree->leaves.begin(); it != tree->leaves.end(); it++) {
 	new_tree->leaves.push_back(*it);
 	new_tree->num_leaves++;
@@ -1081,31 +1072,6 @@ public:
     consolidate_leaves();
     consolidate_neighbors();
     end_time(_t0, "consolidate");
-  }
-
-  void consolidate_bounds() {
-    // Send tree bounds to root
-    if (rank == root) {
-      all_lbounds = (double*)malloc(ndim*size*sizeof(double));
-      all_rbounds = (double*)malloc(ndim*size*sizeof(double));
-      memcpy(all_lbounds+ndim*rank, tree->domain_left_edge,
-	     ndim*sizeof(double));
-      memcpy(all_rbounds+ndim*rank, tree->domain_right_edge,
-	     ndim*sizeof(double));
-      for (int i = 0; i < size; i++) {
-	if (rank != i) {
-	  MPI_Recv(all_lbounds+ndim*i, ndim, MPI_DOUBLE, i, i, 
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  MPI_Recv(all_rbounds+ndim*i, ndim, MPI_DOUBLE, i, i, 
-		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	}
-      }
-    } else {
-      MPI_Send(tree->domain_left_edge, ndim, MPI_DOUBLE, root, rank,
-	       MPI_COMM_WORLD);
-      MPI_Send(tree->domain_right_edge, ndim, MPI_DOUBLE, root, rank,
-	       MPI_COMM_WORLD);
-    }
   }
 
   void exch_neigh(uint32_t d, std::vector<std::vector<Node*> > lsend,
@@ -1412,6 +1378,31 @@ public:
     }
     MPI_Bcast(leaves_le, total_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
     MPI_Bcast(leaves_re, total_num_leaves*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
+  }
+
+  void consolidate_process_bounds(double *all_lbounds, double *all_rbounds) {
+    // Send tree bounds to root
+    if (rank == root) {
+      memcpy(all_lbounds+ndim*rank, tree->domain_left_edge,
+	     ndim*sizeof(double));
+      memcpy(all_rbounds+ndim*rank, tree->domain_right_edge,
+	     ndim*sizeof(double));
+      for (int i = 0; i < size; i++) {
+	if (rank != i) {
+	  MPI_Recv(all_lbounds+ndim*i, ndim, MPI_DOUBLE, i, i, 
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	  MPI_Recv(all_rbounds+ndim*i, ndim, MPI_DOUBLE, i, i, 
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	}
+      }
+    } else {
+      MPI_Send(tree->domain_left_edge, ndim, MPI_DOUBLE, root, rank,
+	       MPI_COMM_WORLD);
+      MPI_Send(tree->domain_right_edge, ndim, MPI_DOUBLE, root, rank,
+	       MPI_COMM_WORLD);
+    }
+    MPI_Bcast(all_lbounds, size*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
+    MPI_Bcast(all_rbounds, size*ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
   }
 
 };

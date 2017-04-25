@@ -271,8 +271,20 @@ cdef class PyParallelKDTree:
         self._ptree.consolidate_edges(&leaves_le[0,0], &leaves_re[0,0])
         return (leaves_le, leaves_re)
         
+    def consolidate_process_bounds(self):
+        r"""Returns arrays of the left and right edges for the section of the
+        domain contained by each process.
 
-    # def build(self, pybool include_self = False):
-    #     cdef cbool c_is = <cbool>include_self
-    #     with nogil, cython.boundscheck(False), cython.wraparound(False):
-    #         self._ptree.build(c_is)
+        Returns:
+            tuple(np.ndarray of double, np.ndarray of double): The left (first
+                array) and right (second array) edges of each process (1st
+                array dimension), in each dimension (2nd array dimension).
+
+        """
+        cdef np.ndarray[np.float64_t, ndim=2] all_lbounds
+        cdef np.ndarray[np.float64_t, ndim=2] all_rbounds
+        all_lbounds = np.empty((self.size, self.ndim), 'float64')
+        all_rbounds = np.empty((self.size, self.ndim), 'float64')
+        self._ptree.consolidate_process_bounds(&all_lbounds[0,0],
+                                               &all_rbounds[0,0])
+        return (all_lbounds, all_rbounds)
