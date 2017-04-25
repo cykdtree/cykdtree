@@ -285,8 +285,6 @@ public:
   uint32_t num_leaves;
   std::vector<Node*> leaves;
   Node* root;
-  double* leaves_le;
-  double* leaves_re;
 
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
@@ -296,8 +294,6 @@ public:
 	 bool include_self = true, bool dont_build = false)
   {
     is_partial = true;
-    leaves_le = NULL;
-    leaves_re = NULL;
 
     all_pts = pts;
     all_idx = idx;
@@ -354,8 +350,6 @@ public:
   {
     is_partial = false;
     left_idx = 0;
-    leaves_le = NULL;
-    leaves_re = NULL;
 
     all_pts = pts;
     all_idx = idx;
@@ -405,17 +399,11 @@ public:
       free(periodic_left);
       free(periodic_right);
     }
-    if (leaves_le != NULL)
-      free(leaves_le);
-    if (leaves_re != NULL)
-      free(leaves_re);
   }
 
-  void consolidate_edges() {
-    leaves_le = (double*)malloc(num_leaves*ndim*sizeof(double));
-    leaves_re = (double*)malloc(num_leaves*ndim*sizeof(double));
+  void consolidate_edges(double *leaves_le, double *leaves_re) {
     for (uint32_t k = 0; k < num_leaves; k++) {
-      memcpy(leaves_le+leaves[k]->leafid,
+      memcpy(leaves_le+ndim*leaves[k]->leafid,
              leaves[k]->left_edge,
              ndim*sizeof(double));
       memcpy(leaves_re+ndim*leaves[k]->leafid,

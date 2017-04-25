@@ -254,6 +254,24 @@ cdef class PyParallelKDTree:
         """
         return self._consolidate()
 
+    def consolidate_edges(self):
+        r"""Return arrays of the left and right edges for all leaves in the
+        tree on each process.
+
+        Returns:
+            tuple(np.ndarray of double, np.ndarray of double): The left (first
+                array) and right (second array) edges of each leaf (1st array
+                dimension), in each dimension (2nd array dimension).
+
+        """
+        cdef np.ndarray[np.float64_t, ndim=2] leaves_le
+        cdef np.ndarray[np.float64_t, ndim=2] leaves_re
+        leaves_le = np.empty((self.total_num_leaves, self.ndim), 'float64')
+        leaves_re = np.empty((self.total_num_leaves, self.ndim), 'float64')
+        self._ptree.consolidate_edges(&leaves_le[0,0], &leaves_re[0,0])
+        return (leaves_le, leaves_re)
+        
+
     # def build(self, pybool include_self = False):
     #     cdef cbool c_is = <cbool>include_self
     #     with nogil, cython.boundscheck(False), cython.wraparound(False):

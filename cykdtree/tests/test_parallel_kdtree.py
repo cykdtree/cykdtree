@@ -184,6 +184,26 @@ def test_get_neighbor_ids(periodic=False, ndim=2):
         tree.get_neighbor_ids(pos)
 
 
+@MPITest(Nproc, periodic=(False, True), ndim=(2,3))
+def test_consolidate_edges(periodic=False, ndim=2):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
+                                      periodic=periodic)
+    LEpara, REpara = Tpara.consolidate_edges()
+    if rank == 0:
+        Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
+                                  periodic=periodic)
+        LEseri, REseri = Tseri.consolidate_edges()
+    else:
+        LEseri, REseri = None, None
+    LEseri, REseri = comm.bcast((LEseri, REseri), root=0)
+    np.testing.assert_allclose(LEpara, LEseri)
+    np.testing.assert_allclose(REpara, REseri)
+
+
 def time_tree_construction(Ntime, LStime, ndim=2):
     pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
     t0 = time.time()
@@ -199,3 +219,4 @@ def time_neighbor_search(Ntime, LStime, ndim=2):
     tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
     t1 = time.time()
     print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))
+

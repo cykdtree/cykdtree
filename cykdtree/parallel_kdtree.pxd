@@ -34,6 +34,7 @@ cdef extern from "c_parallel_kdtree.hpp":
         vector[uint32_t] get_neighbor_ids(double* pos)
         Node* search(double* pos)
         KDTree* consolidate_tree()
+        void consolidate_edges(double *leaves_le, double *leaves_re)
 
 cdef class PyParallelKDTree:
     cdef int rank
