@@ -17,9 +17,7 @@ try:
     from Cython.Build import cythonize
     from Cython.Distutils import build_ext
 except ImportError:
-    use_cython = False
-else:
-    use_cython = True
+    raise ImportError('Cython is a required dependency of cykdtree')
 
 ext_options = dict(language="c++",
                    include_dirs=[numpy.get_include()],
@@ -48,7 +46,7 @@ def get_mpi_args(mpi_executable, compile_argument, link_argument):
     return compile_args, link_args
 
 # CYTHON_TRACE required for coverage and line_profiler.  Remove for release.
-if not release and use_cython:
+if not release:
     ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
 
 ext_options_mpi = copy.deepcopy(ext_options)
@@ -70,7 +68,7 @@ else:
         ext_options_mpi['extra_link_args'] += mpi_link_args
 
 # Needed for line_profiler - disable for production code
-if not RTDFLAG and not release and use_cython:
+if not RTDFLAG and not release:
     try:
         from Cython.Compiler.Options import directive_defaults
     except ImportError:
@@ -122,9 +120,8 @@ src_include += [
     "cykdtree/c_parallel_kdtree.hpp", "cykdtree/c_kdtree.cpp",
     "cykdtree/c_utils.cpp", "cykdtree/c_parallel_kdtree.cpp"]
 
-if use_cython:
-    ext_modules = cythonize(ext_modules)
-    cmdclass.update({ 'build_ext': build_ext })
+ext_modules = cythonize(ext_modules)
+cmdclass.update({'build_ext': build_ext})
 
 class sdist(_sdist):
     # subclass setuptools source distribution builder to ensure cython
