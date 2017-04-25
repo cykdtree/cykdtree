@@ -79,7 +79,6 @@ if not RTDFLAG and not release:
     directive_defaults['linetrace'] = True
     directive_defaults['binding'] = True
 
-cmdclass = {}
 ext_modules = []
 src_include = []
 
@@ -119,9 +118,6 @@ src_include += [
     "cykdtree/parallel_kdtree.pyx", "cykdtree/parallel_kdtree.pxd",
     "cykdtree/c_parallel_kdtree.hpp", "cykdtree/c_kdtree.cpp",
     "cykdtree/c_utils.cpp", "cykdtree/c_parallel_kdtree.cpp"]
-
-ext_modules = cythonize(ext_modules)
-cmdclass.update({'build_ext': build_ext})
 
 class sdist(_sdist):
     # subclass setuptools source distribution builder to ensure cython
@@ -175,6 +171,6 @@ setup(name='cykdtree',
                    "Development Status :: 3 - Alpha"],
       license='BSD',
       zip_safe=False,
-      cmdclass=cmdclass,
-      ext_modules=ext_modules,
+      cmdclass={'build_ext': build_ext, 'sdist': sdist},
+      ext_modules=cythonize(ext_modules),
       data_files=[('cykdtree', src_include)])
