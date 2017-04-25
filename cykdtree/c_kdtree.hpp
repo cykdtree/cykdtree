@@ -232,7 +232,6 @@ class KDTree
 {
 public:
   bool is_partial;
-  double* all_pts;
   uint64_t* all_idx;
   uint64_t npts;
   uint32_t ndim;
@@ -264,7 +263,6 @@ public:
     leaves_le = NULL;
     leaves_re = NULL;
 
-    all_pts = pts;
     all_idx = idx;
     npts = n;
     ndim = m;
@@ -310,7 +308,7 @@ public:
     }
 
     if (!(dont_build))
-      build_tree(include_self);
+      build_tree(pts, include_self);
 
   }
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0, 
@@ -322,7 +320,6 @@ public:
     leaves_le = NULL;
     leaves_re = NULL;
 
-    all_pts = pts;
     all_idx = idx;
     npts = n;
     ndim = m;
@@ -355,7 +352,7 @@ public:
     }
 
     if (!(dont_build))
-      build_tree(include_self);
+      build_tree(pts, include_self);
 
   }
   ~KDTree()
@@ -389,7 +386,7 @@ public:
     }
   }
 
-  void build_tree(bool include_self = true) {
+  void build_tree(double* all_pts, bool include_self = true) {
     uint32_t d;
     double *LE = (double*)malloc(ndim*sizeof(double));
     double *RE = (double*)malloc(ndim*sizeof(double));
@@ -409,8 +406,8 @@ public:
       left_nodes.push_back(NULL);
     }
 
-    root = build(0, npts, LE, RE, PLE, PRE,
-		 mins, maxs, left_nodes);
+    root = build(0, npts, LE, RE, PLE, PRE, all_pts,
+                 mins, maxs, left_nodes);
 
     free(LE);
     free(RE);
@@ -504,10 +501,11 @@ public:
   }
 
   Node* build(uint64_t Lidx, uint64_t n, 
-	      double *LE, double *RE, 
-	      bool *PLE, bool *PRE,
-	      double *mins, double *maxes,
-	      std::vector<Node*> left_nodes)
+              double *LE, double *RE, 
+              bool *PLE, bool *PRE,
+              double* all_pts,
+              double *mins, double *maxes,
+              std::vector<Node*> left_nodes)
   {
     // Create leaf
     if (n < leafsize) {
@@ -560,11 +558,11 @@ public:
 
       // Build less and greater nodes
       Node* less = build(Lidx, Nless, LE, lessright, PLE, lessPRE,
-			 mins, lessmaxes, left_nodes);
+                         all_pts, mins, lessmaxes, left_nodes);
       greater_left_nodes[dmax] = less;
       Node* greater = build(Lidx+Nless, Ngreater, greaterleft, RE,
-			    greaterPLE, PRE,
-			    greatermins, maxes, greater_left_nodes);
+                            greaterPLE, PRE, all_pts,
+                            greatermins, maxes, greater_left_nodes);
 
       // Create innernode referencing child nodes
       Node* out = new Node(ndim, LE, RE, PLE, PRE, Lidx, dmax, split_val,
