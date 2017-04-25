@@ -1,5 +1,5 @@
 from setuptools import setup
-from distutils.extension import Extension
+from setuptools.extension import Extension
 from setuptools.command.sdist import sdist as _sdist
 from subprocess import Popen, PIPE
 import copy
@@ -79,13 +79,13 @@ if not RTDFLAG and not release:
     directive_defaults['linetrace'] = True
     directive_defaults['binding'] = True
 
-cmdclass = { }
-ext_modules = [ ]
-src_include = [ ]
+cmdclass = {}
+ext_modules = []
+src_include = []
 
 def make_cpp(cpp_file):
     if not os.path.isfile(cpp_file):
-        open(cpp_file,'a').close()
+        open(cpp_file, 'a').close()
         assert(os.path.isfile(cpp_file))
 
 make_cpp("cykdtree/c_kdtree.cpp")
@@ -153,8 +153,8 @@ except (ImportError, IOError):
 
 setup(name='cykdtree',
       packages=['cykdtree', 'cykdtree.tests'],
-      package_dir={'cykdtree':'cykdtree'},
-      package_data = {'cykdtree': ['README.md', 'README.rst'] + src_include},
+      package_dir={'cykdtree': 'cykdtree'},
+      package_data={'cykdtree': ['README.md', 'README.rst'] + src_include},
       version='0.2.4',
       description='Cython based KD-Tree',
       long_description=long_description,
@@ -175,8 +175,6 @@ setup(name='cykdtree',
                    "Development Status :: 3 - Alpha"],
       license='BSD',
       zip_safe=False,
-      cmdclass = cmdclass,
-      ext_modules = ext_modules,
-      data_files = [('cykdtree', src_include)])
-
-
+      cmdclass=cmdclass,
+      ext_modules=ext_modules,
+      data_files=[('cykdtree', src_include)])
