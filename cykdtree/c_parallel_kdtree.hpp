@@ -912,7 +912,7 @@ public:
     partition();
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
-    tree->build_tree(include_self);
+    tree->build_tree(all_pts, include_self);
     debug_msg(true, "build_tree", "num_leaves = %u", tree->num_leaves);
     end_time(_t0, "build_tree");
     consolidate();

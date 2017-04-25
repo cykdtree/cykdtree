@@ -19,18 +19,24 @@ def call_subprocess(np, func, args, kwargs):
            "'from %s import %s; %s(%s)'" % (func.__module__, func.__name__,
                                             func.__name__, args_str)] 
     cmd = ' '.join(cmd)
+    print('Running the following command:\n%s' % cmd)
     p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
     output, err = p.communicate()
     exit_code = p.returncode
-    print(output)
+    print(output.decode('utf-8'))
     if exit_code != 0:
-        print(err)
+        print(err.decode('utf-8'))
         raise Exception("Error on spawned process. See output.")
         return None
-    return output
+    return output.decode('utf-8')
 
 def iter_dict(dicts):
-    return (dict(itertools.izip(dicts, x)) for x in itertools.product(*dicts.itervalues()))
+    try:
+        return (dict(itertools.izip(dicts, x)) for x in
+                itertools.product(*dicts.itervalues()))
+    except AttributeError:
+        # python 3
+        return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
 def parametrize(**pargs):
     for k in pargs.keys():
@@ -88,18 +94,17 @@ def MPITest(Nproc, **pargs):
             @parametrize(**pargs)
             def try_func(*args, **kwargs):
                 error_flag = np.array([0], 'int')
-                try: 
+                try:
                     out = func(*args, **kwargs)
                 except Exception as error:
+                    import traceback
+                    print(traceback.format_exc())
                     error_flag[0] = 1
                 flag_count = np.zeros(1, 'int')
                 comm.Allreduce(error_flag, flag_count)
                 if flag_count[0] > 0:
-                    if error_flag[0]:
-                        raise
-                    sys.exit()
-                    # raise Exception("Process %d: There were errors on %d processes." %
-                    #                 (rank, flag_count[0]))
+                    raise Exception("Process %d: There were errors on %d processes." %
+                                    (rank, flag_count[0]))
                 return out
             return try_func
     return dec

@@ -5,7 +5,7 @@ cykdtree is a Python interface to a C++ implementation of a kd-tree using Cython
 cykdtree is released as open source software under a BSD license.
 
 ## Requirements ##
-* [Python 2.7](https://www.python.org/download/releases/2.7/)
+* [Python 2.7, 3.4, 3.5, or 3.6](https://www.python.org/download/)
 * C++ compiler
 * [Cython](http://cython.org/)
 

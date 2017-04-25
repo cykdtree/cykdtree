@@ -23,7 +23,6 @@ cdef extern from "c_kdtree.hpp":
         vector[vector[uint32_t]] right_neighbors
         vector[uint32_t] all_neighbors
     cdef cppclass KDTree:
-        double* all_pts
         uint64_t* all_idx
         uint64_t npts
         uint32_t ndim
