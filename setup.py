@@ -1,5 +1,6 @@
 from setuptools import setup
 from distutils.extension import Extension
+from setuptools.command.sdist import sdist as _sdist
 from subprocess import Popen, PIPE
 import copy
 import numpy
@@ -125,8 +126,33 @@ if use_cython:
     ext_modules = cythonize(ext_modules)
     cmdclass.update({ 'build_ext': build_ext })
 
-with open('README.rst') as file:
-    long_description = file.read()
+class sdist(_sdist):
+    # subclass setuptools source distribution builder to ensure cython
+    # generated C files are included in source distribution and readme
+    # is converted from markdown to restructured text.  See
+    # http://stackoverflow.com/a/18418524/1382869
+    def run(self):
+        # Make sure the compiled Cython files in the distribution are
+        # up-to-date
+
+        try:
+            import pypandoc
+        except ImportError:
+            raise RuntimeError(
+                'Trying to create a source distribution without pypandoc. '
+                'The readme will not render correctly on pypi without '
+                'pypandoc so we are exiting.'
+            )
+        from Cython.Build import cythonize
+        cythonize(ext_modules)
+        _sdist.run(self)
+
+try:
+    import pypandoc
+    long_description = pypandoc.convert_file('README.md', 'rst')
+except (ImportError, IOError):
+    with open('README.md') as file:
+        long_description = file.read()
 
 setup(name='cykdtree',
       packages=['cykdtree', 'cykdtree.tests'],
