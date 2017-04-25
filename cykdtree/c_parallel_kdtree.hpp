@@ -384,24 +384,6 @@ public:
     MPI_Type_free(&mpi_exch_type);
   }
 
-  void init_tree(bool use_inter = false) {
-    bool local_debug = true;
-    debug_msg(local_debug, "init_tree", "begin");
-    if (use_inter) {
-      tree = new KDTree(all_pts, all_idx, inter_npts, ndim, leafsize,
-			inter_domain_left_edge, inter_domain_right_edge,
-			inter_periodic_left, inter_periodic_right,
-			inter_domain_mins, inter_domain_maxs,
-			include_self, true);
-    } else {
-      tree = new KDTree(all_pts, all_idx, local_npts, ndim, leafsize,
-			local_domain_left_edge, local_domain_right_edge,
-			local_periodic_left, local_periodic_right,
-			local_domain_mins, local_domain_maxs,
-			include_self, true);
-    }
-  }
-
   void send_exch(int idst, exch_rec st) {
     int tag = rank;
     MPI_Send(&st, 1, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
@@ -862,48 +844,6 @@ public:
     }
   }
 
-  void finalize_neighbors() {
-    double _t0 = begin_time();
-    std::vector<Node*>::iterator it;
-    int tag;
-    uint32_t leafid;
-    // Clear existing neighbors
-    if (!(is_root)) 
-      tree->clear_neighbors();
-    // Receive neighbors from parent
-    if (!(is_root)) {
-      tag = rank;
-      for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it) {
-	MPI_Recv(&leafid, 1, MPI_UNSIGNED, src, tag, MPI_COMM_WORLD,
-		 MPI_STATUS_IGNORE);
-	(*it)->leafid = leafid;
-	recv_node_neighbors(src, *it);
-      }
-      // printf("%d: Received neighbors from %d\n", rank, src);
-    }
-    // Finalize neighbors locally
-    if (is_root) {
-      double _t1 = begin_time();
-      tree->finalize_neighbors(include_self);
-      end_time(_t1, "finalize_neighbors (local)");
-    }
-    // Send neighbors to children
-    uint32_t i, l, beg, end;
-    for (i = 0; i < dst_past.size(); i++) {
-      beg = dst_nleaves_begin[i];
-      end = dst_nleaves_final[i];
-      tag = dst_past[i];
-      for (l = beg; l < end; l++) {
-	leafid = tree->leaves[l]->leafid;
-	MPI_Send(&leafid, 1, MPI_UNSIGNED, dst_past[i], tag,
-		 MPI_COMM_WORLD);
-	send_node_neighbors(dst_past[i], tree->leaves[l]);
-      }
-      // printf("%d: Sent neighbors to %d\n", rank, dst_past[i]);
-    }
-    end_time(_t0, "finalize_neighbors");
-  }
-
   Node* build(KDTree *new_tree, uint64_t Lidx, uint64_t n,
 	      double *LE, double *RE,
 	      bool *PLE, bool *PRE,
@@ -993,7 +933,12 @@ public:
       this_exch = send_part(*it);
     }
     // Initialize tree at local
-    init_tree();
+    debug_msg(local_debug, "partition", "init_tree");
+    tree = new KDTree(all_pts, all_idx, local_npts, ndim, leafsize,
+		      local_domain_left_edge, local_domain_right_edge,
+		      local_periodic_left, local_periodic_right,
+		      local_domain_mins, local_domain_maxs,
+		      include_self, true);
     end_time(_t0, "partition");
   }
 
@@ -1074,126 +1019,6 @@ public:
     end_time(_t0, "consolidate");
   }
 
-  void exch_neigh(uint32_t d, std::vector<std::vector<Node*> > lsend,
-		  bool p) {
-    int i, k;
-    uint32_t j;
-    int nsend, nrecv;
-    Node *node;
-    std::vector<Node*>::iterator it;
-    nsend = lsend[d].size();
-    for (i = 0; i < size; i++) {
-      if (i == rank) {
-	if (p == tree->periodic_right[d]) {
-	  // Receive from right
-	  for (j = 0; j < rsplit[d].size(); j++) {
-	    if (rsplit[d][j] == rank) {
-	      // Add periodic neighbor from this process
-	      if (p) {
-		for (k = 0; k < nsend; k++) {
-		  node = lsend[d][k];
-		  node->add_neighbors(tree->root, d);
-		}
-	      }
-	    } else {
-	      // Add neighbors from right
-	      // printf("%d: Recieving from %d\n", rank, rsplit[d][j]);
-	      MPI_Recv(&nrecv, 1, MPI_INT, rsplit[d][j], rsplit[d][j], 
-		       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	      // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][j]);
-	      for (k = 0; k < nrecv; k++) {
-		node = recv_leafnode(rsplit[d][j]);
-		if (node->is_left_node(tree->root, d)) {
-		  node->left_nodes[d] = tree->root;
-		  if (p) {
-		    for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
-		      add_neighbors_periodic(node, *it);
-		  } else {
-		    node->add_neighbors(tree->root, d);
-		  }
-		}
-		// Send neighbors back
-		send_node_neighbors(rsplit[d][j], node);
-	      }
-	    }
-	  }
-	}
-      } else {
-	if (p == tree->periodic_left[d]) {
-	  // Send to left
-	  for (j = 0; j < lsplit[d].size(); j++) {
-	    if (lsplit[d][j] == i) {
-	      // printf("%d: Sending to %d\n", rank, lsplit[d][j]);
-	      MPI_Send(&nsend, 1, MPI_INT, lsplit[d][j], rank,
-		       MPI_COMM_WORLD);
-	      // printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][j]);
-	      for (k = 0; k < nsend; k++) {
-		node = lsend[d][k];
-		send_leafnode(lsplit[d][j], node);
-		// Recieve neighbors back
-		recv_node_neighbors(lsplit[d][j], node);
-	      }
-	      break;
-	    }
-	  }
-	}
-      }
-    }
-  }
-
-
-  void consolidate_neighbors() {
-    uint32_t d;
-    std::vector<Node*>::iterator it;
-    std::vector<std::vector<Node*> > leaves_send;
-    leaves_send = std::vector<std::vector<Node*> >(ndim);
-    // Identify local leaves with missing neighbors
-    for (it = tree->leaves.begin();
-	 it != tree->leaves.end(); ++it) {
-      for (d = 0; d < ndim; d++) {
-	if (((*it)->left_nodes[d] == NULL) and (lsplit[d].size() > 0)) {
-	  leaves_send[d].push_back(*it);
-	}
-      }
-    }
-    // Non-periodic neighbors
-    for (d = 0; d < ndim; d++)
-      exch_neigh(d, leaves_send, false);
-    // Periodic neighbors
-    for (d = 0; d < ndim; d++)
-      exch_neigh(d, leaves_send, true);
-    // Finalize neighbors
-    tree->finalize_neighbors(include_self);
-  }
-
-  void add_neighbors_periodic(Node *leaf, Node *prev) {
-    uint32_t d0;
-    for (d0 = 0; d0 < ndim; d0++) {
-      tree->add_neighbors_periodic(leaf, prev, d0);
-    }
-  }
-
-  void consolidate_idx() {
-    uint64_t nexch, i, j;
-    uint64_t *idx_exch;
-    // Receive ids from child processes
-    for (i = 0; i < dst_exch.size(); ++i) {
-      nexch = dst_exch[i].npts;
-      idx_exch = (uint64_t*)malloc(nexch*sizeof(uint64_t));
-      MPI_Recv(idx_exch, nexch, MPI_UNSIGNED_LONG, dst_exch[i].dst, 
-	       dst_exch[i].dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      for (j = 0; j < nexch; j++)
-	idx_exch[j] = all_idx[dst_exch[i].split_idx + 1 + idx_exch[j]];
-      memcpy(all_idx + dst_exch[i].split_idx + 1,
-	     idx_exch, nexch*sizeof(uint64_t));
-      free(idx_exch);
-    }
-    // Send ids to parent process
-    if (src_exch.src != -1) 
-      MPI_Send(all_idx, inter_npts, MPI_UNSIGNED_LONG, src_exch.src,
-	       rank, MPI_COMM_WORLD);
-  }
-
   void consolidate_order() {
     int nexch, nprev;
     uint32_t i;
@@ -1241,6 +1066,119 @@ public:
 	      tree->num_leaves, total_count);
     for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
       (*it)->update_ids(total_count);
+  }
+
+  void consolidate_neighbors() {
+    uint32_t d;
+    std::vector<Node*>::iterator it;
+    std::vector<std::vector<Node*> > leaves_send;
+    leaves_send = std::vector<std::vector<Node*> >(ndim);
+    // Identify local leaves with missing neighbors
+    for (it = tree->leaves.begin();
+	 it != tree->leaves.end(); ++it) {
+      for (d = 0; d < ndim; d++) {
+	if (((*it)->left_nodes[d] == NULL) and (lsplit[d].size() > 0)) {
+	  leaves_send[d].push_back(*it);
+	}
+      }
+    }
+    // Non-periodic neighbors
+    for (d = 0; d < ndim; d++)
+      exch_neigh(d, leaves_send, false);
+    // Periodic neighbors
+    for (d = 0; d < ndim; d++)
+      exch_neigh(d, leaves_send, true);
+    // Finalize neighbors
+    tree->finalize_neighbors(include_self);
+  }
+
+  void exch_neigh(uint32_t d, std::vector<std::vector<Node*> > lsend,
+		  bool p) {
+    int i, k;
+    uint32_t j, d0;
+    int nsend, nrecv;
+    Node *node;
+    std::vector<Node*>::iterator it;
+    nsend = lsend[d].size();
+    for (i = 0; i < size; i++) {
+      if (i == rank) {
+	if (p == tree->periodic_right[d]) {
+	  // Receive from right
+	  for (j = 0; j < rsplit[d].size(); j++) {
+	    if (rsplit[d][j] == rank) {
+	      // Add periodic neighbor from this process
+	      if (p) {
+		for (k = 0; k < nsend; k++) {
+		  node = lsend[d][k];
+		  node->add_neighbors(tree->root, d);
+		}
+	      }
+	    } else {
+	      // Add neighbors from right
+	      // printf("%d: Recieving from %d\n", rank, rsplit[d][j]);
+	      MPI_Recv(&nrecv, 1, MPI_INT, rsplit[d][j], rsplit[d][j], 
+		       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	      // printf("%d: Recieving %d from %d\n", rank, nrecv, rsplit[d][j]);
+	      for (k = 0; k < nrecv; k++) {
+		node = recv_leafnode(rsplit[d][j]);
+		if (node->is_left_node(tree->root, d)) {
+		  node->left_nodes[d] = tree->root;
+		  if (p) {
+		    for (it = tree->leaves.begin(); it != tree->leaves.end(); ++it)
+		      for (d0 = 0; d0 < ndim; d0++)
+			tree->add_neighbors_periodic(node, *it, d0);
+		  } else {
+		    node->add_neighbors(tree->root, d);
+		  }
+		}
+		// Send neighbors back
+		send_node_neighbors(rsplit[d][j], node);
+	      }
+	    }
+	  }
+	}
+      } else {
+	if (p == tree->periodic_left[d]) {
+	  // Send to left
+	  for (j = 0; j < lsplit[d].size(); j++) {
+	    if (lsplit[d][j] == i) {
+	      // printf("%d: Sending to %d\n", rank, lsplit[d][j]);
+	      MPI_Send(&nsend, 1, MPI_INT, lsplit[d][j], rank,
+		       MPI_COMM_WORLD);
+	      // printf("%d: Sending %d to %d\n", rank, nsend, lsplit[d][j]);
+	      for (k = 0; k < nsend; k++) {
+		node = lsend[d][k];
+		send_leafnode(lsplit[d][j], node);
+		// Recieve neighbors back
+		recv_node_neighbors(lsplit[d][j], node);
+	      }
+	      break;
+	    }
+	  }
+	}
+      }
+    }
+  }
+
+  void consolidate_idx() {
+    uint64_t nexch, i, j;
+    uint64_t *idx_exch;
+    // Receive ids from child processes
+    for (i = 0; i < dst_exch.size(); ++i) {
+      nexch = dst_exch[i].npts;
+      idx_exch = (uint64_t*)malloc(nexch*sizeof(uint64_t));
+      MPI_Recv(idx_exch, nexch, MPI_UNSIGNED_LONG, dst_exch[i].dst, 
+	       dst_exch[i].dst, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      for (j = 0; j < nexch; j++)
+	idx_exch[j] = all_idx[dst_exch[i].split_idx + 1 + idx_exch[j]];
+      memcpy(all_idx + dst_exch[i].split_idx + 1,
+	     idx_exch, nexch*sizeof(uint64_t));
+      free(idx_exch);
+    }
+    // Send ids to parent process
+    if (src_exch.src != -1) 
+      MPI_Send(all_idx, inter_npts, MPI_UNSIGNED_LONG, src_exch.src,
+	       rank, MPI_COMM_WORLD);
   }
 
   int total_available(bool update = false) {
