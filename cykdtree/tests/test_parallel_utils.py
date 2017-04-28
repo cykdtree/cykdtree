@@ -8,7 +8,7 @@ from cykdtree import parallel_utils
 Nproc = 4
 
 @MPITest(Nproc, ndim=(2,3))
-def test_parallel_partition(ndim=2):
+def test_parallel_distribute(ndim=2):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -18,7 +18,7 @@ def test_parallel_partition(ndim=2):
     else:
         pts = None
     total_pts = comm.bcast(pts, root=0)
-    local_pts, local_idx = parallel_utils.py_parallel_partition(pts)
+    local_pts, local_idx = parallel_utils.py_parallel_distribute(pts)
     npts_local = npts/size
     if rank < (npts%size):
         npts_local += 1

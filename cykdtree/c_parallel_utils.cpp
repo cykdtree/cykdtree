@@ -1,8 +1,8 @@
 #include "c_utils.hpp"
 #include "c_parallel_utils.hpp"
 
-uint64_t parallel_partition(double **pts, uint64_t **idx,
-			    uint32_t ndim, uint64_t npts) {
+uint64_t parallel_distribute(double **pts, uint64_t **idx,
+			     uint32_t ndim, uint64_t npts) {
   int size, rank;
   uint64_t npts_local = 0;
   MPI_Comm_size ( MPI_COMM_WORLD, &size);

@@ -10,7 +10,7 @@ from libcpp.pair cimport pair
 from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
 
-def py_parallel_partition(np.ndarray[np.float64_t, ndim=2] pts0 = None):
+def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
     r"""Split points between all processes in the world.
 
     Args:
@@ -41,7 +41,7 @@ def py_parallel_partition(np.ndarray[np.float64_t, ndim=2] pts0 = None):
         assert(pts0 is None)
     ndim = comm.bcast(ndim, root=0)
     cdef uint64_t nout;
-    nout = parallel_partition(&ptr_pts, &ptr_idx, ndim, npts)
+    nout = parallel_distribute(&ptr_pts, &ptr_idx, ndim, npts)
     assert(ptr_pts != NULL)
     assert(ptr_idx != NULL)
     # Memory view on pointers (memory may not be freed)
