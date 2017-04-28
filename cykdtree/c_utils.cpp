@@ -98,23 +98,33 @@ int64_t pivot(double *pts, uint64_t *idx,
   return select(pts, idx, ndim, d, l, l+nsub-1, l+(nsub-1)/2);
 }
 
-int64_t partition(double *pts, uint64_t *idx,
-                  uint32_t ndim, uint32_t d,
-                  int64_t l, int64_t r, int64_t p)
-{ 
-  double pivot;
+int64_t partition_given_pivot(double *pts, uint64_t *idx,
+			      uint32_t ndim, uint32_t d,
+			      int64_t l, int64_t r, double pivot) {
   int64_t i, j;
   uint64_t t;
-  pivot = pts[ndim*idx[p]+d];
-  t = idx[p]; idx[p] = idx[l]; idx[l] = t;
-
-  for (i = l+1, j = r; i <= j; ) {
+  for (i = l, j = r; i <= j; ) {
     if ((pts[ndim*idx[i]+d] > pivot) && (pts[ndim*idx[j]+d] <= pivot)) {
       t = idx[i]; idx[i] = idx[j]; idx[j] = t;
     }
     if (pts[ndim*idx[i]+d] <= pivot) i++;
     if (pts[ndim*idx[j]+d] > pivot) j--;
   }
+
+  return j;
+}
+
+int64_t partition(double *pts, uint64_t *idx,
+                  uint32_t ndim, uint32_t d,
+                  int64_t l, int64_t r, int64_t p)
+{ 
+  double pivot;
+  int64_t j;
+  uint64_t t;
+  pivot = pts[ndim*idx[p]+d];
+  t = idx[p]; idx[p] = idx[l]; idx[l] = t;
+
+  j = partition_given_pivot(pts, idx, ndim, d, l+1, r, pivot);
 
   t = idx[l]; idx[l] = idx[j]; idx[j] = t;
 
