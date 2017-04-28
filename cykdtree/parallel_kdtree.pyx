@@ -211,8 +211,10 @@ cdef class PyParallelKDTree:
         # cdef PyNode out = PyNode()
         cdef pybool found = (leafnode != NULL)
         cdef object all_found = comm.allgather(found)
-        if sum(all_found) != 1:
+        if sum(all_found) == 0:
             raise ValueError("Position is not within the kdtree root node.")
+        elif sum(all_found) > 1:
+            raise ValueError("Position is on more than one process.")
         if found:
             out = self.leaves[leafnode.leafid]
         return out

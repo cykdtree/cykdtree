@@ -41,6 +41,7 @@ cdef extern from "c_kdtree.hpp":
         double* wrap_pos(double* pos) nogil
         vector[uint32_t] get_neighbor_ids(double* pos) nogil
         Node* search(double* pos) nogil
+        Node* search(double* pos, bool dont_wrap) nogil
         void consolidate_edges(double *leaves_le, double *leaves_re)
 
 

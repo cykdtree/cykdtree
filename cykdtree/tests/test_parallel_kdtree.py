@@ -6,7 +6,8 @@ import cykdtree
 from cykdtree.tests import MPITest
 from cykdtree.tests.test_kdtree import left_neighbors_x, left_neighbors_y, left_neighbors_x_periodic, left_neighbors_y_periodic
 np.random.seed(100)
-Nproc = 4
+Nproc = (3,4,5)
+#Nproc = 4
 
 N = 100
 leafsize = 10
@@ -112,7 +113,7 @@ def test_search_errors(periodic=False, ndim=2):
 
 
 @MPITest(Nproc, periodic=(False, True))
-def test_neighbors(periodic = True):
+def test_neighbors(periodic = False):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()

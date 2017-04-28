@@ -324,12 +324,9 @@ public:
     for (uint32_t d = 0; d < ndim; d++) {
       if ((periodic_left[d]) && (periodic_right[d])) {
 	periodic[d] = true;
+	any_periodic = true;
       } else {
 	periodic[d] = false;
-      }
-      if (periodic[d]) {
-	any_periodic = true;
-	break;
       }
     }
 
@@ -618,14 +615,14 @@ public:
     return wrapped_pos;
   }
 
-  Node* search(double* pos0)
+  Node* search(double* pos0, bool dont_wrap = false)
   {
     uint32_t i;
     Node* out = NULL;
     bool valid;
     // Wrap positions
     double* pos;
-    if (any_periodic) 
+    if ((!dont_wrap) && (any_periodic))
       pos = wrap_pos(pos0); // allocates new array
     else
       pos = pos0;
@@ -652,7 +649,7 @@ public:
       }
     }
 
-    if (any_periodic)
+    if ((!dont_wrap) && (any_periodic))
       free(pos);
     return out;
   }
