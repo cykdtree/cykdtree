@@ -90,6 +90,7 @@ def make_cpp(cpp_file):
 make_cpp("cykdtree/c_kdtree.cpp")
 make_cpp("cykdtree/c_utils.cpp")
 if compile_parallel:
+    make_cpp("cykdtree/c_parallel_utils.cpp")
     make_cpp("cykdtree/c_parallel_kdtree.cpp")
 
 ext_modules += [
@@ -103,18 +104,26 @@ ext_modules += [
                        "cykdtree/c_utils.cpp"],
               **ext_options)]
 if compile_parallel:
-    ext_modules.append(
+    ext_modules += [
+        Extension("cykdtree.parallel_utils",
+                  sources=["cykdtree/parallel_utils.pyx",
+                           "cykdtree/c_parallel_utils.cpp",
+                           "cykdtree/c_utils.cpp"],
+                  **ext_options_mpi),
         Extension("cykdtree.parallel_kdtree",
                   sources=["cykdtree/parallel_kdtree.pyx",
                            "cykdtree/c_parallel_kdtree.cpp",
                            "cykdtree/c_kdtree.cpp",
                            "cykdtree/c_utils.cpp"],
-                  **ext_options_mpi))
+                  **ext_options_mpi)
+        ]
     print("compiling parallel")
 
 src_include += [
     "cykdtree/kdtree.pyx", "cykdtree/kdtree.pxd", "cykdtree/c_kdtree.hpp",
     "cykdtree/utils.pyx", "cykdtree/utils.pxd", "cykdtree/c_utils.hpp",
+    "cykdtree/parallel_utils.pyx", "cykdtree/parallel_utils.pxd",
+    "cykdtree/c_parallel_utils.hpp", "cykdtree/c_parallel_utils.cpp",
     "cykdtree/parallel_kdtree.pyx", "cykdtree/parallel_kdtree.pxd",
     "cykdtree/c_parallel_kdtree.hpp", "cykdtree/c_kdtree.cpp",
     "cykdtree/c_utils.cpp", "cykdtree/c_parallel_kdtree.cpp"]
