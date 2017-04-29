@@ -61,6 +61,8 @@ def parametrize(**pargs):
                 out.append(pfunc(ipargs)(*args, **kwargs))
             return out
 
+        func_param.__name__ = func.__name__
+
         return func_param
 
     return dec

@@ -23,8 +23,8 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
 
     """
     cdef object comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
+    cdef int size = comm.Get_size()
+    cdef int rank = comm.Get_rank()
     cdef uint64_t npts = 0
     cdef uint32_t ndim = 0
     cdef double *ptr_pts = NULL
@@ -63,4 +63,86 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
         free(ptr_idx)
     return (pts, idx)
 
-#def py_parallel_pivot_value(
+
+def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
+                            np.uint32_t pivot_dim, object pool = None):
+    r"""Determine the pivot using median of medians across a pool of processes
+    along a specified dimension.
+
+    Args:
+        pts (np.ndarray of float64): Positions on this process.
+        pivot_dim (uint32): Dimension that median of medians should be performed
+            along.
+        pool (list, optional): Processes that should be included in the medians
+            of medians calculation. Defaults to None and all processes in world
+            are included.
+
+    Returns:
+        float64: Median of medians across pool of processes.
+    
+    """
+    cdef object comm = MPI.COMM_WORLD
+    cdef int size = comm.Get_size()
+    cdef int rank = comm.Get_rank()
+    cdef uint64_t npts = pts.shape[0]
+    cdef uint32_t ndim = pts.shape[1]
+    cdef int64_t l = 0
+    cdef int64_t r = npts-1
+    cdef int i
+    # Initialize pool
+    if pool is None:
+        pool = [i for i in range(size)]
+    cdef vector[int] vpool
+    for i in range(len(pool)):
+        vpool.push_back(i)
+    # Get pivot
+    cdef np.float64_t pivot
+    cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
+    pivot = parallel_pivot_value(vpool, &pts[0,0], &idx[0],
+                                 ndim, pivot_dim, l, r);
+    return pivot
+
+
+def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
+                       np.uint32_t pivot_dim, np.int64_t t,
+                       object pool = None):
+    r"""Get the indices required to partition coordiantes such that the first
+    q elements in pos[:,d] on each process cummulativly contain the smallest
+    t elements in pos[:,d] across all processes. 
+
+    Args:
+        pts (np.ndarray of float64): Positions on this process.
+        pivot_dim (uint32): Dimension that median of medians should be performed
+            along.
+        t (int64): Number of smallest elements in positions across all
+            processes that should be partitioned.
+        pool (list, optional): Processes that should be included in the medians
+            of medians calculation. Defaults to None and all processes in world
+            are included.
+
+    Returns:
+        tuple(int64, np.ndarray of uint64): Number of points (q) on this process
+            that fall in the smallest t points overall and the index required
+            to order the points to put the smallest ones first.
+
+    """
+    cdef object comm = MPI.COMM_WORLD
+    cdef int size = comm.Get_size()
+    cdef int rank = comm.Get_rank()
+    cdef uint64_t npts = pts.shape[0]
+    cdef uint32_t ndim = pts.shape[1]
+    cdef int64_t l = 0
+    cdef int64_t r = npts-1
+    cdef int i
+    # Initialize pool
+    if pool is None:
+        pool = [i for i in range(size)]
+    cdef vector[int] vpool
+    for i in range(len(pool)):
+        vpool.push_back(i)
+    # Get pivot
+    cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
+    cdef int64_t q = parallel_select(vpool, &pts[0,0], &idx[0],
+                                     ndim, pivot_dim, l, r, t);
+    return q+1, idx
+

@@ -1,5 +1,6 @@
 from cykdtree import utils
 import numpy as np
+from cykdtree.tests import parametrize
 
 
 def test_max_pts():
@@ -56,25 +57,18 @@ def test_insertSort():
     assert(np.allclose(idx, np.argsort(pts[:, d])))
 
 
-def test_pivot():
+@parametrize(N=(0, 10, 11), ndim=(2,3))
+def test_pivot(N=10, ndim=2):
+    print(N, ndim)
     d = 1
     np.random.seed(10)
-    # Even number
-    N = 10
-    pts = np.random.rand(N, 2).astype('float64')
+    pts = np.random.rand(N, ndim).astype('float64')
     q, idx = utils.py_pivot(pts, d)
-    assert((pts[idx[:q], d] <= pts[idx[q], d]).all())
-    pts = np.random.rand(N, 3).astype('float64')
-    q, idx = utils.py_pivot(pts, d)
-    assert((pts[idx[:q], d] <= pts[idx[q], d]).all())
-    # Odd number
-    N = 11
-    pts = np.random.rand(N, 2).astype('float64')
-    q, idx = utils.py_pivot(pts, d)
-    assert((pts[idx[:q], d] <= pts[idx[q], d]).all())
-    pts = np.random.rand(N, 3).astype('float64')
-    q, idx = utils.py_pivot(pts, d)
-    assert((pts[idx[:q], d] <= pts[idx[q], d]).all())
+    if (N == 0):
+        assert(q == -1)
+    else:
+        med = np.median(pts)
+        piv = pts[idx[q], d]
 
 
 def test_partition():

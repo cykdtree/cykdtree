@@ -77,7 +77,11 @@ int64_t pivot(double *pts, uint64_t *idx,
               uint32_t ndim, uint32_t d,
               int64_t l, int64_t r)
 { 
-  if ((r - l) < 5) {
+  if (r < l) {
+    return -1;
+  } else if (r == l) {
+    return l;
+  } else if ((r - l) < 5) {
     insertSort(pts, idx, ndim, d, l, r);
     return (l+r)/2;
   }

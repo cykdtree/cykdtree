@@ -97,8 +97,9 @@ def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
 
     Returns:
         tuple of int64 and np.ndarray of uint64: Index q of idx that is the 
-            median of medians & array of indices that partition pos such that 
-            the first q elements are less than the median of medians.
+            pivot. All elements of idx before the pivot will be less than
+            the pivot. If there is an odd number of points, the pivot will
+            be the median.
 
     """
     cdef uint32_t ndim = pos.shape[1]
@@ -106,8 +107,13 @@ def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    cdef int64_t q = pivot(&pos[0,0], &idx[0], ndim, d, l, r)
-    return q+1, idx
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = pivot(ptr_pos, ptr_idx, ndim, d, l, r)
+    return q, idx
 
 def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
                  np.int64_t p):
