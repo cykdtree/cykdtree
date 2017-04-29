@@ -89,3 +89,23 @@ def test_select(N=10, ndim=2):
             np.testing.assert_approx_equal(pts[idx[q], d], med)
         else:
             np.testing.assert_array_less(pts[idx[q], d], med)
+
+
+@parametrize(N=(0, 10, 11), ndim=(2, 3))
+def test_split(N=10, ndim=2):
+    np.random.seed(10)
+    pts = np.random.rand(N, ndim).astype('float64')
+    p = int(N)/2 + int(N)%2
+    q, d, idx = utils.py_split(pts)
+    assert_equal(idx.size, N)
+    if (N == 0):
+        assert_equal(q, -1)
+    else:
+        assert_equal(q, p-1)
+        med = np.median(pts[:, d])
+        np.testing.assert_array_less(pts[idx[:q], d], med)
+        np.testing.assert_array_less(med, pts[idx[(q+1):], d])
+        if (N%2):
+            np.testing.assert_approx_equal(pts[idx[q], d], med)
+        else:
+            np.testing.assert_array_less(pts[idx[q], d], med)

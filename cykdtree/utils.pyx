@@ -187,3 +187,45 @@ def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     return q, idx
 
 
+def py_split(np.ndarray[np.float64_t, ndim=2] pos, 
+             np.ndarray[np.float64_t, ndim=1] mins = None,
+             np.ndarray[np.float64_t, ndim=1] maxs = None):
+    r"""Get the indices required to split the positions equally along the
+    largest dimension.
+
+    Args:
+        pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
+        mins (np.ndarray of float64, optional): (m,) array of mins. Defaults
+            to None and is set to mins of pos along each dimension.
+        maxs (np.ndarray of float64, optional): (m,) array of maxs. Defaults
+            to None and is set to maxs of pos along each dimension.
+
+    Returns:
+        tuple(int64, uint32, np.ndarray of uint64): The index of the split in
+            the partitioned array, the dimension of the split, and the indices
+            required to partition the array.
+
+    """
+    cdef uint64_t npts = pos.shape[0]
+    cdef uint32_t ndim = pos.shape[1]
+    cdef uint64_t Lidx = 0
+    cdef uint64_t[:] idx
+    idx = np.arange(pos.shape[0]).astype('uint64')
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    cdef double *ptr_mins = NULL
+    cdef double *ptr_maxs = NULL
+    if (npts != 0) and (ndim != 0):
+        if mins is None:
+            mins = np.min(pos, axis=0)
+        if maxs is None:
+            maxs = np.max(pos, axis=0)
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+        ptr_mins = &mins[0]
+        ptr_maxs = &maxs[0]
+    cdef int64_t q = 0
+    cdef double split_val = 0.0
+    cdef uint32_t dsplit = split(ptr_pos, ptr_idx, Lidx, npts, ndim,
+                                 ptr_mins, ptr_maxs, q, split_val)
+    return q, dsplit, idx

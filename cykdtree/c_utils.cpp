@@ -167,6 +167,13 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
                uint64_t Lidx, uint64_t n, uint32_t ndim,
                double *mins, double *maxes,
                int64_t &split_idx, double &split_val) {
+  // Return immediately if variables empty
+  if ((n == 0) or (ndim == 0)) {
+    split_idx = -1;
+    split_val = 0.0;
+    return 0;
+  }
+
   // Find dimension to split along
   uint32_t dmax, d;
   dmax = 0;
