@@ -99,7 +99,8 @@ int64_t pivot(double *pts, uint64_t *idx,
 
     nsub++;
   }
-  return select(pts, idx, ndim, d, l, l+nsub-1, (nsub/2)+(nsub%2));
+  return pivot(pts, idx, ndim, d, l, l+nsub-1);
+  // return select(pts, idx, ndim, d, l, l+nsub-1, (nsub/2)+(nsub%2));
 }
 
 int64_t partition_given_pivot(double *pts, uint64_t *idx,

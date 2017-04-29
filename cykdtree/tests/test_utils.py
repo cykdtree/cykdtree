@@ -48,14 +48,10 @@ def test_pivot(N=10, ndim=2):
     else:
         med = np.median(pts)
         piv = pts[idx[q], d]
-        idx_sort = list(np.argsort(pts[:, d]))
-        idx_piv = idx_sort.index(idx[q])
-        idx30 = 0.3*N
-        idx70 = 0.7*N
-        #print(piv, pts[idx_sort, d])
-        #print(idx_piv, idx30, idx70)
-        # assert(idx_piv >= idx30)
-        # assert(idx_piv <= idx70)
+        nmax = (7*N/10 + 6)
+        assert(np.sum(pts[:, d] < piv) <= nmax)
+        assert(np.sum(pts[:, d] > piv) <= nmax)
+
         
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
