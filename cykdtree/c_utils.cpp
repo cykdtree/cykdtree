@@ -125,6 +125,8 @@ int64_t partition(double *pts, uint64_t *idx,
   double pivot;
   int64_t j;
   uint64_t t;
+  if (r < l)
+    return -1;
   pivot = pts[ndim*idx[p]+d];
   t = idx[p]; idx[p] = idx[l]; idx[l] = t;
 
