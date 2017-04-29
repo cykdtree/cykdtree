@@ -32,20 +32,24 @@ uint64_t parallel_distribute(double **pts, uint64_t **idx,
 	npts_local = in_per;
       else {
 	MPI_Send(&in_per, 1, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD);
-	MPI_Send((*pts)+ndim*n_prev, ndim*in_per, MPI_DOUBLE, i, 1, MPI_COMM_WORLD);
-	MPI_Send((*idx)+n_prev, in_per, MPI_UNSIGNED_LONG, i, 2, MPI_COMM_WORLD);
+	if (in_per > 0) {
+	  MPI_Send((*pts)+ndim*n_prev, ndim*in_per, MPI_DOUBLE, i, 1, MPI_COMM_WORLD);
+	  MPI_Send((*idx)+n_prev, in_per, MPI_UNSIGNED_LONG, i, 2, MPI_COMM_WORLD);
+	}
       }
       n_prev += in_per;
     }
   } else {
     MPI_Recv(&npts_local, 1, MPI_UNSIGNED_LONG, 0, 0, MPI_COMM_WORLD,
 	     MPI_STATUS_IGNORE);
-    (*pts) = (double*)malloc(ndim*npts_local*sizeof(double));
-    (*idx) = (uint64_t*)malloc(npts_local*sizeof(double));
-    MPI_Recv(*pts, ndim*npts_local, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
-    MPI_Recv(*idx, npts_local, MPI_UNSIGNED_LONG, 0, 2, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
+    if (npts_local > 0) {
+      (*pts) = (double*)malloc(ndim*npts_local*sizeof(double));
+      (*idx) = (uint64_t*)malloc(npts_local*sizeof(double));
+      MPI_Recv(*pts, ndim*npts_local, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
+      MPI_Recv(*idx, npts_local, MPI_UNSIGNED_LONG, 0, 2, MPI_COMM_WORLD,
+	       MPI_STATUS_IGNORE);
+    }
   }    
   return npts_local;
 }
@@ -117,78 +121,72 @@ double parallel_pivot_value(std::vector<int> pool,
 int64_t parallel_select(std::vector<int> pool,
 			double *pts, uint64_t *idx,
 			uint32_t ndim, uint32_t d,
-			int64_t l, int64_t r, int64_t n) {
+			int64_t l0, int64_t r0, int64_t n) {
   if (!(in_pool(pool)))
     return 0;
-  int64_t p, ptot, ptemp;
+  int64_t p, nl, nl_tot, nl_temp;
   double pivot_val;
   std::vector<int>::iterator it;
-  int rank, i;
-  int64_t npool = (int64_t)(pool.size());
+  int rank;
   int root = pool[0];
   MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  int64_t l = l0, r = r0;
 
+  p = -1;
   while ( 1 ) {
-    // if (l == r) {
-    //   return l;
-    // }
-
     // Get median of this set
     pivot_val = parallel_pivot_value(pool, pts, idx, ndim, d, l, r);
-    if (r < l)
-      p = -1;
-    else
+    if (l <= r) {
       p = partition_given_pivot(pts, idx, ndim, d, l, r, pivot_val);
+      if (pts[ndim*idx[p]+d] > pivot_val)
+	p = l - 1;
+    }
+    nl = p - l0 + 1;
 
     // Consolidate counts from all processes
     if (rank == root) {
       // Collect
-      ptot = 0;
+      nl_tot = 0;
       for (it = pool.begin(); it != pool.end(); it++) {
 	if (*it == rank)
-	  ptemp = p;
+	  nl_temp = nl;
 	else
-	  MPI_Recv(&ptemp, 1, MPI_LONG, *it, *it, MPI_COMM_WORLD,
+	  MPI_Recv(&nl_temp, 1, MPI_LONG, *it, *it, MPI_COMM_WORLD,
 		   MPI_STATUS_IGNORE);
-	if (ptemp >= 0)
-	  ptot += ptemp;
+	if (nl_temp > 0)
+	  nl_tot += nl_temp;
       }
       // Distribute
       for (it = pool.begin(); it != pool.end(); it++) {
-	if (*it == rank)
-	  continue;
-	MPI_Send(&ptot, 1, MPI_LONG, *it, rank, MPI_COMM_WORLD);
+	if (*it != rank)
+	  MPI_Send(&nl_tot, 1, MPI_LONG, *it, rank, MPI_COMM_WORLD);
       }
     } else {
       // Send pivot and receive total count
-      MPI_Send(&p, 1, MPI_LONG, root, rank, MPI_COMM_WORLD);
-      MPI_Recv(&ptot, 1, MPI_LONG, root, root, MPI_COMM_WORLD,
+      MPI_Send(&nl, 1, MPI_LONG, root, rank, MPI_COMM_WORLD);
+      MPI_Recv(&nl_tot, 1, MPI_LONG, root, root, MPI_COMM_WORLD,
 	       MPI_STATUS_IGNORE);
     }
 
-    if (n == ptot) { 
+    if (n == nl_tot) { 
       // Return median
       return p;
-    } else if (n < ptot) {
-      // Exclude right
-      
-
-    } else {
-      // Exclude left
-
+    } else if (p >= l) {
+      if (n < nl_tot) {
+	// Exclude right
+	if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
+	  r = p - 1;
+	} else {
+	  r = p;
+	}
+      } else {
+	// Exclude left
+	if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
+	  l = p + 1;
+	} else {
+	  l = p;
+	}
+      }
     }
-    // } else if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
-    //   if (n < ptot) {
-    // 	r = p - 1;
-    //   } else {
-    // 	l = p + 1;
-    //   }
-    // } else {
-    //   if (n < ptot) {
-    // 	r = p;
-    //   } else {
-    // 	l = p;
-    //   }
-    // }
   }
 }

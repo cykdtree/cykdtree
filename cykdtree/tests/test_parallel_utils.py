@@ -53,24 +53,27 @@ def test_parallel_pivot_value(ndim=2):
 
 @MPITest(Nproc, ndim=(2,3))
 def test_parallel_select(ndim=2):
+    total_npts = 50
+    pivot_dim = 0
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    npts = 50
     if rank == 0:
-        pts = np.random.rand(npts, ndim).astype('float64')
+        total_pts = np.random.rand(total_npts, ndim).astype('float64')
     else:
-        pts = None
-    total_pts = comm.bcast(pts, root=0)
-    local_pts, local_idx = parallel_utils.py_parallel_distribute(pts)
-    pivot_dim = 0
+        total_pts = None
+    pts, orig_idx = parallel_utils.py_parallel_distribute(total_pts)
+    npts = pts.shape[0]
 
-    p = int(npts/2)
-    if (npts%2) == 0:
-        p -= 1
-    q, idx = parallel_utils.py_parallel_select(local_pts, pivot_dim, p)
-    med = np.median(total_pts[:, pivot_dim])
-    print(rank, med, local_pts[idx[:q], pivot_dim])
-    print(rank, med, local_pts[idx[q:], pivot_dim])
-    # assert((local_pts[idx[:q], pivot_dim] <= med).all())
-    # assert((local_pts[idx[q:], pivot_dim] > med).all())
+    p = int(total_npts)/2 + int(total_npts)%2
+    q, idx = parallel_utils.py_parallel_select(pts, pivot_dim, p)
+    assert_equal(idx.size, npts)
+
+    total_pts = comm.bcast(total_pts, root=0)
+    if npts == 0:
+        assert_equal(q, -1)
+    else:
+        med = np.median(total_pts[:, pivot_dim])
+        np.testing.assert_array_less(pts[idx[:q], pivot_dim], med)
+        np.testing.assert_array_less(med, pts[idx[(q+1):], pivot_dim])
+        assert(pts[idx[q], pivot_dim] <= med)

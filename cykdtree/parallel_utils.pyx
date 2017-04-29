@@ -42,8 +42,9 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
     ndim = comm.bcast(ndim, root=0)
     cdef uint64_t nout;
     nout = parallel_distribute(&ptr_pts, &ptr_idx, ndim, npts)
-    assert(ptr_pts != NULL)
-    assert(ptr_idx != NULL)
+    if nout > 0:
+        assert(ptr_pts != NULL)
+        assert(ptr_idx != NULL)
     # Memory view on pointers (memory may not be freed)
     # cdef np.float64_t[:,:] pts
     # cdef np.uint64_t[:] idx
@@ -59,8 +60,10 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
         for d in range(ndim):
             pts[i,d] = ptr_pts[i*ndim+d]
     if rank != 0:
-        free(ptr_pts)
-        free(ptr_idx)
+        if ptr_pts != NULL:
+            free(ptr_pts)
+        if ptr_idx != NULL:
+            free(ptr_idx)
     return (pts, idx)
 
 
@@ -98,7 +101,12 @@ def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
     # Get pivot
     cdef np.float64_t pivot
     cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
-    pivot = parallel_pivot_value(vpool, &pts[0,0], &idx[0],
+    cdef double *ptr_pts = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if npts != 0:
+        ptr_pts = &pts[0,0]
+        ptr_idx = &idx[0]
+    pivot = parallel_pivot_value(vpool, ptr_pts, ptr_idx,
                                  ndim, pivot_dim, l, r);
     return pivot
 
@@ -142,7 +150,12 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
         vpool.push_back(i)
     # Get pivot
     cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
-    cdef int64_t q = parallel_select(vpool, &pts[0,0], &idx[0],
+    cdef double *ptr_pts = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if npts != 0:
+        ptr_pts = &pts[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = parallel_select(vpool, ptr_pts, ptr_idx,
                                      ndim, pivot_dim, l, r, t);
-    return q+1, idx
+    return q, idx
 
