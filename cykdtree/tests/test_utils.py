@@ -6,34 +6,24 @@ from cykdtree import utils
 def test_max_pts():
     pts = np.arange(5*3).reshape((5, 3)).astype('float64')
     out = utils.py_max_pts(pts)
-    assert(np.allclose(out, np.max(pts, axis=0)))
+    np.testing.assert_allclose(out, np.max(pts, axis=0))
 
 
 def test_min_pts():
     pts = np.arange(5*3).reshape((5, 3)).astype('float64')
     out = utils.py_min_pts(pts)
-    assert(np.allclose(out, np.min(pts, axis=0)))
+    np.testing.assert_allclose(out, np.min(pts, axis=0))
 
 
-def test_quickSort():
+@parametrize(N=(0, 10, 11), ndim=(2, 3))
+def test_quickSort(N=10, ndim=2):
     d = 1
     np.random.seed(10)
-    # Even number
-    N = 10
-    pts = np.random.rand(N, 2).astype('float64')
+    pts = np.random.rand(N, ndim).astype('float64')
     idx = utils.py_quickSort(pts, d)
-    assert(np.allclose(idx, np.argsort(pts[:, d])))
-    pts = np.random.rand(N, 3).astype('float64')
-    idx = utils.py_quickSort(pts, d)
-    assert(np.allclose(idx, np.argsort(pts[:, d])))
-    # Odd number
-    N = 11
-    pts = np.random.rand(N, 2).astype('float64')
-    idx = utils.py_quickSort(pts, d)
-    assert(np.allclose(idx, np.argsort(pts[:, d])))
-    pts = np.random.rand(N, 3).astype('float64')
-    idx = utils.py_quickSort(pts, d)
-    assert(np.allclose(idx, np.argsort(pts[:, d])))
+    assert_equal(idx.size, N)
+    if (N != 0):
+        np.testing.assert_allclose(idx, np.argsort(pts[:, d]))
 
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
@@ -42,9 +32,9 @@ def test_insertSort(N=10, ndim=2):
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
     idx = utils.py_insertSort(pts, d)
-    assert_equal(N, idx.size)
+    assert_equal(idx.size, N)
     if (N != 0):
-        np.testing.assert_allclose(np.argsort(pts[:, d]), idx)
+        np.testing.assert_allclose(idx, np.argsort(pts[:, d]))
 
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
