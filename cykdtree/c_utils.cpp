@@ -178,10 +178,8 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
   }
 
   // Find median along dimension
-  int64_t stop = n-1;
   int64_t nsel = (n/2) + (n%2);
-  select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, nsel);
-  split_idx = Lidx + nsel - 1;
+  split_idx = select(all_pts, all_idx, ndim, dmax, Lidx, Lidx+n-1, nsel);
   split_val = all_pts[ndim*all_idx[split_idx] + dmax];
 
   return dmax;
