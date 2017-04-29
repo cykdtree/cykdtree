@@ -65,7 +65,12 @@ def py_quickSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    quickSort(&pos[0,0], &idx[0], ndim, d, l, r)
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    quickSort(ptr_pos, ptr_idx, ndim, d, l, r)
     return idx
 
 def py_insertSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
@@ -84,7 +89,12 @@ def py_insertSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    insertSort(&pos[0,0], &idx[0], ndim, d, l, r)
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    insertSort(ptr_pos, ptr_idx, ndim, d, l, r)
     return idx
 
 def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):

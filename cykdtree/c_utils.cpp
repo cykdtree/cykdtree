@@ -61,7 +61,7 @@ void insertSort(double *pts, uint64_t *idx,
   int64_t i, j;
   uint64_t t;
 
-  if (l == r) return;
+  if (r <= l) return;
   for (i = l+1; i <= r; i++) {
     t = idx[i];
     j = i - 1;
