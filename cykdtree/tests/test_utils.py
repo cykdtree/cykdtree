@@ -48,8 +48,15 @@ def test_pivot(N=10, ndim=2):
     else:
         med = np.median(pts)
         piv = pts[idx[q], d]
-        # Check in correct percentile
-
+        idx_sort = list(np.argsort(pts[:, d]))
+        idx_piv = idx_sort.index(idx[q])
+        idx30 = 0.3*N
+        idx70 = 0.7*N
+        #print(piv, pts[idx_sort, d])
+        #print(idx_piv, idx30, idx70)
+        # assert(idx_piv >= idx30)
+        # assert(idx_piv <= idx70)
+        
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_partition(N=10, ndim=2):
@@ -59,7 +66,7 @@ def test_partition(N=10, ndim=2):
     pts = np.random.rand(N, ndim).astype('float64')
     q, idx = utils.py_partition(pts, d, p)
     if (N == 0):
-        assert(q == -1)
+        assert_equal(q, -1)
     else:
         piv = pts[p, d]
         np.testing.assert_approx_equal(pts[idx[q], d], piv)
@@ -67,30 +74,22 @@ def test_partition(N=10, ndim=2):
         np.testing.assert_array_less(piv, pts[idx[(q+1):], d])
 
 
-def test_select():
+@parametrize(N=(0, 10, 11), ndim=(2, 3))
+def test_select(N=10, ndim=2):
     d = 1
     np.random.seed(10)
-    # Even number
-    N = 10
-    p = q = int(N/2)
-    p -= 1
-    pts = np.random.rand(N, 2).astype('float64')
-    idx = utils.py_select(pts, d, p)
-    assert((pts[idx[:q], d] <= np.median(pts[:, d])).all())
-    assert((pts[idx[q:], d] > np.median(pts[:, d])).all())
-    pts = np.random.rand(N, 3).astype('float64')
-    idx = utils.py_select(pts, d, p)
-    assert((pts[idx[:q], d] <= np.median(pts[:, d])).all())
-    assert((pts[idx[q:], d] > np.median(pts[:, d])).all())
-    # Odd number
-    N = 11
-    p = q = int(N/2)
-    q += 1
-    pts = np.random.rand(N, 2).astype('float64')
-    idx = utils.py_select(pts, d, p)
-    assert((pts[idx[:q], d] <= np.median(pts[:, d])).all())
-    assert((pts[idx[q:], d] > np.median(pts[:, d])).all())
-    pts = np.random.rand(N, 3).astype('float64')
-    idx = utils.py_select(pts, d, p)
-    assert((pts[idx[:q], d] <= np.median(pts[:, d])).all())
-    assert((pts[idx[q:], d] > np.median(pts[:, d])).all())
+    pts = np.random.rand(N, ndim).astype('float64')
+    p = int(N)/2 + int(N)%2
+    q, idx = utils.py_select(pts, d, p)
+    assert_equal(idx.size, N)
+    if (N == 0):
+        assert_equal(q, -1)
+    else:
+        assert_equal(q, p-1)
+        med = np.median(pts[:, d])
+        np.testing.assert_array_less(pts[idx[:q], d], med)
+        np.testing.assert_array_less(med, pts[idx[(q+1):], d])
+        if (N%2):
+            np.testing.assert_approx_equal(pts[idx[q], d], med)
+        else:
+            np.testing.assert_array_less(pts[idx[q], d], med)

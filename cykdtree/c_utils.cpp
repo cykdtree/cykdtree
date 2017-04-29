@@ -99,7 +99,7 @@ int64_t pivot(double *pts, uint64_t *idx,
 
     nsub++;
   }
-  return select(pts, idx, ndim, d, l, l+nsub-1, l+(nsub-1)/2);
+  return select(pts, idx, ndim, d, l, l+nsub-1, (nsub/2)+(nsub%2));
 }
 
 int64_t partition_given_pivot(double *pts, uint64_t *idx,
@@ -140,18 +140,21 @@ int64_t partition(double *pts, uint64_t *idx,
 // https://en.wikipedia.org/wiki/Median_of_medians
 int64_t select(double *pts, uint64_t *idx,
                uint32_t ndim, uint32_t d,
-               int64_t l, int64_t r, int64_t n)
+               int64_t l0, int64_t r0, int64_t n)
 {
   int64_t p;
+  int64_t l = l0, r = r0;
 
   while ( 1 ) {
     if (l == r) return l;
 
     p = pivot(pts, idx, ndim, d, l, r);
     p = partition(pts, idx, ndim, d, l, r, p);
-    if (n == p) {
-      return n;
-    } else if (n < p) {
+    if (p < 0) 
+      return -1;
+    else if (n == (p-l0+1)) {
+      return p;
+    } else if (n < (p-l0+1)) {
       r = p - 1;
     } else {
       l = p + 1;
@@ -176,8 +179,9 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
 
   // Find median along dimension
   int64_t stop = n-1;
-  select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
-  split_idx = (stop/2)+Lidx;
+  int64_t nsel = (n/2) + (n%2);
+  select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, nsel);
+  split_idx = Lidx + nsel - 1;
   split_val = all_pts[ndim*all_idx[split_idx] + dmax];
 
   return dmax;
