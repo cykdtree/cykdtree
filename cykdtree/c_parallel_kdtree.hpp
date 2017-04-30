@@ -76,7 +76,6 @@ public:
   int size;
   int root;
   int rrank;
-  MPI_Datatype mpi_exch_type;
   int available;
   int *all_avail;
   bool is_root;
@@ -139,8 +138,8 @@ public:
     bool local_debug = true;
     MPI_Comm_size ( MPI_COMM_WORLD, &size);
     MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+    init_mpi_exch_type();
     debug_msg(local_debug, "ParallelKDTree", "init");
-    mpi_exch_type = init_mpi_exch_type();
     src = -1;
     all_avail = NULL;
     tree = NULL;
@@ -296,37 +295,7 @@ public:
     free(local_periodic_right);
     if (leaf2rank != NULL)
       free(leaf2rank);
-    MPI_Type_free(&mpi_exch_type);
-  }
-
-  void send_exch(int idst, exch_rec st) {
-    int tag = rank;
-    MPI_Send(&st, 1, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
-  }
-
-  exch_rec recv_exch(int isrc) {
-    int tag = isrc;
-    exch_rec st;
-    MPI_Recv(&st, 1, mpi_exch_type, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    return st;
-  }
-
-  void send_exch_vec(int idst, std::vector<exch_rec> st) {
-    int tag = rank;
-    int nexch = st.size();
-    MPI_Send(&nexch, 1, MPI_INT, idst, tag, MPI_COMM_WORLD);
-    MPI_Send(&st[0], nexch, mpi_exch_type, idst, tag, MPI_COMM_WORLD);
-  }
-
-  std::vector<exch_rec> recv_exch_vec(int isrc,
-				      std::vector<exch_rec> st = std::vector<exch_rec>()) {
-    int tag = isrc;
-    int nexch;
-    MPI_Recv(&nexch, 1, MPI_INT, isrc, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    st.resize(nexch);
-    MPI_Recv(&st[0], nexch, mpi_exch_type, isrc, tag, MPI_COMM_WORLD,
-	     MPI_STATUS_IGNORE);
-    return st;
+    free_mpi_exch_type();
   }
 
   void send_node_neighbors(int dp, Node *node) {
@@ -543,7 +512,7 @@ public:
     exch_rec this_exch = split_local(other_rank);
     // Send exchange record
     debug_msg(local_debug, "send_part", "send_exch");
-    send_exch(other_rank, this_exch);
+    this_exch.send(other_rank);
     // Send variables
     debug_msg(local_debug, "send_part", "sending domain properties");
     MPI_Send(local_domain_mins, ndim, MPI_DOUBLE, this_exch.dst, rank,
@@ -596,7 +565,8 @@ public:
     bool local_debug = true;
     uint32_t d;
     debug_msg(local_debug, "recv_part", "receiving from %d", other_rank);
-    exch_rec this_exch = recv_exch(other_rank);
+    exch_rec this_exch;
+    this_exch.recv(other_rank);
     // Receive information about incoming domain
     debug_msg(local_debug, "recv_part", "receiving domain properties");
     MPI_Recv(local_domain_mins, ndim, MPI_DOUBLE, this_exch.src, this_exch.src,
@@ -977,8 +947,8 @@ public:
     // int prank = 0;
     // Gather all splits
     debug_msg(local_debug, "consolidate_splits", "gathering splits");
-    MPI_Allgather(&(my_splits[0]), nrounds, mpi_exch_type,
-		  &(all_splits[0]), nrounds, mpi_exch_type,
+    MPI_Allgather(&(my_splits[0]), nrounds, *mpi_type_exch_rec,
+		  &(all_splits[0]), nrounds, *mpi_type_exch_rec,
 		  MPI_COMM_WORLD);
     // Init left right for root based on periodicity
     debug_msg(local_debug, "consolidate_splits", "initializing l/r splits");

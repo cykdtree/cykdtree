@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <stddef.h>
+#include <cstdarg>
 #include "mpi.h"
 //#define DEBUG
 //#define TIMINGS
@@ -15,7 +16,7 @@
 #include <ctime>
 #endif
 
-MPI_Datatype* mpi_type_exch_rec = NULL;
+extern MPI_Datatype* mpi_type_exch_rec;
 
 void debug_msg(bool local_debug, const char *name,
                const char* msg, ...);
@@ -37,8 +38,14 @@ typedef struct exch_rec {
   void print();
   void send(int idst, MPI_Comm comm = MPI_COMM_WORLD);
   void recv(int isrc, MPI_Comm comm = MPI_COMM_WORLD);
+  void send_vec(int idst, std::vector<exch_rec> st,
+		MPI_Comm comm = MPI_COMM_WORLD);
+  std::vector<exch_rec> recv_vec(int isrc, 
+				 std::vector<exch_rec> st = std::vector<exch_rec>(),
+				 MPI_Comm comm = MPI_COMM_WORLD);
 } exch_rec;
-MPI_Datatype init_mpi_exch_type();
+bool init_mpi_exch_type();
+void free_mpi_exch_type(bool free_mpi_type = true);
 
 bool in_pool(std::vector<int> pool);
 uint64_t parallel_distribute(double **pts, uint64_t **idx,

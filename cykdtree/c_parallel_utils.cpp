@@ -2,6 +2,8 @@
 #include "c_parallel_utils.hpp"
 
 
+MPI_Datatype* mpi_type_exch_rec = NULL;
+
 void debug_msg(bool local_debug, const char *name,
                const char* msg, ...) {
 #ifdef DEBUG
@@ -54,39 +56,65 @@ void exch_rec::print() {
          left_idx, npts);
 }
 void exch_rec::send(int idst, MPI_Comm comm) {
-  int rank;
-  MPI_Comm_rank ( comm, &rank);
-  bool free_mpi_type = false;
-  if (mpi_type_exch_rec == NULL)
-    (*mpi_type_exch_rec) = init_mpi_exch_type();
-  MPI_Send(this, 1, *mpi_type_exch_rec, idst, rank, comm);
-  if (free_mpi_type)
-    MPI_Type_free(mpi_type_exch_rec);
+  bool free_mpi_type = init_mpi_exch_type();
+  int tag;
+  MPI_Comm_rank ( comm, &tag);
+  MPI_Send(this, 1, *mpi_type_exch_rec, idst, tag, comm);
+  free_mpi_exch_type(free_mpi_type);
 }
 void exch_rec::recv(int isrc, MPI_Comm comm) {
-  bool free_mpi_type = false;
-  if (mpi_type_exch_rec == NULL)
-    (*mpi_type_exch_rec) = init_mpi_exch_type();
-  MPI_Recv(this, 1, *mpi_type_exch_rec, isrc, isrc, comm, MPI_STATUS_IGNORE);
-  if (free_mpi_type)
-    MPI_Type_free(mpi_type_exch_rec);
+  bool free_mpi_type = init_mpi_exch_type();
+  int tag = isrc;
+  MPI_Recv(this, 1, *mpi_type_exch_rec, isrc, tag, comm, MPI_STATUS_IGNORE);
+  free_mpi_exch_type(free_mpi_type);
+}
+void exch_rec::send_vec(int idst, std::vector<exch_rec> st, MPI_Comm comm) {
+  bool free_mpi_type = init_mpi_exch_type();
+  int tag;
+  int nexch = st.size();
+  MPI_Comm_rank ( comm, &tag);
+  MPI_Send(&nexch, 1, MPI_INT, idst, tag, comm);
+  MPI_Send(&st[0], nexch, *mpi_type_exch_rec, idst, tag, comm);
+  free_mpi_exch_type(free_mpi_type);
+}
+  
+std::vector<exch_rec> exch_rec::recv_vec(int isrc, 
+					 std::vector<exch_rec> st,
+					 MPI_Comm comm) {
+  bool free_mpi_type = init_mpi_exch_type();
+  int tag = isrc;
+  int nexch;
+  MPI_Recv(&nexch, 1, MPI_INT, isrc, tag, comm, MPI_STATUS_IGNORE);
+  st.resize(nexch);
+  MPI_Recv(&st[0], nexch, *mpi_type_exch_rec, isrc, tag, comm, MPI_STATUS_IGNORE);
+  free_mpi_exch_type(free_mpi_type);
+  return st;
 }
 
-MPI_Datatype init_mpi_exch_type() {
+bool init_mpi_exch_type() {
+  if (mpi_type_exch_rec != NULL)
+    return false;
   const int nitems = 5;
   int blocklengths[nitems] = {2, 1, 1, 1, 2};
   MPI_Datatype types[nitems] = {MPI_INT, MPI_UNSIGNED, MPI_DOUBLE, MPI_LONG,
                                 MPI_UNSIGNED_LONG};
-  MPI_Datatype mpi_exch_type;
   MPI_Aint offsets[nitems];
+  mpi_type_exch_rec = new MPI_Datatype();
   offsets[0] = offsetof(exch_rec, src);
   offsets[1] = offsetof(exch_rec, split_dim);
   offsets[2] = offsetof(exch_rec, split_val);
   offsets[3] = offsetof(exch_rec, split_idx);
   offsets[4] = offsetof(exch_rec, left_idx);
-  MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_exch_type);
-  MPI_Type_commit(&mpi_exch_type);
-  return mpi_exch_type;
+  MPI_Type_create_struct(nitems, blocklengths, offsets, types, mpi_type_exch_rec);
+  MPI_Type_commit(mpi_type_exch_rec);
+  return true;
+}
+
+void free_mpi_exch_type(bool free_mpi_type) {
+  if (free_mpi_type) {
+    MPI_Type_free(mpi_type_exch_rec);
+    mpi_type_exch_rec = NULL;
+  }
 }
 
 bool in_pool(std::vector<int> pool) {
