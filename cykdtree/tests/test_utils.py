@@ -17,7 +17,7 @@ def test_min_pts():
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_quickSort(N=10, ndim=2):
-    d = 1
+    d = ndim-1
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
     idx = utils.py_quickSort(pts, d)
@@ -28,7 +28,7 @@ def test_quickSort(N=10, ndim=2):
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_insertSort(N=10, ndim=2):
-    d = 1
+    d = ndim-1
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
     idx = utils.py_insertSort(pts, d)
@@ -39,7 +39,7 @@ def test_insertSort(N=10, ndim=2):
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_pivot(N=10, ndim=2):
-    d = 1
+    d = ndim-1
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
     q, idx = utils.py_pivot(pts, d)
@@ -56,7 +56,7 @@ def test_pivot(N=10, ndim=2):
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_partition(N=10, ndim=2):
-    d = 1
+    d = ndim-1
     p = 0
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
@@ -71,8 +71,23 @@ def test_partition(N=10, ndim=2):
 
 
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
+def test_partition_given_pivot(N=10, ndim=2):
+    d = ndim-1
+    piv = 0.5
+    np.random.seed(10)
+    pts = np.random.rand(N, ndim).astype('float64')
+    q, idx = utils.py_partition_given_pivot(pts, d, piv)
+    if (N == 0):
+        assert_equal(q, -1)
+    else:
+        assert(pts[idx[q], d] <= piv)
+        np.testing.assert_array_less(pts[idx[:q], d], piv)
+        np.testing.assert_array_less(piv, pts[idx[(q+1):], d])
+
+
+@parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_select(N=10, ndim=2):
-    d = 1
+    d = ndim-1
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
     p = int(N)/2 + int(N)%2

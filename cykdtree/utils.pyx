@@ -155,6 +155,36 @@ def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     cdef int64_t q = partition(ptr_pos, ptr_idx, ndim, d, l, r, p)
     return q, idx
 
+def py_partition_given_pivot(np.ndarray[np.float64_t, ndim=2] pos,
+                             np.uint32_t d, np.float64_t pval):
+    r"""Get the indices required to partition coordinates along one dimension.
+
+    Args:
+        pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
+        d (np.uint32_t): Dimension that pos should be partitioned along.
+        pval (np.float64_t): Value that should be used to partition pos.
+
+    Returns:
+        tuple of int64 and np.ndarray of uint64: Location of the largest value
+            that is smaller than pval in partitioned array and the indices 
+            required to partition the array such that elements before the pivot
+            are smaller and elements after the pivot are larger.
+
+    """
+    cdef uint32_t ndim = pos.shape[1]
+    cdef int64_t l = 0
+    cdef int64_t r = pos.shape[0]-1
+    cdef uint64_t[:] idx
+    idx = np.arange(pos.shape[0]).astype('uint64')
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = partition_given_pivot(ptr_pos, ptr_idx, ndim, d, l, r,
+                                           pval)
+    return q, idx
+
 def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
               np.int64_t t):
     r"""Get the indices required to partition coordiantes such that the first 

@@ -27,3 +27,12 @@ cdef extern from "c_parallel_utils.hpp":
                             int64_t l, int64_t r, int64_t n,
                             double &pivot_val,
                             MPI_Comm comm)
+    uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
+                            uint64_t Lidx, uint64_t n, uint32_t ndim,
+                            double *mins, double *maxs,
+                            int64_t &split_idx, double &split_val)
+    uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
+                            uint64_t Lidx, uint64_t n, uint32_t ndim,
+                            double *mins, double *maxs,
+                            int64_t &split_idx, double &split_val,
+                            MPI_Comm comm)

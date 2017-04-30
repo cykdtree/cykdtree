@@ -142,3 +142,59 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
                                      ndim, pivot_dim, l, r, t, pivot_val);
     return q, pivot_val, idx
 
+
+def py_parallel_split(np.ndarray[np.float64_t, ndim=2] pts, np.int64_t t,
+                      np.ndarray[np.float64_t, ndim=1] mins = None,
+                      np.ndarray[np.float64_t, ndim=1] maxs = None):
+    r"""Get the indices required to partition coordinates such that the first
+    q elements in pos on each process cummulativly contain the smallest
+    t elements in pos along the largest dimension.
+
+    Args:
+        pts (np.ndarray of float64): Positions on this process.
+        t (int64): Number of smallest elements in positions across all
+            processes that should be partitioned.
+        mins (np.ndarray of float64, optional): (m,) array of mins for this
+            process. Defaults to None and is set to mins of pos along each
+            dimension.
+        maxs (np.ndarray of float64, optional): (m,) array of maxs for this
+            process. Defaults to None and is set to maxs of pos along each
+            dimension.
+
+    Returns:
+        tuple(int64, float64, np.ndarray of uint64): Max index (q)  of points
+            on this process that fall in the smallest t points overall, the
+            dimension the split was performed over, the value of element t
+            (whether its on this process or not), and the index required to
+            order the points to put the smallest ones first.
+
+    """
+    cdef object comm = MPI.COMM_WORLD
+    cdef int size = comm.Get_size()
+    cdef int rank = comm.Get_rank()
+    cdef uint64_t npts = pts.shape[0]
+    cdef uint32_t ndim = pts.shape[1]
+    cdef uint64_t Lidx = 0
+    cdef int i
+    # Get pivot
+    cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
+    cdef double *ptr_pts = NULL
+    cdef uint64_t *ptr_idx = NULL
+    cdef double *ptr_mins = NULL
+    cdef double *ptr_maxs = NULL
+    if (npts != 0) and (ndim != 0):
+        if mins is None:
+            mins = np.min(pts, axis=0)
+        if maxs is None:
+            maxs = np.max(pts, axis=0)
+        ptr_pts = &pts[0,0]
+        ptr_idx = &idx[0]
+        ptr_mins = &mins[0]
+        ptr_maxs = &maxs[0]
+    cdef int64_t q = 0
+    cdef double split_val = 0.0
+    cdef uint32_t dsplit = parallel_split(ptr_pts, ptr_idx, Lidx, npts, ndim,
+                                          ptr_mins, ptr_maxs, q, split_val)
+    return q, dsplit, split_val, idx
+
+

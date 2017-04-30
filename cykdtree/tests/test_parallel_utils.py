@@ -40,21 +40,23 @@ def test_parallel_pivot_value(ndim=2):
         pts = None
     total_pts = comm.bcast(pts, root=0)
     local_pts, local_idx = parallel_utils.py_parallel_distribute(pts)
-    pivot_dim = 0
+    pivot_dim = ndim-1
 
-    pivot_p = parallel_utils.py_parallel_pivot_value(local_pts, pivot_dim)
+    piv = parallel_utils.py_parallel_pivot_value(local_pts, pivot_dim)
+
+    nmax = (7*npts/10 + 6)
+    assert(np.sum(total_pts[:, pivot_dim] < piv) <= nmax)
+    assert(np.sum(total_pts[:, pivot_dim] > piv) <= nmax)
 
     # if rank == 0:
-    #     pp, idx = utils.py_pivot(pts, pivot_dim)
-    #     print(idx[pp])
-    #     pivot_s = pts[idx[pp], pivot_dim]
-    #     assert_equal(pivot_p, pivot_s)
+    #     pp, idx = utils.py_pivot(total_pts, pivot_dim)
+    #     np.testing.assert_approx_equal(piv, total_pts[idx[pp], pivot_dim])
 
 
 @MPITest(Nproc, ndim=(2,3))
 def test_parallel_select(ndim=2):
     total_npts = 50
-    pivot_dim = 0
+    pivot_dim = ndim-1
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -81,3 +83,39 @@ def test_parallel_select(ndim=2):
         np.testing.assert_array_less(pts[idx[:q], pivot_dim], med)
         np.testing.assert_array_less(med, pts[idx[(q+1):], pivot_dim])
         assert(pts[idx[q], pivot_dim] <= med)
+
+
+@MPITest(Nproc, ndim=(2,3))
+def test_parallel_split(ndim=2):
+    total_npts = 50
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    if rank == 0:
+        total_pts = np.random.rand(total_npts, ndim).astype('float64')
+    else:
+        total_pts = None
+    pts, orig_idx = parallel_utils.py_parallel_distribute(total_pts)
+    npts = pts.shape[0]
+
+    p = int(total_npts)/2 + int(total_npts)%2
+    q, pivot_dim, piv, idx = parallel_utils.py_parallel_split(pts, p)
+    assert_equal(idx.size, npts)
+
+    total_pts = comm.bcast(total_pts, root=0)
+    if npts == 0:
+        assert_equal(q, -1)
+    else:
+        med = np.median(total_pts[:, pivot_dim])
+        if (total_npts%2):
+            np.testing.assert_approx_equal(piv, med)
+        else:
+            np.testing.assert_array_less(piv, med)
+        np.testing.assert_array_less(pts[idx[:q], pivot_dim], med)
+        np.testing.assert_array_less(med, pts[idx[(q+1):], pivot_dim])
+        assert(pts[idx[q], pivot_dim] <= med)
+
+    if rank == 0:
+        sq, sd, sidx = utils.py_split(total_pts)
+        assert_equal(pivot_dim, sd)
+        assert_equal(piv, total_pts[sidx[sq], sd])

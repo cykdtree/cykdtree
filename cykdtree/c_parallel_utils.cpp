@@ -121,13 +121,17 @@ int64_t parallel_select(double *pts, uint64_t *idx,
   int64_t l = l0, r = r0;
 
   p = -1;
+  bool final = false;
   while ( 1 ) {
     // Get median of this set
     pivot_val = parallel_pivot_value(pts, idx, ndim, d, l, r, comm);
     if (l <= r) {
       p = partition_given_pivot(pts, idx, ndim, d, l, r, pivot_val);
-      if (pts[ndim*idx[p]+d] > pivot_val)
+      if (pts[ndim*idx[p]+d] > pivot_val) {
+	r = l - 1;
 	p = l - 1;
+	final = true;
+      }
     }
     nl = p - l0 + 1;
 
@@ -137,7 +141,7 @@ int64_t parallel_select(double *pts, uint64_t *idx,
     if (n == nl_tot) { 
       // Return median
       return p;
-    } else if (p >= l) {
+    } else if (!(final)) {
       if (n < nl_tot) {
 	// Exclude right
 	if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
@@ -158,14 +162,12 @@ int64_t parallel_select(double *pts, uint64_t *idx,
 }
 
 
-uint32_t parallel_split(uint64_t *orig_idx,
-			double *all_pts, uint64_t *all_idx,
+uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
 			uint64_t Lidx, uint64_t n, uint32_t ndim,
 			double *mins, double *maxs,
 			int64_t &split_idx, double &split_val,
 			MPI_Comm comm) {
-  int size, rank, i;
-  int root = 0;
+  int size, rank;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
 
@@ -201,7 +203,8 @@ uint32_t parallel_split(uint64_t *orig_idx,
 
   // Find median along dimension
   int64_t nsel = (ntot/2) + (ntot%2);
-
+  split_idx = parallel_select(all_pts, all_idx, ndim, dmax,
+			      Lidx, Lidx+n-1, nsel, split_val, comm);
 
   // Free and return
   free(mins_tot);
