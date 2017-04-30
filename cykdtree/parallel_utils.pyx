@@ -3,6 +3,7 @@ cimport numpy as np
 cimport cython
 from mpi4py import MPI
 from libc.stdlib cimport malloc, free
+from libc.string cimport memcpy
 from libcpp cimport bool as cbool
 from cpython cimport bool as pybool
 from libcpp.vector cimport vector
@@ -81,9 +82,6 @@ def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
         float64: Median of medians across pool of processes.
     
     """
-    cdef object comm = MPI.COMM_WORLD
-    cdef int size = comm.Get_size()
-    cdef int rank = comm.Get_rank()
     cdef uint64_t npts = pts.shape[0]
     cdef uint32_t ndim = pts.shape[1]
     cdef int64_t l = 0
@@ -122,9 +120,6 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
             index required to order the points to put the smallest ones first.
 
     """
-    cdef object comm = MPI.COMM_WORLD
-    cdef int size = comm.Get_size()
-    cdef int rank = comm.Get_rank()
     cdef uint64_t npts = pts.shape[0]
     cdef uint32_t ndim = pts.shape[1]
     cdef int64_t l = 0
@@ -169,9 +164,6 @@ def py_parallel_split(np.ndarray[np.float64_t, ndim=2] pts, np.int64_t t,
             order the points to put the smallest ones first.
 
     """
-    cdef object comm = MPI.COMM_WORLD
-    cdef int size = comm.Get_size()
-    cdef int rank = comm.Get_rank()
     cdef uint64_t npts = pts.shape[0]
     cdef uint32_t ndim = pts.shape[1]
     cdef uint64_t Lidx = 0
@@ -198,3 +190,73 @@ def py_parallel_split(np.ndarray[np.float64_t, ndim=2] pts, np.int64_t t,
     return q, dsplit, split_val, idx
 
 
+def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
+                          np.ndarray[np.uint64_t, ndim=1] idx,
+                          np.ndarray[np.float64_t, ndim=1] mins = None,
+                          np.ndarray[np.float64_t, ndim=1] maxs = None):
+    r"""Repartition the points between processes such that the lower half
+    of the processes have the lower half of the points as split along the
+    largest dimension.
+
+    Args:
+        pts (np.ndarray of float64): Positions on this process.
+        idx (np.ndarray of uint64): Original indices of positions on this
+            process;
+        mins (np.ndarray of float64, optional): (m,) array of mins for this
+            process. Defaults to None and is set to mins of pos along each
+            dimension.
+        maxs (np.ndarray of float64, optional): (m,) array of maxs for this
+            process. Defaults to None and is set to maxs of pos along each
+            dimension.
+
+    Returns:
+        tuple(np.ndarray of double, np.ndarray of uint64): The positions
+            and original indices of the points on this process after the
+            redistribution.
+
+    """
+    cdef object comm = MPI.COMM_WORLD
+    cdef int size = comm.Get_size()
+    cdef int rank = comm.Get_rank()
+    cdef uint64_t npts = pts.shape[0]
+    cdef uint32_t ndim = pts.shape[1]
+    cdef uint64_t Lidx = 0
+    # Get pivot
+    cdef double *ptr_pts = <double*>malloc(npts*ndim*sizeof(double))
+    cdef uint64_t *ptr_idx = <uint64_t*>malloc(npts*sizeof(uint64_t))
+    cdef double *ptr_mins = NULL
+    cdef double *ptr_maxs = NULL
+    if (npts != 0) and (ndim != 0):
+        if mins is None:
+            mins = np.min(pts, axis=0)
+        if maxs is None:
+            maxs = np.max(pts, axis=0)
+        memcpy(ptr_pts, &pts[0,0], npts*ndim*sizeof(double))
+        memcpy(ptr_idx, &idx[0], npts*sizeof(uint64_t))
+        ptr_mins = &mins[0]
+        ptr_maxs = &maxs[0]
+    cdef int64_t split_idx = -1
+    cdef uint32_t split_dim = 0
+    cdef double split_val = 0.0
+    cdef uint64_t new_npts = redistribute_split(&ptr_pts, &ptr_idx, npts, ndim,
+                                                ptr_mins, ptr_maxs,
+                                                split_idx, split_dim, split_val)
+    # Array version
+    cdef np.ndarray[np.float64_t, ndim=2] new_pts
+    cdef np.ndarray[np.uint64_t, ndim=1] new_idx
+    cdef np.uint64_t i
+    cdef np.uint32_t d
+    new_pts = np.empty((new_npts, ndim), 'float64')
+    new_idx = np.empty((new_npts,), 'uint64')
+    for i in range(new_npts):
+        new_idx[i] = ptr_idx[i]
+        for d in range(ndim):
+            new_pts[i, d] = ptr_pts[i*ndim+d]
+    free(ptr_idx)
+    free(ptr_pts)
+    # Memory view version
+    # cdef np.float64_t[:,:] new_pts
+    # cdef np.uint64_t[:] new_idx
+    # new_pts = <np.float64_t[:new_npts, :ndim]> ptr_pts
+    # new_idx = <np.uint64_t[:new_npts]> ptr_idx
+    return new_pts, new_idx, split_idx, split_dim, split_val

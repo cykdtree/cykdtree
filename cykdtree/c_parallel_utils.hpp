@@ -27,3 +27,9 @@ uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
                         double *mins, double *maxs,
                         int64_t &split_idx, double &split_val,
                         MPI_Comm comm = MPI_COMM_WORLD);
+uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
+                            uint64_t npts, uint32_t ndim,
+                            double *mins, double *maxs,
+			    int64_t &split_idx, uint32_t &split_dim,
+                            double &split_val,
+                            MPI_Comm comm = MPI_COMM_WORLD);

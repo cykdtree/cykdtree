@@ -1,6 +1,7 @@
 #include "c_utils.hpp"
 #include "c_parallel_utils.hpp"
 
+
 bool in_pool(std::vector<int> pool) {
   int rank;
   std::vector<int>::iterator it;
@@ -11,6 +12,7 @@ bool in_pool(std::vector<int> pool) {
   }
   return false;
 }
+
 
 uint64_t parallel_distribute(double **pts, uint64_t **idx,
 			     uint32_t ndim, uint64_t npts,
@@ -54,6 +56,7 @@ uint64_t parallel_distribute(double **pts, uint64_t **idx,
   }    
   return npts_local;
 }
+
 
 double parallel_pivot_value(double *pts, uint64_t *idx,
 			    uint32_t ndim, uint32_t d,
@@ -210,4 +213,128 @@ uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
   free(mins_tot);
   free(maxs_tot);
   return dmax;
+}
+
+
+uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
+			    uint64_t npts, uint32_t ndim,
+			    double *mins, double *maxs,
+			    int64_t &split_idx, uint32_t &split_dim,
+			    double &split_val,
+			    MPI_Comm comm) {
+  int size, rank;
+  MPI_Comm_size ( comm, &size);
+  MPI_Comm_rank ( comm, &rank);
+  int split_size = size/2;
+  int split_rank = rank % split_size;
+  uint64_t x;
+  uint64_t nexch, ntemp;
+  uint64_t *temp_idx = NULL;
+  double *temp_pts = NULL;
+  uint64_t *exch_idx = NULL;
+  double *exch_pts = NULL;
+  std::vector<int> other;
+  std::vector<int>::iterator it;
+  uint64_t npts_new = 0;
+
+  // Sort
+  uint64_t *sort_idx = (uint64_t*)malloc(npts*sizeof(uint64_t));
+  for (uint64_t i = 0; i < npts; i++)
+    sort_idx[i] = i;
+  split_idx = -1;
+  split_dim = 0;
+  split_val = 0.0;
+  split_dim = parallel_split(*all_pts, sort_idx, 0, npts, ndim,
+			     mins, maxs, split_idx, split_val,
+			     comm);
+
+  // Exchange
+  for (int i = 0; i < size; i++) {
+    if ((i != rank) && ((i%split_size) == split_rank))
+      other.push_back(i);
+  }
+  if (rank < split_size) {
+    // Put aside points to send
+    nexch = npts - (split_idx + 1);
+    exch_idx = (uint64_t*)realloc(exch_idx, nexch*sizeof(uint64_t));
+    exch_pts = (double*)realloc(exch_pts, nexch*ndim*sizeof(double));
+    for (x = 0; x < nexch; x++) {
+      exch_idx[x] = (*all_idx)[sort_idx[split_idx + 1 + x]];
+      memcpy(exch_pts+x*ndim, (*all_pts)+sort_idx[split_idx + 1 + x]*ndim,
+	     ndim*sizeof(double));
+    }
+    // Move points
+    npts_new = split_idx + 1;
+    temp_idx = (uint64_t*)realloc(temp_idx, npts_new*sizeof(uint64_t));
+    temp_pts = (double*)realloc(temp_pts, npts_new*ndim*sizeof(double));
+    for (x = 0; x < npts_new; x++) {
+      temp_idx[x] = (*all_idx)[sort_idx[x]];
+      memcpy(temp_pts+x*ndim, (*all_pts)+sort_idx[x]*ndim, ndim*sizeof(double));
+    }
+    memcpy(*all_idx, temp_idx, npts_new*sizeof(uint64_t));
+    memcpy(*all_pts, temp_pts, npts_new*ndim*sizeof(double));
+    free(temp_idx);
+    free(temp_pts);
+    // Left receives first
+    for (it = other.begin(); it != other.end(); it++) {
+      MPI_Recv(&ntemp, 1, MPI_UNSIGNED_LONG, *it, *it, comm,
+	       MPI_STATUS_IGNORE);
+      (*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+ntemp)*sizeof(uint64_t));
+      (*all_pts) = (double*)realloc(*all_pts, (npts_new+ntemp)*ndim*sizeof(double));
+      MPI_Recv((*all_idx)+npts_new, ntemp, MPI_UNSIGNED_LONG, *it, *it, comm,
+	       MPI_STATUS_IGNORE);
+      MPI_Recv((*all_pts)+npts_new*ndim, ntemp*ndim, MPI_DOUBLE, *it, *it, comm,
+	       MPI_STATUS_IGNORE);
+      npts_new += ntemp;
+    }
+    // Left sends second
+    MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, other[0], rank, comm);
+    MPI_Send(exch_idx, nexch, MPI_UNSIGNED_LONG, other[0], rank, comm);
+    MPI_Send(exch_pts, nexch*ndim, MPI_DOUBLE, other[0], rank, comm);
+  } else {
+    // Right sends first
+    nexch = split_idx + 1;
+    MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, other[0], rank, comm);
+    exch_idx = (uint64_t*)realloc(exch_idx, nexch*sizeof(uint64_t));
+    exch_pts = (double*)realloc(exch_pts, nexch*ndim*sizeof(double));
+    for (x = 0; x < nexch; x++) {
+      exch_idx[x] = (*all_idx)[sort_idx[x]];
+      memcpy(exch_pts+x*ndim, (*all_pts)+sort_idx[x]*ndim, ndim*sizeof(double));
+    }
+    MPI_Send(exch_idx, nexch, MPI_UNSIGNED_LONG, other[0], rank, comm);
+    MPI_Send(exch_pts, nexch*ndim, MPI_DOUBLE, other[0], rank, comm);
+    // Move points
+    nexch = npts - (split_idx + 1);
+    exch_idx = (uint64_t*)realloc(exch_idx, nexch*sizeof(uint64_t));
+    exch_pts = (double*)realloc(exch_pts, nexch*ndim*sizeof(double));
+    for (x = 0; x < nexch; x++) {
+      exch_idx[x] = (*all_idx)[sort_idx[split_idx + 1 + x]];
+      memcpy(exch_pts+x*ndim, (*all_pts)+sort_idx[split_idx + 1 + x]*ndim,
+	     ndim*sizeof(double));
+    }
+    memcpy(*all_idx, exch_idx, nexch*sizeof(uint64_t));
+    memcpy(*all_pts, exch_pts, nexch*ndim*sizeof(double));
+    npts_new = nexch;
+    // Right receives second
+    if ((rank/split_size) < 2) {
+      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, other[0], other[0], comm,
+	       MPI_STATUS_IGNORE);
+      (*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+nexch)*sizeof(uint64_t));
+      (*all_pts) = (double*)realloc(*all_pts, (npts_new+nexch)*ndim*sizeof(double));
+      MPI_Recv((*all_idx)+npts_new, nexch, MPI_UNSIGNED_LONG, other[0], other[0],
+	       comm, MPI_STATUS_IGNORE);
+      MPI_Recv((*all_pts)+npts_new*ndim, nexch*ndim, MPI_DOUBLE, other[0], other[0],
+	       comm, MPI_STATUS_IGNORE);
+      npts_new += nexch;
+    }
+  }
+
+  free(sort_idx);
+  free(exch_idx);
+  free(exch_pts);
+  // if (temp_idx != NULL)
+  //   free(temp_idx);
+  // if (temp_pts != NULL)
+  //   free(temp_pts);
+  return npts_new;
 }

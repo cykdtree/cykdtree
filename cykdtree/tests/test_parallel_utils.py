@@ -119,3 +119,38 @@ def test_parallel_split(ndim=2):
         sq, sd, sidx = utils.py_split(total_pts)
         assert_equal(pivot_dim, sd)
         assert_equal(piv, total_pts[sidx[sq], sd])
+
+
+@MPITest(Nproc, ndim=(2,3))
+def test_redistribute_split(ndim=2):
+    total_npts = 50
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    if rank == 0:
+        total_pts = np.random.rand(total_npts, ndim).astype('float64')
+    else:
+        total_pts = None
+    pts, orig_idx = parallel_utils.py_parallel_distribute(total_pts)
+    npts = pts.shape[0]
+    total_pts = comm.bcast(total_pts, root=0)
+
+    new_pts, new_idx, sidx, sdim, sval = parallel_utils.py_redistribute_split(
+        pts, orig_idx)
+
+    assert_equal(new_pts.shape[0], new_idx.size)
+    assert_equal(new_pts.shape[1], ndim)
+
+    np.testing.assert_array_equal(new_pts, total_pts[new_idx, :])
+
+    if rank < size/2:
+        assert((new_pts[:, sdim] <= sval).all())
+    else:
+        np.testing.assert_array_less(sval, new_pts[:, sdim])
+
+    med = np.median(total_pts[:, sdim])
+    if (total_npts%2):
+        np.testing.assert_approx_equal(sval, med)
+    else:
+        np.testing.assert_array_less(sval, med)
+
