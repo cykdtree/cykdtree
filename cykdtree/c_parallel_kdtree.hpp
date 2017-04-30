@@ -4,49 +4,8 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdarg>
-//#define DEBUG
-//#define TIMINGS 
-#ifdef TIMINGS
-#include <ctime>
-#endif
+#include "c_parallel_utils.hpp"
 //#include "c_kdtree.hpp"
-
-void debug_msg(bool local_debug, const char *name, 
-	       const char* msg, ...) {
-#ifdef DEBUG
-  if (!(local_debug))
-    return;
-  int rank, size;
-  va_list args;
-  MPI_Comm_size ( MPI_COMM_WORLD, &size);
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
-  printf("%d: %s: ", rank, name);
-  va_start(args, msg);
-  vprintf(msg, args);
-  va_end(args);
-  printf("\n");
-#endif  
-}
-
-double begin_time() {
-  double out = 0.0;
-#ifdef TIMINGS
-  out = ((double)(clock()))/CLOCKS_PER_SEC;
-#endif
-  return out;
-}
-
-void end_time(double in, const char* name) {
-#ifdef TIMINGS
-  int rank, size;
-  MPI_Comm_size ( MPI_COMM_WORLD, &size);
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
-  double out = ((double)(clock()))/CLOCKS_PER_SEC;
-  // if (rank == 0)
-  std::cout << rank << ": " << name << " took " << (out-in) << std::endl;
-#endif
-}
-
 
 void send_leafnode(int dp, Node *node) {
   int i = 0;
@@ -108,60 +67,6 @@ Node* recv_leafnode(int sp) {
   free(re);
   return node;
 }
-
-struct exch_rec {
-  int src;
-  int dst;
-  uint32_t split_dim;
-  double split_val;
-  int64_t split_idx;
-  uint64_t left_idx;
-  uint64_t npts;
-  exch_rec() {
-    src = -1;
-    dst = -1;
-    split_dim = 0;
-    split_val = 0.0;
-    split_idx = -1;
-    left_idx = 0;
-    npts = 0;
-  }
-  exch_rec(int src0, int dst0, uint32_t split_dim0,
-	   double split_val0, int64_t split_idx0,
-	   uint64_t left_idx0, uint64_t npts0) {
-    src = src0;
-    dst = dst0;
-    split_dim = split_dim0;
-    split_val = split_val0;
-    split_idx = split_idx0;
-    left_idx = left_idx0;
-    npts = npts0;
-  }
-};
-
-void print_exch(exch_rec e) {
-  printf("src = %d, dst = %d, split_dim = %u, split_val = %f, split_idx = %ld, left_idx = %lu, npts = %lu\n",
-	 e.src, e.dst, e.split_dim, e.split_val, e.split_idx,
-	 e.left_idx, e.npts);
-}
-
-MPI_Datatype init_mpi_exch_type() {
-  const int nitems = 5;
-  int blocklengths[nitems] = {2, 1, 1, 1, 2};
-  MPI_Datatype types[nitems] = {MPI_INT, MPI_UNSIGNED, MPI_DOUBLE, MPI_LONG,
-				MPI_UNSIGNED_LONG};
-  MPI_Datatype mpi_exch_type;
-  MPI_Aint offsets[nitems];
-  offsets[0] = offsetof(exch_rec, src);
-  offsets[1] = offsetof(exch_rec, split_dim);
-  offsets[2] = offsetof(exch_rec, split_val);
-  offsets[3] = offsetof(exch_rec, split_idx);
-  offsets[4] = offsetof(exch_rec, left_idx);
-  MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_exch_type);
-  MPI_Type_commit(&mpi_exch_type);
-  return mpi_exch_type;
-}
-
 
 class ParallelKDTree
 {
@@ -510,7 +415,7 @@ public:
     uint32_t i, d;
     // if (rank == 0) {
     //   printf("Before\n");
-    //   print_exch(e);
+    //   e.print();
     //   print_neighbors();
     // }
     if (e.dst == rank) {
@@ -562,7 +467,7 @@ public:
     }
     // if (rank == 0) {
     //   printf("After\n");
-    //   print_exch(e);
+    //   e.print();
     //   print_neighbors();
     // }
   }
@@ -1093,7 +998,7 @@ public:
       // 	printf("%d: Round %d\n", rank, src_round);
       // 	for (j0 = 0; j0 < size; j0++) {
       // 	  j = proc_order[j0];
-      // 	  print_exch(all_splits[j0*nrounds + src_round]);
+      // 	  all_splits[j0*nrounds + src_round].print();
       // 	}
       // }
       for (j0 = 0; j0 < size; j0++) {
@@ -1113,7 +1018,7 @@ public:
       // 	printf("%d: Round %d\n", rank, i);
       // 	for (j0 = 0; j0 < size; j0++) {
       // 	  j = proc_order[j0];
-      // 	  print_exch(all_splits[j0*nrounds + i]);
+      // 	  all_splits[j0*nrounds + i].print();
       // 	}
       // }
       if (idst < (int)(dst.size())) {

@@ -118,7 +118,8 @@ if compile_parallel:
                   sources=["cykdtree/parallel_kdtree.pyx",
                            "cykdtree/c_parallel_kdtree.cpp",
                            "cykdtree/c_kdtree.cpp",
-                           "cykdtree/c_utils.cpp"],
+                           "cykdtree/c_utils.cpp",
+                           "cykdtree/c_parallel_utils.cpp"],
                   **ext_options_mpi)
         ]
     print("compiling parallel")

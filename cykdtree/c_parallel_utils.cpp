@@ -2,6 +2,75 @@
 #include "c_parallel_utils.hpp"
 
 
+void debug_msg(bool local_debug, const char *name,
+               const char* msg, ...) {
+#ifdef DEBUG
+  if (!(local_debug))
+    return;
+  int rank, size;
+  va_list args;
+  MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  printf("%d: %s: ", rank, name);
+  va_start(args, msg);
+  vprintf(msg, args);
+  va_end(args);
+  printf("\n");
+#endif
+}
+
+double begin_time() {
+  double out = 0.0;
+#ifdef TIMINGS
+  out = ((double)(clock()))/CLOCKS_PER_SEC;
+#endif
+  return out;
+}
+
+void end_time(double in, const char* name) {
+#ifdef TIMINGS
+  int rank, size;
+  MPI_Comm_size ( MPI_COMM_WORLD, &size);
+  MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
+  double out = ((double)(clock()))/CLOCKS_PER_SEC;
+  // if (rank == 0)
+  std::cout << rank << ": " << name << " took " << (out-in) << std::endl;
+#endif
+}
+
+exch_rec::exch_rec()
+  : src(-1), dst(-1), split_dim(0), split_val(0.0), split_idx(-1),
+    left_idx(0), npts(0)
+{ }
+exch_rec::exch_rec(int src, int dst, uint32_t split_dim,
+		   double split_val, int64_t split_idx,
+		   uint64_t left_idx, uint64_t npts)
+  : src(src), dst(dst), split_dim(split_dim), split_val(split_val),
+    split_idx(split_idx), left_idx(left_idx), npts(npts)
+{ }
+void exch_rec::print() {
+  printf("src = %d, dst = %d, split_dim = %u, split_val = %f, split_idx = %ld, left_idx = %lu, npts = %lu\n",
+         src, dst, split_dim, split_val, split_idx,
+         left_idx, npts);
+}
+
+MPI_Datatype init_mpi_exch_type() {
+  const int nitems = 5;
+  int blocklengths[nitems] = {2, 1, 1, 1, 2};
+  MPI_Datatype types[nitems] = {MPI_INT, MPI_UNSIGNED, MPI_DOUBLE, MPI_LONG,
+                                MPI_UNSIGNED_LONG};
+  MPI_Datatype mpi_exch_type;
+  MPI_Aint offsets[nitems];
+  offsets[0] = offsetof(exch_rec, src);
+  offsets[1] = offsetof(exch_rec, split_dim);
+  offsets[2] = offsetof(exch_rec, split_val);
+  offsets[3] = offsetof(exch_rec, split_idx);
+  offsets[4] = offsetof(exch_rec, left_idx);
+  MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_exch_type);
+  MPI_Type_commit(&mpi_exch_type);
+  return mpi_exch_type;
+}
+
 bool in_pool(std::vector<int> pool) {
   int rank;
   std::vector<int>::iterator it;
