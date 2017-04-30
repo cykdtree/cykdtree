@@ -11,12 +11,13 @@
 
 bool in_pool(std::vector<int> pool);
 uint64_t parallel_distribute(double **pts, uint64_t **idx,
-                             uint32_t ndim, uint64_t npts);
-double parallel_pivot_value(std::vector<int> pool,
-                            double *pts, uint64_t *idx,
+                             uint32_t ndim, uint64_t npts,
+			     MPI_Comm comm = MPI_COMM_WORLD);
+double parallel_pivot_value(double *pts, uint64_t *idx,
                             uint32_t ndim, uint32_t d,
-                            int64_t l, int64_t r);
-int64_t parallel_select(std::vector<int> pool,
-                        double *pts, uint64_t *idx,
+                            int64_t l, int64_t r,
+			    MPI_Comm comm = MPI_COMM_WORLD);
+int64_t parallel_select(double *pts, uint64_t *idx,
                         uint32_t ndim, uint32_t d,
-                        int64_t l, int64_t r, int64_t n);
+                        int64_t l, int64_t r, int64_t n,
+			MPI_Comm comm = MPI_COMM_WORLD);

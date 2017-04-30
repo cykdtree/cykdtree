@@ -68,7 +68,7 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
 
 
 def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
-                            np.uint32_t pivot_dim, object pool = None):
+                            np.uint32_t pivot_dim):
     r"""Determine the pivot using median of medians across a pool of processes
     along a specified dimension.
 
@@ -76,9 +76,6 @@ def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
         pts (np.ndarray of float64): Positions on this process.
         pivot_dim (uint32): Dimension that median of medians should be performed
             along.
-        pool (list, optional): Processes that should be included in the medians
-            of medians calculation. Defaults to None and all processes in world
-            are included.
 
     Returns:
         float64: Median of medians across pool of processes.
@@ -92,12 +89,6 @@ def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
     cdef int64_t l = 0
     cdef int64_t r = npts-1
     cdef int i
-    # Initialize pool
-    if pool is None:
-        pool = [i for i in range(size)]
-    cdef vector[int] vpool
-    for i in range(len(pool)):
-        vpool.push_back(i)
     # Get pivot
     cdef np.float64_t pivot
     cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
@@ -106,14 +97,13 @@ def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
     if npts != 0:
         ptr_pts = &pts[0,0]
         ptr_idx = &idx[0]
-    pivot = parallel_pivot_value(vpool, ptr_pts, ptr_idx,
+    pivot = parallel_pivot_value(ptr_pts, ptr_idx,
                                  ndim, pivot_dim, l, r);
     return pivot
 
 
 def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
-                       np.uint32_t pivot_dim, np.int64_t t,
-                       object pool = None):
+                       np.uint32_t pivot_dim, np.int64_t t):
     r"""Get the indices required to partition coordiantes such that the first
     q elements in pos[:,d] on each process cummulativly contain the smallest
     t elements in pos[:,d] across all processes. 
@@ -124,9 +114,6 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
             along.
         t (int64): Number of smallest elements in positions across all
             processes that should be partitioned.
-        pool (list, optional): Processes that should be included in the medians
-            of medians calculation. Defaults to None and all processes in world
-            are included.
 
     Returns:
         tuple(int64, np.ndarray of uint64): Number of points (q) on this process
@@ -142,12 +129,6 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
     cdef int64_t l = 0
     cdef int64_t r = npts-1
     cdef int i
-    # Initialize pool
-    if pool is None:
-        pool = [i for i in range(size)]
-    cdef vector[int] vpool
-    for i in range(len(pool)):
-        vpool.push_back(i)
     # Get pivot
     cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
     cdef double *ptr_pts = NULL
@@ -155,7 +136,7 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
     if npts != 0:
         ptr_pts = &pts[0,0]
         ptr_idx = &idx[0]
-    cdef int64_t q = parallel_select(vpool, ptr_pts, ptr_idx,
+    cdef int64_t q = parallel_select(ptr_pts, ptr_idx,
                                      ndim, pivot_dim, l, r, t);
     return q, idx
 
