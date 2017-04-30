@@ -116,9 +116,10 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
             processes that should be partitioned.
 
     Returns:
-        tuple(int64, np.ndarray of uint64): Number of points (q) on this process
-            that fall in the smallest t points overall and the index required
-            to order the points to put the smallest ones first.
+        tuple(int64, float64, np.ndarray of uint64): Max index (q)  of points
+            on this process that fall in the smallest t points overall, the
+            value of element t (whether its on this process or not), and the
+            index required to order the points to put the smallest ones first.
 
     """
     cdef object comm = MPI.COMM_WORLD
@@ -129,6 +130,7 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
     cdef int64_t l = 0
     cdef int64_t r = npts-1
     cdef int i
+    cdef double pivot_val = 0.0
     # Get pivot
     cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
     cdef double *ptr_pts = NULL
@@ -137,6 +139,6 @@ def py_parallel_select(np.ndarray[np.float64_t, ndim=2] pts,
         ptr_pts = &pts[0,0]
         ptr_idx = &idx[0]
     cdef int64_t q = parallel_select(ptr_pts, ptr_idx,
-                                     ndim, pivot_dim, l, r, t);
-    return q, idx
+                                     ndim, pivot_dim, l, r, t, pivot_val);
+    return q, pivot_val, idx
 

@@ -66,7 +66,7 @@ def test_parallel_select(ndim=2):
     npts = pts.shape[0]
 
     p = int(total_npts)/2 + int(total_npts)%2
-    q, idx = parallel_utils.py_parallel_select(pts, pivot_dim, p)
+    q, piv, idx = parallel_utils.py_parallel_select(pts, pivot_dim, p)
     assert_equal(idx.size, npts)
 
     total_pts = comm.bcast(total_pts, root=0)
@@ -74,6 +74,10 @@ def test_parallel_select(ndim=2):
         assert_equal(q, -1)
     else:
         med = np.median(total_pts[:, pivot_dim])
+        if (total_npts%2):
+            np.testing.assert_approx_equal(piv, med)
+        else:
+            np.testing.assert_array_less(piv, med)
         np.testing.assert_array_less(pts[idx[:q], pivot_dim], med)
         np.testing.assert_array_less(med, pts[idx[(q+1):], pivot_dim])
         assert(pts[idx[q], pivot_dim] <= med)

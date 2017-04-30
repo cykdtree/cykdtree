@@ -67,7 +67,7 @@ double parallel_pivot_value(double *pts, uint64_t *idx,
 
   // Get local pivot
   int64_t p = pivot(pts, idx, ndim, d, l, r);
-  if (size == 0) {
+  if (size <= 1) {
     if (p >= 0)
       pivot_val = pts[idx[p]*ndim+d];
     return pivot_val;
@@ -113,9 +113,8 @@ double parallel_pivot_value(double *pts, uint64_t *idx,
 int64_t parallel_select(double *pts, uint64_t *idx,
 			uint32_t ndim, uint32_t d,
 			int64_t l0, int64_t r0, int64_t n,
-			MPI_Comm comm) {
+			double &pivot_val, MPI_Comm comm) {
   int64_t p, nl, nl_tot;
-  double pivot_val;
   int size, rank;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
@@ -159,59 +158,53 @@ int64_t parallel_select(double *pts, uint64_t *idx,
 }
 
 
-// uint32_t parallel_split(std::vector<int> pool, uint64_t *orig_idx,
-// 			double *all_pts, uint64_t *all_idx,
-// 			uint64_t Lidx, uint64_t n, uint32_t ndim,
-// 			double *mins, double *maxes,
-// 			int64_t &split_idx, double &split_val) {
-//   if (!(in_pool(pool)))
-//     return 0;
-//   std::vector<int>::iterator it;
-//   int rank;
-//   int root = pool[0];
-//   MPI_Comm_rank ( MPI_COMM_WORLD, &rank);
-//   uint64_t ntot = 0;
-//   // Consolidate n
-//   if (root == rank) {
-//     uint64_t ntemp;
-//     for (it = pool.begin(); it != pool.end(); it++) {
-//       if (*it == rank)
-// 	ntot += n;
-//       else
-// 	MPI_Recv(&ntemp, 1, MPI_UNSIGNED_LONG, *it, *it, MPI_COMM_WORLD,
-// 		 MPI_STATUS_IGNORE);
-//     }
-//     for (it = pool.begin(); it != pool.end(); it++) {
-//       if (*it != rank)
-// 	MPI_Send(&ntot, 1, MPI_UNSIGNED_LONG, *it, root, MPI_COMM_WORLD);
-//     }
-//   } else {
-//     MPI_Send(&n, 1, MPI_UNSIGNED_LONG, root, rank, MPI_COMM_WORLD);
-//     MPI_Recv(&ntot, 1, MPI_UNSIGNED_LONG, root, root, MPI_COMM_WORLD,
-// 	     MPI_STATUS_IGNORE);
-//   }
+uint32_t parallel_split(uint64_t *orig_idx,
+			double *all_pts, uint64_t *all_idx,
+			uint64_t Lidx, uint64_t n, uint32_t ndim,
+			double *mins, double *maxs,
+			int64_t &split_idx, double &split_val,
+			MPI_Comm comm) {
+  int size, rank, i;
+  int root = 0;
+  MPI_Comm_size ( comm, &size);
+  MPI_Comm_rank ( comm, &rank);
 
-//   // Return immediately if variables empty
-//   if ((ntot == 0) or (ndim == 0)) {
-//     split_idx = -1;
-//     split_val = 0.0;
-//     return 0;
-//   }
+  // Consolidate number points
+  uint64_t ntot = 0;
+  MPI_Allreduce(&n, &ntot, 1, MPI_UNSIGNED_LONG, MPI_SUM, comm);
 
-//   // Find dimension to split along
-//   uint32_t dmax, d;
-//   dmax = 0;
-//   for (d = 1; d < ndim; d++)
-//     if ((maxes[d]-mins[d]) > (maxes[dmax]-mins[dmax]))
-//       dmax = d;
-//   if (maxes[dmax] == mins[dmax]) {
-//     // all points singular
-//     return ndim;
-//   }
+  // Return immediately if variables empty
+  if ((ntot == 0) or (ndim == 0)) {
+    split_idx = -1;
+    split_val = 0.0;
+    return 0;
+  }
 
-//   // Find median along dimension
-//   int64_t nsel = (n/2) + (n%2);
+  // Consolidate mins/maxs
+  double *mins_tot = (double*)malloc(ndim*sizeof(double));
+  double *maxs_tot = (double*)malloc(ndim*sizeof(double));
+  MPI_Allreduce(mins, mins_tot, ndim, MPI_DOUBLE, MPI_MIN, comm);
+  MPI_Allreduce(maxs, maxs_tot, ndim, MPI_DOUBLE, MPI_MAX, comm);
+
+  // Find dimension to split along
+  uint32_t dmax, d;
+  dmax = 0;
+  for (d = 1; d < ndim; d++)
+    if ((maxs_tot[d]-mins_tot[d]) > (maxs_tot[dmax]-mins_tot[dmax]))
+      dmax = d;
+  if (maxs_tot[dmax] == mins_tot[dmax]) {
+    // all points singular
+    free(mins_tot);
+    free(maxs_tot);
+    return ndim;
+  }
+
+  // Find median along dimension
+  int64_t nsel = (ntot/2) + (ntot%2);
 
 
-
-// }
+  // Free and return
+  free(mins_tot);
+  free(maxs_tot);
+  return dmax;
+}

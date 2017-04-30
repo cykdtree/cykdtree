@@ -20,8 +20,10 @@ cdef extern from "c_parallel_utils.hpp":
                                 MPI_Comm comm)
     int64_t parallel_select(double *pts, uint64_t *idx,
                             uint32_t ndim, uint32_t d,
-                            int64_t l, int64_t r, int64_t n)
+                            int64_t l, int64_t r, int64_t n,
+                            double &pivot_val)
     int64_t parallel_select(double *pts, uint64_t *idx,
                             uint32_t ndim, uint32_t d,
                             int64_t l, int64_t r, int64_t n,
+                            double &pivot_val,
                             MPI_Comm comm)

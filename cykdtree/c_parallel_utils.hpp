@@ -20,4 +20,5 @@ double parallel_pivot_value(double *pts, uint64_t *idx,
 int64_t parallel_select(double *pts, uint64_t *idx,
                         uint32_t ndim, uint32_t d,
                         int64_t l, int64_t r, int64_t n,
+			double &pivot_val,
 			MPI_Comm comm = MPI_COMM_WORLD);
