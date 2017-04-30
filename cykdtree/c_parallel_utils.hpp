@@ -15,6 +15,8 @@
 #include <ctime>
 #endif
 
+MPI_Datatype* mpi_type_exch_rec = NULL;
+
 void debug_msg(bool local_debug, const char *name,
                const char* msg, ...);
 double begin_time();
@@ -33,6 +35,8 @@ typedef struct exch_rec {
            double split_val, int64_t split_idx,
            uint64_t left_idx, uint64_t npts);
   void print();
+  void send(int idst, MPI_Comm comm = MPI_COMM_WORLD);
+  void recv(int isrc, MPI_Comm comm = MPI_COMM_WORLD);
 } exch_rec;
 MPI_Datatype init_mpi_exch_type();
 

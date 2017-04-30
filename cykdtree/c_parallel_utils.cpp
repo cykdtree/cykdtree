@@ -53,6 +53,24 @@ void exch_rec::print() {
          src, dst, split_dim, split_val, split_idx,
          left_idx, npts);
 }
+void exch_rec::send(int idst, MPI_Comm comm) {
+  int rank;
+  MPI_Comm_rank ( comm, &rank);
+  bool free_mpi_type = false;
+  if (mpi_type_exch_rec == NULL)
+    (*mpi_type_exch_rec) = init_mpi_exch_type();
+  MPI_Send(this, 1, *mpi_type_exch_rec, idst, rank, comm);
+  if (free_mpi_type)
+    MPI_Type_free(mpi_type_exch_rec);
+}
+void exch_rec::recv(int isrc, MPI_Comm comm) {
+  bool free_mpi_type = false;
+  if (mpi_type_exch_rec == NULL)
+    (*mpi_type_exch_rec) = init_mpi_exch_type();
+  MPI_Recv(this, 1, *mpi_type_exch_rec, isrc, isrc, comm, MPI_STATUS_IGNORE);
+  if (free_mpi_type)
+    MPI_Type_free(mpi_type_exch_rec);
+}
 
 MPI_Datatype init_mpi_exch_type() {
   const int nitems = 5;
