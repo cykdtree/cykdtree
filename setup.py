@@ -56,8 +56,12 @@ if RTDFLAG:
     ext_options['extra_compile_args'].append('-DREADTHEDOCS')
     compile_parallel = False
 else:
-    # Check for existence of mpi
     compile_parallel = True
+    # And mpi4py
+    import mpi4py
+    _mpi4py_dir = os.path.dirname(mpi4py.__file__)
+    ext_options_mpi['include_dirs'].append(_mpi4py_dir)
+    # Check for existence of mpi
     ret = (
         get_mpi_args('mpic++', '-compile_info', '-link_info') or  # MPICH
         get_mpi_args('mpic++', '--showme:compile', '--showme:link')  # OpenMPI
