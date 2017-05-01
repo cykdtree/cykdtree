@@ -49,7 +49,7 @@ void free_mpi_exch_type(bool free_mpi_type = true);
 
 bool in_pool(std::vector<int> pool);
 uint64_t parallel_distribute(double **pts, uint64_t **idx,
-                             uint32_t ndim, uint64_t npts,
+                             uint64_t npts, uint32_t ndim,
 			     MPI_Comm comm = MPI_COMM_WORLD);
 double parallel_pivot_value(double *pts, uint64_t *idx,
                             uint32_t ndim, uint32_t d,
@@ -71,3 +71,10 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
 			    int64_t &split_idx, uint32_t &split_dim,
                             double &split_val,
                             MPI_Comm comm = MPI_COMM_WORLD);
+void bcast_bool(bool* arr, uint32_t n, int root,
+		MPI_Comm comm = MPI_COMM_WORLD);
+uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
+				    uint64_t npts, uint32_t ndim,
+				    double *left_edge, double *right_edge,
+                                    bool *periodic_left, bool *periodic_right,
+				    MPI_Comm comm = MPI_COMM_WORLD);

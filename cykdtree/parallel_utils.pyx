@@ -42,7 +42,7 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
         assert(pts0 is None)
     ndim = comm.bcast(ndim, root=0)
     cdef uint64_t nout;
-    nout = parallel_distribute(&ptr_pts, &ptr_idx, ndim, npts)
+    nout = parallel_distribute(&ptr_pts, &ptr_idx, npts, ndim)
     if nout > 0:
         assert(ptr_pts != NULL)
         assert(ptr_idx != NULL)
@@ -201,7 +201,7 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
     Args:
         pts (np.ndarray of float64): Positions on this process.
         idx (np.ndarray of uint64): Original indices of positions on this
-            process;
+            process.
         mins (np.ndarray of float64, optional): (m,) array of mins for this
             process. Defaults to None and is set to mins of pos along each
             dimension.
@@ -260,3 +260,95 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
     # new_pts = <np.float64_t[:new_npts, :ndim]> ptr_pts
     # new_idx = <np.uint64_t[:new_npts]> ptr_idx
     return new_pts, new_idx, split_idx, split_dim, split_val
+
+
+def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
+    r"""Distribute a balanced number of points to each process using a kdtree
+    structure.
+
+    Args:
+        pts (np.ndarray of np.float64): Array of points that should be split
+            among the processes. This should only be passed to process 0.
+
+    Returns:
+        tuple(np.ndarray of float64, np.ndarray of uint64): Positions on this
+            process and the indices of those positions in the input array
+            on process 0.
+
+    """
+    cdef object comm = MPI.COMM_WORLD
+    cdef int size = comm.Get_size()
+    cdef int rank = comm.Get_rank()
+    cdef uint64_t npts = 0
+    cdef uint32_t ndim = 0
+    cdef uint64_t Lidx = 0
+    cdef double *ptr_le = <double*>malloc(ndim*sizeof(double));
+    cdef double *ptr_re = <double*>malloc(ndim*sizeof(double));
+    cdef cbool *ptr_ple = <cbool*>malloc(ndim*sizeof(cbool));
+    cdef cbool *ptr_pre = <cbool*>malloc(ndim*sizeof(cbool));
+    cdef uint32_t d;
+    if rank == 0:
+        assert(pts is not None)
+        npts = pts.shape[0]
+        ndim = pts.shape[1]
+        le = np.min(pts, axis=0)
+        re = np.max(pts, axis=0)
+        ple = np.zeros(ndim, 'bool')
+        pre = np.zeros(ndim, 'bool')
+        for d in range(ndim):
+            ptr_le[d] = le[d]
+            ptr_re[d] = re[d]
+            ptr_ple[d] = <cbool>ple[d]
+            ptr_pre[d] = <cbool>pre[d]
+    else:
+        assert(pts is None)
+    ndim = comm.bcast(ndim, root=0)
+    cdef np.ndarray[np.uint64_t, ndim=1] idx = np.arange(npts).astype('uint64')
+    # Copy points
+    cdef double *ptr_pts = <double*>malloc(npts*ndim*sizeof(double))
+    cdef uint64_t *ptr_idx = <uint64_t*>malloc(npts*sizeof(uint64_t))
+    if (npts != 0) and (ndim != 0):
+        memcpy(ptr_pts, &pts[0,0], npts*ndim*sizeof(double))
+        memcpy(ptr_idx, &idx[0], npts*sizeof(uint64_t))
+    # Distribute
+    cdef uint64_t new_npts = kdtree_parallel_distribute(
+        &ptr_pts, &ptr_idx, npts, ndim,
+        ptr_le, ptr_re, ptr_ple, ptr_pre)
+    # Array version
+    cdef np.ndarray[np.float64_t, ndim=2] new_pts
+    cdef np.ndarray[np.uint64_t, ndim=1] new_idx
+    cdef np.ndarray[np.float64_t, ndim=1] new_le
+    cdef np.ndarray[np.float64_t, ndim=1] new_re
+    # cdef np.ndarray[bool, ndim=1] new_ple
+    # cdef np.ndarray[bool, ndim=1] new_pre
+    cdef np.uint64_t i
+    new_pts = np.empty((new_npts, ndim), 'float64')
+    new_idx = np.empty((new_npts,), 'uint64')
+    new_le = np.empty(ndim, 'float64')
+    new_re = np.empty(ndim, 'float64')
+    new_ple = np.zeros(ndim, 'bool')
+    new_pre = np.zeros(ndim, 'bool')
+    for i in range(new_npts):
+        new_idx[i] = ptr_idx[i]
+        for d in range(ndim):
+            new_pts[i, d] = ptr_pts[i*ndim+d]
+    for d in range(ndim):
+        new_le[d] = ptr_le[d]
+        new_re[d] = ptr_re[d]
+        new_ple[d] = <pybool>ptr_ple[d]
+        new_pre[d] = <pybool>ptr_pre[d]
+    free(ptr_idx)
+    free(ptr_pts)
+    free(ptr_le)
+    free(ptr_re)
+    free(ptr_ple)
+    free(ptr_pre)
+    # Memory view version
+    # cdef np.float64_t[:,:] new_pts
+    # cdef np.uint64_t[:] new_idx
+    # new_pts = <np.float64_t[:new_npts, :ndim]> ptr_pts
+    # new_idx = <np.uint64_t[:new_npts]> ptr_idx
+    return new_pts, new_idx, new_le, new_re, new_ple, new_pre
+
+
+

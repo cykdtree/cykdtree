@@ -130,8 +130,9 @@ bool in_pool(std::vector<int> pool) {
 
 
 uint64_t parallel_distribute(double **pts, uint64_t **idx,
-			     uint32_t ndim, uint64_t npts,
+			     uint64_t npts, uint32_t ndim,
 			     MPI_Comm comm) {
+  bool local_debug = true;
   int size, rank;
   uint64_t npts_local = 0;
   MPI_Comm_size ( comm, &size);
@@ -141,15 +142,19 @@ uint64_t parallel_distribute(double **pts, uint64_t **idx,
     uint64_t n_per, n_rem, in_per, n_prev;
     n_per = npts/size;
     n_rem = npts%size;
+    debug_msg(local_debug, "parallel_distribute",
+	      "n_per = %lu, n_rem = %lu", n_per, n_rem);
     n_prev = 0;
     for (int i = 0; i < size; i++) {
       in_per = n_per;
       if (i < (int)(n_rem))
 	in_per++;
-      if (i == rank)
+      if (i == rank) {
 	npts_local = in_per;
-      else {
+      } else {
 	MPI_Send(&in_per, 1, MPI_UNSIGNED_LONG, i, 0, comm);
+	debug_msg(local_debug, "parallel_distribute",
+		  "sending %lu points to %d", in_per, i);
 	if (in_per > 0) {
 	  MPI_Send((*pts)+ndim*n_prev, ndim*in_per, MPI_DOUBLE, i, 1, comm);
 	  MPI_Send((*idx)+n_prev, in_per, MPI_UNSIGNED_LONG, i, 2, comm);
@@ -160,15 +165,19 @@ uint64_t parallel_distribute(double **pts, uint64_t **idx,
   } else {
     MPI_Recv(&npts_local, 1, MPI_UNSIGNED_LONG, 0, 0, comm,
 	     MPI_STATUS_IGNORE);
+    debug_msg(local_debug, "parallel_distribute",
+	      "receiving %lu points from %d", npts_local, 0);
     if (npts_local > 0) {
-      (*pts) = (double*)malloc(ndim*npts_local*sizeof(double));
-      (*idx) = (uint64_t*)malloc(npts_local*sizeof(double));
+      (*pts) = (double*)realloc(*pts, ndim*npts_local*sizeof(double));
+      (*idx) = (uint64_t*)realloc(*idx, npts_local*sizeof(double));
       MPI_Recv(*pts, ndim*npts_local, MPI_DOUBLE, 0, 1, comm,
 	       MPI_STATUS_IGNORE);
       MPI_Recv(*idx, npts_local, MPI_UNSIGNED_LONG, 0, 2, comm,
 	       MPI_STATUS_IGNORE);
     }
   }    
+  debug_msg(local_debug, "parallel_distribute", "npts_local = %lu",
+	    npts_local);
   return npts_local;
 }
 
@@ -239,18 +248,13 @@ int64_t parallel_select(double *pts, uint64_t *idx,
   int64_t l = l0, r = r0;
 
   p = -1;
-  bool final = false;
+  nl_tot = 0;
   while ( 1 ) {
     // Get median of this set
     pivot_val = parallel_pivot_value(pts, idx, ndim, d, l, r, comm);
-    if (l <= r) {
-      p = partition_given_pivot(pts, idx, ndim, d, l, r, pivot_val);
-      if (pts[ndim*idx[p]+d] > pivot_val) {
-	r = l - 1;
-	p = l - 1;
-	final = true;
-      }
-    }
+    p = partition_given_pivot(pts, idx, ndim, d, l, r, pivot_val);
+    if (p < 0)
+      p = l - 1;
     nl = p - l0 + 1;
 
     // Consolidate counts from all processes
@@ -259,20 +263,24 @@ int64_t parallel_select(double *pts, uint64_t *idx,
     if (n == nl_tot) { 
       // Return median
       return p;
-    } else if (!(final)) {
+    } else if (l <= r) {
       if (n < nl_tot) {
 	// Exclude right
-	if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
-	  r = p - 1;
-	} else {
-	  r = p;
+	if (p <= r) {
+	  if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
+	    r = p - 1;
+	  } else {
+	    r = p;
+	  }
 	}
       } else {
 	// Exclude left
-	if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
-	  l = p + 1;
-	} else {
-	  l = p;
+	if (p >= l) {
+	  if (isEqual(pivot_val, pts[ndim*idx[p]+d])) {
+	    l = p + 1;
+	  } else {
+	    l = p;
+	  }
 	}
       }
     }
@@ -285,6 +293,7 @@ uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
 			double *mins, double *maxs,
 			int64_t &split_idx, double &split_val,
 			MPI_Comm comm) {
+  bool local_debug = true;
   int size, rank;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
@@ -292,9 +301,11 @@ uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
   // Consolidate number points
   uint64_t ntot = 0;
   MPI_Allreduce(&n, &ntot, 1, MPI_UNSIGNED_LONG, MPI_SUM, comm);
+  debug_msg(local_debug, "parallel_split", "n = %lu, ntot = %lu", n, ntot);
 
   // Return immediately if variables empty
   if ((ntot == 0) or (ndim == 0)) {
+    debug_msg(local_debug, "parallel_split", "zero points");
     split_idx = -1;
     split_val = 0.0;
     return 0;
@@ -337,6 +348,7 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
 			    int64_t &split_idx, uint32_t &split_dim,
 			    double &split_val,
 			    MPI_Comm comm) {
+  bool local_debug = true;
   int size, rank;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
@@ -353,6 +365,7 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
   uint64_t npts_new = 0;
 
   // Sort
+  debug_msg(local_debug, "redistribute_split", "parallel_split");
   uint64_t *sort_idx = (uint64_t*)malloc(npts*sizeof(uint64_t));
   for (uint64_t i = 0; i < npts; i++)
     sort_idx[i] = i;
@@ -362,6 +375,9 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
   split_dim = parallel_split(*all_pts, sort_idx, 0, npts, ndim,
 			     mins, maxs, split_idx, split_val,
 			     comm);
+  debug_msg(local_debug, "redistribute_split", 
+	    "split_idx = %ld, split_dim = %u, split_val = %lf",
+	    split_idx, split_dim, split_val);
 
   // Exchange
   for (int i = 0; i < size; i++) {
@@ -371,6 +387,8 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
   if (rank < split_size) {
     // Put aside points to send
     nexch = npts - (split_idx + 1);
+    debug_msg(local_debug, "redistribute_split",
+	      "putting aside %lu points to send", nexch);
     exch_idx = (uint64_t*)realloc(exch_idx, nexch*sizeof(uint64_t));
     exch_pts = (double*)realloc(exch_pts, nexch*ndim*sizeof(double));
     for (x = 0; x < nexch; x++) {
@@ -380,6 +398,7 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
     }
     // Move points
     npts_new = split_idx + 1;
+    debug_msg(local_debug, "redistribute_split", "moving %lu points", npts_new);
     temp_idx = (uint64_t*)realloc(temp_idx, npts_new*sizeof(uint64_t));
     temp_pts = (double*)realloc(temp_pts, npts_new*ndim*sizeof(double));
     for (x = 0; x < npts_new; x++) {
@@ -394,6 +413,8 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
     for (it = other.begin(); it != other.end(); it++) {
       MPI_Recv(&ntemp, 1, MPI_UNSIGNED_LONG, *it, *it, comm,
 	       MPI_STATUS_IGNORE);
+      debug_msg(local_debug, "redistribute_split", "receiving %lu from %d",
+		ntemp, *it);
       (*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+ntemp)*sizeof(uint64_t));
       (*all_pts) = (double*)realloc(*all_pts, (npts_new+ntemp)*ndim*sizeof(double));
       MPI_Recv((*all_idx)+npts_new, ntemp, MPI_UNSIGNED_LONG, *it, *it, comm,
@@ -403,12 +424,16 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
       npts_new += ntemp;
     }
     // Left sends second
+    debug_msg(local_debug, "redistribute_split", "sending %lu to %d",
+	      nexch, other[0]);
     MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, other[0], rank, comm);
     MPI_Send(exch_idx, nexch, MPI_UNSIGNED_LONG, other[0], rank, comm);
     MPI_Send(exch_pts, nexch*ndim, MPI_DOUBLE, other[0], rank, comm);
   } else {
     // Right sends first
     nexch = split_idx + 1;
+    debug_msg(local_debug, "redistribute_split", "sending %lu to %d",
+	      nexch, other[0]);
     MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, other[0], rank, comm);
     exch_idx = (uint64_t*)realloc(exch_idx, nexch*sizeof(uint64_t));
     exch_pts = (double*)realloc(exch_pts, nexch*ndim*sizeof(double));
@@ -420,6 +445,7 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
     MPI_Send(exch_pts, nexch*ndim, MPI_DOUBLE, other[0], rank, comm);
     // Move points
     nexch = npts - (split_idx + 1);
+    debug_msg(local_debug, "redistribute_split", "moving %lu points", nexch);
     exch_idx = (uint64_t*)realloc(exch_idx, nexch*sizeof(uint64_t));
     exch_pts = (double*)realloc(exch_pts, nexch*ndim*sizeof(double));
     for (x = 0; x < nexch; x++) {
@@ -434,6 +460,8 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
     if ((rank/split_size) < 2) {
       MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, other[0], other[0], comm,
 	       MPI_STATUS_IGNORE);
+      debug_msg(local_debug, "redistribute_split", "receiving %lu from %d",
+		nexch, other[0]);
       (*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+nexch)*sizeof(uint64_t));
       (*all_pts) = (double*)realloc(*all_pts, (npts_new+nexch)*ndim*sizeof(double));
       MPI_Recv((*all_idx)+npts_new, nexch, MPI_UNSIGNED_LONG, other[0], other[0],
@@ -447,9 +475,95 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
   free(sort_idx);
   free(exch_idx);
   free(exch_pts);
-  // if (temp_idx != NULL)
-  //   free(temp_idx);
-  // if (temp_pts != NULL)
-  //   free(temp_pts);
   return npts_new;
 }
+
+
+void bcast_bool(bool* arr, uint32_t n, int root, MPI_Comm comm) {
+  int size, rank;
+  MPI_Comm_size( comm, &size);
+  MPI_Comm_rank( comm, &rank);
+  uint32_t d;
+  int *dum = (int*)malloc(n*sizeof(int));
+  if (root == rank) {
+    for (d = 0; d < n; d++)
+      dum[d] = (int)(arr[d]);
+  }
+  MPI_Bcast(dum, n, MPI_INT, root, comm);
+  if (root != rank) {
+    for (d = 0; d < n; d++)
+      arr[d] = (bool)(dum[d]);
+  }
+  free(dum);
+}
+
+uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
+				    uint64_t npts, uint32_t ndim,
+				    double *left_edge, double *right_edge,
+				    bool *periodic_left, bool *periodic_right,
+				    MPI_Comm comm) {
+  bool local_debug = true;
+  MPI_Comm orig_comm = comm;
+  int orig_size, orig_rank;
+  int root = 0;
+  MPI_Comm_size ( orig_comm, &orig_size);
+  MPI_Comm_rank ( orig_comm, &orig_rank);
+
+  // Broadcast values from root
+  MPI_Bcast(&ndim, 1, MPI_UNSIGNED, root, orig_comm);
+  MPI_Bcast(left_edge, ndim, MPI_DOUBLE, root, orig_comm);
+  MPI_Bcast(right_edge, ndim, MPI_DOUBLE, root, orig_comm);
+  bcast_bool(periodic_left, ndim, root, orig_comm);
+  bcast_bool(periodic_right, ndim, root, orig_comm);
+
+  // Distribute randomly
+  npts = parallel_distribute(pts, idx, npts, ndim, comm);
+  debug_msg(local_debug, "kdtree_parallel_distribute",
+	    "%lu points", npts);
+
+  // Get mins/maxs
+  double *mins = min_pts(*pts, npts, ndim);
+  double *maxs = max_pts(*pts, npts, ndim);
+
+  // Split until communicator is singular
+  int size = orig_size, rank = orig_rank;
+  int round = 0;
+  int color = 1;
+  int64_t split_idx = 0;
+  uint32_t split_dim = 0;
+  double split_val = 0.0;
+  while (size > 1) {
+    debug_msg(local_debug, "kdtree_parallel_distribute",
+	      "round %d, comm size now %d", round, size);
+
+    // Split points between lower/upper processes
+    npts = redistribute_split(pts, idx, npts, ndim, mins, maxs,
+			      split_idx, split_dim, split_val, comm);
+
+    // Split communicator and advance round
+    if (rank < (size/2)) {
+      color = (color << 1);
+      maxs[split_dim] = split_val;
+      right_edge[split_dim] = split_val;
+      periodic_right[split_dim] = false;
+    } else {
+      color = (color << 1) + 1;
+      mins[split_dim] = split_val;
+      left_edge[split_dim] = split_val;
+      periodic_left[split_dim] = false;
+    }
+    debug_msg(local_debug, "kdtree_parallel_distribute",
+	      "next color is %d", color);
+    MPI_Comm_split(comm, color, rank, &comm);
+    MPI_Comm_size(comm, &size);
+    MPI_Comm_rank(comm, &rank);
+    round++;
+  }
+
+  // Free and return
+  free(mins);
+  free(maxs);
+  return npts;
+}
+
+

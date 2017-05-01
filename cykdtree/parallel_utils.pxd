@@ -7,9 +7,9 @@ from mpi4py.libmpi cimport MPI_Comm
 
 cdef extern from "c_parallel_utils.hpp":
     uint64_t parallel_distribute(double **pts, uint64_t **idx,
-                                 uint32_t ndim, uint64_t npts) nogil
+                                 uint64_t npts, uint32_t ndim) nogil
     uint64_t parallel_distribute(double **pts, uint64_t **idx,
-                                 uint32_t ndim, uint64_t npts,
+                                 uint64_t npts, uint32_t ndim,
                                  MPI_Comm comm) nogil
     double parallel_pivot_value(double *pts, uint64_t *idx,
                                 uint32_t ndim, uint32_t d,
@@ -47,3 +47,12 @@ cdef extern from "c_parallel_utils.hpp":
                                 int64_t &split_idx, uint32_t &split_dim,
                                 double &split_val,
                                 MPI_Comm comm) nogil
+    uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
+                                        uint64_t npts, uint32_t ndim,
+                                        double *left_edge, double *right_edge,
+                                        bool *periodic_left, bool *periodic_right) nogil
+    uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
+                                        uint64_t npts, uint32_t ndim,
+                                        double *left_edge, double *right_edge,
+                                        bool *periodic_left, bool *periodic_right,
+                                        MPI_Comm comm) nogil

@@ -6,6 +6,28 @@ import itertools
 import sys
 
 
+def assert_less_equal(x, y):
+    size_match = True
+    try:
+        xshape = (1,)
+        yshape = (1,)
+        if (isinstance(x, np.ndarray) or isinstance(y, np.ndarray)):
+            if isinstance(x, np.ndarray):
+                xshape = x.shape
+            if isinstance(y, np.ndarray):
+                yshape = y.shape
+            size_match = (xshape == yshape)
+            assert((x <= y).all())
+        else:
+            assert(x <= y)
+    except:
+        if not size_match:
+            raise AssertionError("Shape mismatch\n\n"+
+                                 "x.shape: %s\ny.shape: %s\n" % 
+                                 (str(x.shape), str(y.shape)))
+        raise AssertionError("Variables are not less-equal ordered\n\n" +
+                             "x: %s\ny: %s\n" % (str(x), str(y)))
+
 def call_subprocess(np, func, args, kwargs):
     # Create string with arguments & kwargs
     args_str = ""

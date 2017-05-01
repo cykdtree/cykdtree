@@ -2,11 +2,11 @@ import numpy as np
 import time
 from nose.tools import istest, nottest, assert_raises, assert_equal
 from mpi4py import MPI
-from cykdtree.tests import MPITest
+from cykdtree.tests import MPITest, assert_less_equal
 from cykdtree import utils
 from cykdtree import parallel_utils
 
-Nproc = 4
+Nproc = (3,4,5)
 
 @MPITest(Nproc, ndim=(2,3))
 def test_parallel_distribute(ndim=2):
@@ -28,12 +28,11 @@ def test_parallel_distribute(ndim=2):
     np.testing.assert_array_equal(total_pts[local_idx], local_pts)
 
 
-@MPITest(Nproc, ndim=(2,3))
-def test_parallel_pivot_value(ndim=2):
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
+def test_parallel_pivot_value(ndim=2, npts=50):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    npts = 50
     if rank == 0:
         pts = np.random.rand(npts, ndim).astype('float64')
     else:
@@ -48,14 +47,15 @@ def test_parallel_pivot_value(ndim=2):
     assert(np.sum(total_pts[:, pivot_dim] < piv) <= nmax)
     assert(np.sum(total_pts[:, pivot_dim] > piv) <= nmax)
 
+    # Not equivalent because each processes does not have multiple of 5 points
     # if rank == 0:
     #     pp, idx = utils.py_pivot(total_pts, pivot_dim)
     #     np.testing.assert_approx_equal(piv, total_pts[idx[pp], pivot_dim])
 
 
-@MPITest(Nproc, ndim=(2,3))
-def test_parallel_select(ndim=2):
-    total_npts = 50
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
+def test_parallel_select(ndim=2, npts=50):
+    total_npts = npts
     pivot_dim = ndim-1
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -80,14 +80,14 @@ def test_parallel_select(ndim=2):
             np.testing.assert_approx_equal(piv, med)
         else:
             np.testing.assert_array_less(piv, med)
-        np.testing.assert_array_less(pts[idx[:q], pivot_dim], med)
-        np.testing.assert_array_less(med, pts[idx[(q+1):], pivot_dim])
-        assert(pts[idx[q], pivot_dim] <= med)
+        if q >= 0:
+            assert_less_equal(pts[idx[:(q+1)], pivot_dim], piv)
+            np.testing.assert_array_less(piv, pts[idx[(q+1):], pivot_dim])
 
 
-@MPITest(Nproc, ndim=(2,3))
-def test_parallel_split(ndim=2):
-    total_npts = 50
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
+def test_parallel_split(ndim=2, npts=50):
+    total_npts = npts
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -111,9 +111,9 @@ def test_parallel_split(ndim=2):
             np.testing.assert_approx_equal(piv, med)
         else:
             np.testing.assert_array_less(piv, med)
-        np.testing.assert_array_less(pts[idx[:q], pivot_dim], med)
-        np.testing.assert_array_less(med, pts[idx[(q+1):], pivot_dim])
-        assert(pts[idx[q], pivot_dim] <= med)
+        if q >= 0:
+            assert_less_equal(pts[idx[:(q+1)], pivot_dim], piv)
+            np.testing.assert_array_less(piv, pts[idx[(q+1):], pivot_dim])
 
     if rank == 0:
         sq, sd, sidx = utils.py_split(total_pts)
@@ -121,9 +121,9 @@ def test_parallel_split(ndim=2):
         assert_equal(piv, total_pts[sidx[sq], sd])
 
 
-@MPITest(Nproc, ndim=(2,3))
-def test_redistribute_split(ndim=2):
-    total_npts = 50
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
+def test_redistribute_split(ndim=2, npts=50):
+    total_npts = npts
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -144,7 +144,7 @@ def test_redistribute_split(ndim=2):
     np.testing.assert_array_equal(new_pts, total_pts[new_idx, :])
 
     if rank < size/2:
-        assert((new_pts[:, sdim] <= sval).all())
+        assert_less_equal(new_pts[:, sdim], sval)
     else:
         np.testing.assert_array_less(sval, new_pts[:, sdim])
 
@@ -154,3 +154,20 @@ def test_redistribute_split(ndim=2):
     else:
         np.testing.assert_array_less(sval, med)
 
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
+def test_kdtree_parallel_distribute(ndim=2, npts=50):
+    total_npts = npts
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    if rank == 0:
+        total_pts = np.random.rand(total_npts, ndim).astype('float64')
+    else:
+        total_pts = None
+    pts, idx, le, re, ple, pre = parallel_utils.py_kdtree_parallel_distribute(total_pts)
+    total_pts = comm.bcast(total_pts, root=0)
+    assert_equal(pts.shape[0], idx.size)
+    np.testing.assert_array_equal(pts, total_pts[idx,:])
+    for d in range(ndim):
+        assert_less_equal(pts[:,d], re[d])
+        assert_less_equal(le[d], pts[:,d])

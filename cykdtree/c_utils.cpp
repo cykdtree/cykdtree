@@ -106,6 +106,10 @@ int64_t pivot(double *pts, uint64_t *idx,
 int64_t partition_given_pivot(double *pts, uint64_t *idx,
 			      uint32_t ndim, uint32_t d,
 			      int64_t l, int64_t r, double pivot) {
+  // If all less than pivot, j will remain r
+  // If all greater than pivot, j will be l-1
+  if (r < l)
+    return -1;
   int64_t i, j;
   uint64_t t;
   for (i = l, j = r; i <= j; ) {
