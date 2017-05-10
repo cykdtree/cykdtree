@@ -117,6 +117,18 @@ void free_mpi_exch_type(bool free_mpi_type) {
   }
 }
 
+SplitNode::SplitNode(int proc)
+  : proc(proc), less(NULL), greater(NULL)
+{ 
+  exch = exch_rec();
+}
+SplitNode::SplitNode(exch_rec exch)
+  : proc(-1), exch(exch), less(less), greater(greater)
+{ }
+SplitNode::SplitNode(exch_rec exch, SplitNode *less, SplitNode *greater)
+  : proc(-1), exch(exch), less(less), greater(greater)
+{ }
+
 bool in_pool(std::vector<int> pool) {
   int rank;
   std::vector<int>::iterator it;
@@ -497,10 +509,32 @@ void bcast_bool(bool* arr, uint32_t n, int root, MPI_Comm comm) {
   free(dum);
 }
 
+int calc_rounds(int &src_round, MPI_Comm comm) {
+  int size, rank;
+  int round = 0;
+  int color = 1;
+  MPI_Comm_size ( comm, &size);
+  MPI_Comm_rank ( comm, &rank);
+  src_round = -1;
+  while (size > 1) {
+    color = (color << 1);
+    if (rank >= (size/2))
+      color++;
+    if (rank == (size/2))
+      src_round = round;
+    MPI_Comm_split(comm, color, rank, &comm);
+    MPI_Comm_size(comm, &size);
+    MPI_Comm_rank(comm, &rank);
+    round++;
+  }
+  return round;
+}
+
 uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 				    uint64_t npts, uint32_t ndim,
 				    double *left_edge, double *right_edge,
 				    bool *periodic_left, bool *periodic_right,
+				    exch_rec &src_exch, std::vector<exch_rec> &dst_exch,
 				    MPI_Comm comm) {
   bool local_debug = true;
   MPI_Comm orig_comm = comm;
@@ -526,31 +560,63 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   double *maxs = max_pts(*pts, npts, ndim);
 
   // Split until communicator is singular
+  SplitNode *root_node;
   int size = orig_size, rank = orig_rank;
   int round = 0;
   int color = 1;
+  int lroot, rroot, i;
+  uint64_t lnpts, rnpts;
+  std::vector<uint64_t> vec_npts = std::vector<uint64_t>(orig_size);
   int64_t split_idx = 0;
   uint32_t split_dim = 0;
   double split_val = 0.0;
+  exch_rec this_exch;
+  int src, dst;
+  uint64_t left_idx = 0;
+  src_exch = exch_rec();
   while (size > 1) {
+    lroot = 0;
+    rroot = size/2;
     debug_msg(local_debug, "kdtree_parallel_distribute",
-	      "round %d, comm size now %d", round, size);
+	      "round %d, comm size now %d, lroot = %d, rroot = %d",
+	      round, size, lroot, rroot);
 
     // Split points between lower/upper processes
     npts = redistribute_split(pts, idx, npts, ndim, mins, maxs,
 			      split_idx, split_dim, split_val, comm);
 
+
+    // Construct exchange
+    src = orig_rank;
+    dst = orig_rank;
+    MPI_Bcast(&src, 1, MPI_INT, lroot, comm); // original rank of lroot is src
+    MPI_Bcast(&dst, 1, MPI_INT, rroot, comm); // original rank of rroot is dst
+    MPI_Allgather(&npts, 1, MPI_UNSIGNED_LONG,
+		  &vec_npts[0], 1, MPI_UNSIGNED_LONG,
+		  comm);
+    for (i = lroot, lnpts = 0; i < rroot; i++) lnpts += vec_npts[i];
+    for (i = rroot, rnpts = 0; i < size ; i++) rnpts += vec_npts[i];
+    this_exch = exch_rec(src, dst, split_dim, split_val, lnpts - 1,
+			 left_idx + lnpts, rnpts);
+
     // Split communicator and advance round
-    if (rank < (size/2)) {
+    if (rank < rroot) {
+      // Left split
       color = (color << 1);
       maxs[split_dim] = split_val;
       right_edge[split_dim] = split_val;
       periodic_right[split_dim] = false;
+      if (rank == lroot)
+	dst_exch.insert(dst_exch.begin(), this_exch); // Smaller splits at front
     } else {
+      // Right split
       color = (color << 1) + 1;
       mins[split_dim] = split_val;
       left_edge[split_dim] = split_val;
       periodic_left[split_dim] = false;
+      if (rank == rroot)
+	src_exch = this_exch;
+      left_idx += lnpts;
     }
     debug_msg(local_debug, "kdtree_parallel_distribute",
 	      "next color is %d", color);

@@ -6,6 +6,15 @@ from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 from mpi4py.libmpi cimport MPI_Comm
 
 cdef extern from "c_parallel_utils.hpp":
+    ctypedef struct exch_rec:
+        int src
+        int dst
+        uint32_t split_dim
+        double split_val
+        int64_t split_idx
+        uint64_t left_idx
+        uint64_t npts
+
     uint64_t parallel_distribute(double **pts, uint64_t **idx,
                                  uint64_t npts, uint32_t ndim) nogil
     uint64_t parallel_distribute(double **pts, uint64_t **idx,
@@ -50,9 +59,11 @@ cdef extern from "c_parallel_utils.hpp":
     uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
                                         uint64_t npts, uint32_t ndim,
                                         double *left_edge, double *right_edge,
-                                        bool *periodic_left, bool *periodic_right) nogil
+                                        bool *periodic_left, bool *periodic_right,
+                                        exch_rec &src, vector[exch_rec] &dst) nogil
     uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
                                         uint64_t npts, uint32_t ndim,
                                         double *left_edge, double *right_edge,
                                         bool *periodic_left, bool *periodic_right,
+                                        exch_rec &src, vector[exch_rec] &dst,
                                         MPI_Comm comm) nogil

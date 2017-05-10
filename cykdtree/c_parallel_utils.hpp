@@ -47,6 +47,16 @@ typedef struct exch_rec {
 bool init_mpi_exch_type();
 void free_mpi_exch_type(bool free_mpi_type = true);
 
+class SplitNode {
+  int proc;
+  exch_rec exch;
+  SplitNode *less;
+  SplitNode *greater;
+  SplitNode(int proc);
+  SplitNode(exch_rec exch);
+  SplitNode(exch_rec exch, SplitNode *less, SplitNode *greater);
+};
+
 bool in_pool(std::vector<int> pool);
 uint64_t parallel_distribute(double **pts, uint64_t **idx,
                              uint64_t npts, uint32_t ndim,
@@ -73,8 +83,10 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
                             MPI_Comm comm = MPI_COMM_WORLD);
 void bcast_bool(bool* arr, uint32_t n, int root,
 		MPI_Comm comm = MPI_COMM_WORLD);
+int calc_rounds(int &src_round, MPI_Comm comm = MPI_COMM_WORLD);
 uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 				    uint64_t npts, uint32_t ndim,
 				    double *left_edge, double *right_edge,
                                     bool *periodic_left, bool *periodic_right,
+				    exch_rec &src_exch, std::vector<exch_rec> &dst_exch,
 				    MPI_Comm comm = MPI_COMM_WORLD);

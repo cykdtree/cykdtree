@@ -116,6 +116,7 @@ public:
   bool *inter_periodic_right;
   bool inter_any_periodic;
   // Properties for root node on this process
+  uint64_t *orig_idx;
   KDTree *tree;
   double* all_pts;
   uint64_t* all_idx;
@@ -752,6 +753,16 @@ public:
     }
   }
 
+  // Node* new_build(KDTree *new_tree, uint64_t Lidx, uint64_t n,
+  // 		  double *LE, double *RE,
+  // 		  bool *PLE, bool *PRE,
+  // 		  double *mins, double *maxs,
+  // 		  std::vector<Node*> left_nodes, uint32_t dst_count = 0) {
+  //   // Return next received node
+
+
+  // }
+
   Node* build(KDTree *new_tree, uint64_t Lidx, uint64_t n,
 	      double *LE, double *RE,
 	      bool *PLE, bool *PRE,
@@ -827,6 +838,47 @@ public:
     consolidate();
   }
 
+  void new_partition() {
+    bool local_debug = true;
+    double _t0 = begin_time();
+    // Set order
+    nrounds = calc_rounds(src_round, MPI_COMM_WORLD);
+    // Partition tree across processes
+    debug_msg(local_debug, "partition", "distribute");
+    local_npts = kdtree_parallel_distribute(&all_pts, &orig_idx,
+					    local_npts, ndim,
+					    local_domain_left_edge, local_domain_right_edge,
+					    local_periodic_left, local_periodic_right,
+					    src_exch, dst_exch, MPI_COMM_WORLD);
+    // Set things
+    all_idx = (uint64_t*)malloc(local_npts*sizeof(uint64_t));
+    for (uint64_t i = 0; i < local_npts; i++)
+      all_idx[i] = i;
+    for (uint32_t d = 0; d < ndim; d++) {
+      if ((local_periodic_left[d]) && (local_periodic_right[d])) {
+        local_any_periodic = true;
+        break;
+      }
+    }
+    // Set splits
+    int i;
+    src = src_exch.src;
+    dst.clear();
+    for (i = 0; i < nrounds; i++)
+      my_splits.push_back(exch_rec());
+    for (i = 0; i < (int)(dst_exch.size()); i++) {
+      my_splits[src_round + 1 + i] = dst_exch[dst_exch.size() - i - 1];
+      dst.push_back(dst_exch[dst_exch.size() - i - 1].dst);
+    }
+    // Initialize tree at local
+    debug_msg(local_debug, "partition", "init_tree");
+    tree = new KDTree(all_pts, all_idx, local_npts, ndim, leafsize,
+		      local_domain_left_edge, local_domain_right_edge,
+		      local_periodic_left, local_periodic_right,
+		      NULL, NULL, include_self, true);
+    end_time(_t0, "partition");
+  }
+
   void partition() {
     bool local_debug = true;
     double _t0 = begin_time();
@@ -868,6 +920,10 @@ public:
 			 local_npts - split_idx - 1);
     end_time(_t0, "split");
     return this_exch;
+  }
+
+  KDTree* new_consolidate_tree() {
+
   }
 
   KDTree* consolidate_tree() {
@@ -1135,6 +1191,38 @@ public:
 	}
       }
     }
+  }
+
+  uint64_t new_consolidate_idx(uint64_t **temp_idx) {
+    int p0, p;
+    uint64_t nexch;
+    uint64_t nprev = 0;
+    // Get original index in order from kdtree
+    (*temp_idx) = (uint64_t*)malloc(local_npts*sizeof(uint64_t));
+    for (uint64_t i = 0; i < local_npts; i++)
+      (*temp_idx)[i] = orig_idx[all_idx[i]];
+    // Consolidate index on root
+    if (rank == root) {
+      nprev = local_npts;
+      for (p0 = 0; p0 < size; p0++) {
+	p = proc_order[p0];
+	if (p != rank) {
+	  MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, p, p, 
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	  (*temp_idx) = (uint64_t*)realloc(*temp_idx, nprev+nexch);
+	  MPI_Recv((*temp_idx)+nprev, nexch, MPI_UNSIGNED_LONG, p, p,
+		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	  nprev += nexch;
+	}
+      }
+    } else {
+      nexch = local_npts;
+      MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, root, rank, MPI_COMM_WORLD);
+      MPI_Send((*temp_idx), nexch, MPI_UNSIGNED_LONG, root, rank, MPI_COMM_WORLD);
+      free(*temp_idx);
+      (*temp_idx) = NULL;
+    }
+    return nprev;
   }
 
   void consolidate_idx() {

@@ -287,6 +287,8 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     cdef cbool *ptr_ple = <cbool*>malloc(ndim*sizeof(cbool));
     cdef cbool *ptr_pre = <cbool*>malloc(ndim*sizeof(cbool));
     cdef uint32_t d;
+    cdef exch_rec src;
+    cdef vector[exch_rec] dst;
     if rank == 0:
         assert(pts is not None)
         npts = pts.shape[0]
@@ -313,7 +315,8 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     # Distribute
     cdef uint64_t new_npts = kdtree_parallel_distribute(
         &ptr_pts, &ptr_idx, npts, ndim,
-        ptr_le, ptr_re, ptr_ple, ptr_pre)
+        ptr_le, ptr_re, ptr_ple, ptr_pre,
+        src, dst)
     # Array version
     cdef np.ndarray[np.float64_t, ndim=2] new_pts
     cdef np.ndarray[np.uint64_t, ndim=1] new_idx
