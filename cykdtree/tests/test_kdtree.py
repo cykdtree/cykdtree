@@ -215,10 +215,12 @@ def time_neighbor_search(Ntime, LStime, ndim=2):
     print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))
 
 def test_save_load():
-    for ndim in range(1, 5):
-        pts, le, re, ls = fake_input(ndim)
-        tree = cykdtree.PyKDTree(pts, le, re, leafsize=ls)
-        with tempfile.NamedTemporaryFile() as tf:
-            tree.save(tf.name)
-            restore_tree = cykdtree.PyKDTree.from_file(tf.name)
-            tree.assert_equal(restore_tree)
+    for periodic in (True, False):
+        for ndim in range(1, 5):
+            pts, le, re, ls = fake_input(ndim)
+            tree = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
+                                     periodic=periodic)
+            with tempfile.NamedTemporaryFile() as tf:
+                tree.save(tf.name)
+                restore_tree = cykdtree.PyKDTree.from_file(tf.name)
+                tree.assert_equal(restore_tree)
