@@ -46,15 +46,19 @@ typedef struct exch_rec {
 } exch_rec;
 bool init_mpi_exch_type();
 void free_mpi_exch_type(bool free_mpi_type = true);
+void print_exch_vec(std::vector<exch_rec> st, MPI_Comm comm = MPI_COMM_WORLD);
 
 class SplitNode {
+public:
   int proc;
   exch_rec exch;
   SplitNode *less;
   SplitNode *greater;
   SplitNode(int proc);
-  SplitNode(exch_rec exch);
   SplitNode(exch_rec exch, SplitNode *less, SplitNode *greater);
+  ~SplitNode();
+  void send(int idst, MPI_Comm comm = MPI_COMM_WORLD);
+  void recv(int isrc, MPI_Comm comm = MPI_COMM_WORLD);
 };
 
 bool in_pool(std::vector<int> pool);
@@ -79,7 +83,7 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
                             uint64_t npts, uint32_t ndim,
                             double *mins, double *maxs,
 			    int64_t &split_idx, uint32_t &split_dim,
-                            double &split_val,
+                            double &split_val, int split_rank = -1,
                             MPI_Comm comm = MPI_COMM_WORLD);
 void bcast_bool(bool* arr, uint32_t n, int root,
 		MPI_Comm comm = MPI_COMM_WORLD);
@@ -90,3 +94,6 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
                                     bool *periodic_left, bool *periodic_right,
 				    exch_rec &src_exch, std::vector<exch_rec> &dst_exch,
 				    MPI_Comm comm = MPI_COMM_WORLD);
+SplitNode* consolidate_split_tree(exch_rec src_exch, std::vector<exch_rec> dst_exch,
+                                  MPI_Comm comm = MPI_COMM_WORLD);
+

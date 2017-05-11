@@ -60,11 +60,10 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
         idx[i] = ptr_idx[i]
         for d in range(ndim):
             pts[i,d] = ptr_pts[i*ndim+d]
-    if rank != 0:
-        if ptr_pts != NULL:
-            free(ptr_pts)
-        if ptr_idx != NULL:
-            free(ptr_idx)
+    if ptr_pts != NULL:
+        free(ptr_pts)
+    if ptr_idx != NULL:
+        free(ptr_idx)
     return (pts, idx)
 
 
@@ -193,7 +192,8 @@ def py_parallel_split(np.ndarray[np.float64_t, ndim=2] pts, np.int64_t t,
 def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
                           np.ndarray[np.uint64_t, ndim=1] idx,
                           np.ndarray[np.float64_t, ndim=1] mins = None,
-                          np.ndarray[np.float64_t, ndim=1] maxs = None):
+                          np.ndarray[np.float64_t, ndim=1] maxs = None,
+                          int split_rank = -1):
     r"""Repartition the points between processes such that the lower half
     of the processes have the lower half of the points as split along the
     largest dimension.
@@ -208,6 +208,11 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
         maxs (np.ndarray of float64, optional): (m,) array of maxs for this
             process. Defaults to None and is set to maxs of pos along each
             dimension.
+        split_rank (int, optional): Rank that processes should be split at
+            when repartitioning the points. Processes with ranks smaller
+            than split_rank will contain points to the left of the split
+            and processes with ranks greater than or equal to split_rank
+            will contain points to the right of the split.
 
     Returns:
         tuple(np.ndarray of double, np.ndarray of uint64): The positions
@@ -218,6 +223,9 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
     cdef object comm = MPI.COMM_WORLD
     cdef int size = comm.Get_size()
     cdef int rank = comm.Get_rank()
+    if split_rank >= size:
+        raise ValueError("split_rank must be smaller than the communicator " +
+                         "size (%d)." % size)
     cdef uint64_t npts = pts.shape[0]
     cdef uint32_t ndim = pts.shape[1]
     cdef uint64_t Lidx = 0
@@ -240,7 +248,8 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
     cdef double split_val = 0.0
     cdef uint64_t new_npts = redistribute_split(&ptr_pts, &ptr_idx, npts, ndim,
                                                 ptr_mins, ptr_maxs,
-                                                split_idx, split_dim, split_val)
+                                                split_idx, split_dim, split_val,
+                                                split_rank)
     # Array version
     cdef np.ndarray[np.float64_t, ndim=2] new_pts
     cdef np.ndarray[np.uint64_t, ndim=1] new_idx
@@ -306,12 +315,20 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
         assert(pts is None)
     ndim = comm.bcast(ndim, root=0)
     cdef np.ndarray[np.uint64_t, ndim=1] idx = np.arange(npts).astype('uint64')
-    # Copy points
-    cdef double *ptr_pts = <double*>malloc(npts*ndim*sizeof(double))
-    cdef uint64_t *ptr_idx = <uint64_t*>malloc(npts*sizeof(uint64_t))
+    # Set pointers
+    cdef double *ptr_pts = NULL
+    cdef uint64_t *ptr_idx = NULL
     if (npts != 0) and (ndim != 0):
-        memcpy(ptr_pts, &pts[0,0], npts*ndim*sizeof(double))
-        memcpy(ptr_idx, &idx[0], npts*sizeof(uint64_t))
+        ptr_pts = &pts[0,0]
+        ptr_idx = &idx[0]
+    # Copy points (unnecessary if distribute allocates different mem block)
+    # cdef double *ptr_pts
+    # cdef uint64_t *ptr_idx
+    # ptr_pts = <double*>malloc(npts*ndim*sizeof(double))
+    # ptr_idx = <uint64_t*>malloc(npts*sizeof(uint64_t))
+    # if (npts != 0) and (ndim != 0):
+    #     memcpy(ptr_pts, &pts[0,0], npts*ndim*sizeof(double))
+    #     memcpy(ptr_idx, &idx[0], npts*sizeof(uint64_t))
     # Distribute
     cdef uint64_t new_npts = kdtree_parallel_distribute(
         &ptr_pts, &ptr_idx, npts, ndim,

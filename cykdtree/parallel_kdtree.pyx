@@ -108,13 +108,17 @@ cdef class PyParallelKDTree:
             free(self._periodic)
         free(self._ptree)
 
-    cdef void _make_tree(self, double *pts):
+    cdef void _make_tree(self, double *ptr_pts):
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
+        cdef uint64_t *ptr_idx
+        if self.npts > 0:
+            ptr_idx = &idx[0]
+        else:
+            ptr_idx = NULL
         with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._ptree = new ParallelKDTree(pts, &idx[0], self.npts, self.ndim,
+            self._ptree = new ParallelKDTree(ptr_pts, ptr_idx, self.npts, self.ndim,
                                              self.leafsize, self._left_edge,
                                              self._right_edge, self._periodic)
-        self._idx = idx
 
     @property
     def local_npts(self):

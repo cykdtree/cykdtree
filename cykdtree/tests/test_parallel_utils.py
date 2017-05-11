@@ -121,12 +121,18 @@ def test_parallel_split(ndim=2, npts=50):
         assert_equal(piv, total_pts[sidx[sq], sd])
 
 
-@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
-def test_redistribute_split(ndim=2, npts=50):
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51), split_left=(None, False, True))
+def test_redistribute_split(ndim=2, npts=50, split_left=None):
     total_npts = npts
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
+    if split_left is None:
+        split_rank = -1
+    else:
+        split_rank = size/2
+        if split_left:
+            split_rank += size%2
     if rank == 0:
         total_pts = np.random.rand(total_npts, ndim).astype('float64')
     else:
@@ -136,14 +142,17 @@ def test_redistribute_split(ndim=2, npts=50):
     total_pts = comm.bcast(total_pts, root=0)
 
     new_pts, new_idx, sidx, sdim, sval = parallel_utils.py_redistribute_split(
-        pts, orig_idx)
+        pts, orig_idx, split_rank=split_rank)
+    # Assume split_left is default for split_rank == -1
+    if split_rank < 0:
+        split_rank = size/2 + size%2
 
     assert_equal(new_pts.shape[0], new_idx.size)
     assert_equal(new_pts.shape[1], ndim)
 
     np.testing.assert_array_equal(new_pts, total_pts[new_idx, :])
 
-    if rank < size/2:
+    if rank < split_rank:
         assert_less_equal(new_pts[:, sdim], sval)
     else:
         np.testing.assert_array_less(sval, new_pts[:, sdim])
@@ -153,6 +162,22 @@ def test_redistribute_split(ndim=2, npts=50):
         np.testing.assert_approx_equal(sval, med)
     else:
         np.testing.assert_array_less(sval, med)
+
+
+@MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
+def test_redistribute_split_errors(ndim=2, npts=50):
+    total_npts = npts
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    if rank == 0:
+        total_pts = np.random.rand(total_npts, ndim).astype('float64')
+    else:
+        total_pts = None
+    pts, orig_idx = parallel_utils.py_parallel_distribute(total_pts)
+    assert_raises(ValueError, parallel_utils.py_redistribute_split,
+                  pts, orig_idx, split_rank=size)
+
 
 @MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
 def test_kdtree_parallel_distribute(ndim=2, npts=50):

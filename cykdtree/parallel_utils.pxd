@@ -54,7 +54,12 @@ cdef extern from "c_parallel_utils.hpp":
                                 uint64_t npts, uint32_t ndim,
                                 double *mins, double *maxs,
                                 int64_t &split_idx, uint32_t &split_dim,
-                                double &split_val,
+                                double &split_val, int split_rank) nogil
+    uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
+                                uint64_t npts, uint32_t ndim,
+                                double *mins, double *maxs,
+                                int64_t &split_idx, uint32_t &split_dim,
+                                double &split_val, int split_rank,
                                 MPI_Comm comm) nogil
     uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
                                         uint64_t npts, uint32_t ndim,

@@ -47,6 +47,7 @@ def fake_input(ndim, N=100, leafsize=10):
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_PyParallelKDTree(periodic=False, ndim=2):
+    print(ndim, periodic)
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()

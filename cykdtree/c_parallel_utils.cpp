@@ -117,17 +117,55 @@ void free_mpi_exch_type(bool free_mpi_type) {
   }
 }
 
+void print_exch_vec(std::vector<exch_rec> st, MPI_Comm comm) {
+  std::vector<exch_rec>::iterator it;
+  int rank;
+  MPI_Comm_rank ( comm, &rank);
+  for (it = st.begin(); it != st.end(); it++) {
+    printf("%d: ", rank);
+    it->print();
+  }
+}
+
 SplitNode::SplitNode(int proc)
   : proc(proc), less(NULL), greater(NULL)
 { 
   exch = exch_rec();
 }
-SplitNode::SplitNode(exch_rec exch)
-  : proc(-1), exch(exch), less(less), greater(greater)
-{ }
 SplitNode::SplitNode(exch_rec exch, SplitNode *less, SplitNode *greater)
   : proc(-1), exch(exch), less(less), greater(greater)
 { }
+SplitNode::~SplitNode() {
+  if (less != NULL)
+    delete less;
+  if (greater != NULL)
+    delete greater;
+}
+void SplitNode::send(int idst, MPI_Comm comm) {
+  int rank;
+  MPI_Comm_rank ( comm, &rank);
+  MPI_Send(&proc, 1, MPI_INT, idst, rank, comm);
+  if (proc < 0) {
+    exch.send(idst, comm);
+    less->send(idst, comm);
+    greater->send(idst, comm);
+  }
+}
+void SplitNode::recv(int isrc, MPI_Comm comm) {
+  int rank;
+  MPI_Comm_rank ( comm, &rank);
+  MPI_Recv(&proc, 1, MPI_INT, isrc, isrc, comm, MPI_STATUS_IGNORE);
+  if (proc < 0) {
+    if (less == NULL)
+      less = new SplitNode(-1);
+    if (greater == NULL)
+      greater = new SplitNode(-1);
+    exch.recv(isrc, comm);
+    less->recv(isrc, comm);
+    greater->recv(isrc, comm);
+  }
+}
+
 
 bool in_pool(std::vector<int> pool) {
   int rank;
@@ -174,6 +212,17 @@ uint64_t parallel_distribute(double **pts, uint64_t **idx,
       }
       n_prev += in_per;
     }
+    // Replicate memory for root and change pointers so that original memory
+    // remains untouched on root
+    double *temp_pts = (double*)malloc(ndim*npts_local*sizeof(double));
+    uint64_t *temp_idx = (uint64_t*)malloc(npts_local*sizeof(uint64_t));
+    memcpy(temp_pts, *pts, ndim*npts_local*sizeof(double));
+    memcpy(temp_idx, *idx, npts_local*sizeof(uint64_t));
+    *pts = temp_pts;
+    *idx = temp_idx;
+    // // Reduce size on root
+    // (*pts) = (double*)realloc(*pts, ndim*npts_local*sizeof(double));
+    // (*idx) = (uint64_t*)realloc(*idx, npts_local*sizeof(uint64_t));
   } else {
     MPI_Recv(&npts_local, 1, MPI_UNSIGNED_LONG, 0, 0, comm,
 	     MPI_STATUS_IGNORE);
@@ -181,7 +230,7 @@ uint64_t parallel_distribute(double **pts, uint64_t **idx,
 	      "receiving %lu points from %d", npts_local, 0);
     if (npts_local > 0) {
       (*pts) = (double*)realloc(*pts, ndim*npts_local*sizeof(double));
-      (*idx) = (uint64_t*)realloc(*idx, npts_local*sizeof(double));
+      (*idx) = (uint64_t*)realloc(*idx, npts_local*sizeof(uint64_t));
       MPI_Recv(*pts, ndim*npts_local, MPI_DOUBLE, 0, 1, comm,
 	       MPI_STATUS_IGNORE);
       MPI_Recv(*idx, npts_local, MPI_UNSIGNED_LONG, 0, 2, comm,
@@ -358,14 +407,20 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
 			    uint64_t npts, uint32_t ndim,
 			    double *mins, double *maxs,
 			    int64_t &split_idx, uint32_t &split_dim,
-			    double &split_val,
+			    double &split_val, int split_rank,
 			    MPI_Comm comm) {
   bool local_debug = true;
-  int size, rank;
+  int size, rank, split_size, rel_rank;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
-  int split_size = size/2;
-  int split_rank = rank % split_size;
+  if (split_rank < 0) {
+    // split_rank = size/2; // Middle rank in right
+    split_rank = size/2 + size%2; // Middle rank in left
+  }
+  if (split_rank <= (size/2))
+    split_size = split_rank;
+  else
+    split_size = size - split_rank;
   uint64_t x;
   uint64_t nexch, ntemp;
   uint64_t *temp_idx = NULL;
@@ -377,7 +432,9 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
   uint64_t npts_new = 0;
 
   // Sort
-  debug_msg(local_debug, "redistribute_split", "parallel_split");
+  debug_msg(local_debug, "redistribute_split",
+	    "parallel_split, split_rank = %d, split_size = %d",
+	    split_rank, split_size);
   uint64_t *sort_idx = (uint64_t*)malloc(npts*sizeof(uint64_t));
   for (uint64_t i = 0; i < npts; i++)
     sort_idx[i] = i;
@@ -391,12 +448,21 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
 	    "split_idx = %ld, split_dim = %u, split_val = %lf",
 	    split_idx, split_dim, split_val);
 
+  // Identify partner process(es)
+  // for (int i = 0; i < size; i++) {
+  //   if ((i != rank) && ((i%split_size) == rel_rank))
+  //     other.push_back(i);
+  // }
   // Exchange
-  for (int i = 0; i < size; i++) {
-    if ((i != rank) && ((i%split_size) == split_rank))
-      other.push_back(i);
-  }
-  if (rank < split_size) {
+  if (rank < split_rank) {
+    // LEFT
+    rel_rank = rank % split_size;
+    for (int i = split_rank; i < size; i++) {
+      if (((i - split_rank) % split_size) == rel_rank)
+	other.push_back(i);
+    }
+    debug_msg(local_debug, "redistribute_split",
+	      "rel_rank = %d, size(other) = %u", rel_rank, other.size());
     // Put aside points to send
     nexch = npts - (split_idx + 1);
     debug_msg(local_debug, "redistribute_split",
@@ -421,28 +487,38 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
     memcpy(*all_pts, temp_pts, npts_new*ndim*sizeof(double));
     free(temp_idx);
     free(temp_pts);
-    // Left receives first
-    for (it = other.begin(); it != other.end(); it++) {
-      MPI_Recv(&ntemp, 1, MPI_UNSIGNED_LONG, *it, *it, comm,
-	       MPI_STATUS_IGNORE);
-      debug_msg(local_debug, "redistribute_split", "receiving %lu from %d",
-		ntemp, *it);
-      (*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+ntemp)*sizeof(uint64_t));
-      (*all_pts) = (double*)realloc(*all_pts, (npts_new+ntemp)*ndim*sizeof(double));
-      MPI_Recv((*all_idx)+npts_new, ntemp, MPI_UNSIGNED_LONG, *it, *it, comm,
-	       MPI_STATUS_IGNORE);
-      MPI_Recv((*all_pts)+npts_new*ndim, ntemp*ndim, MPI_DOUBLE, *it, *it, comm,
-	       MPI_STATUS_IGNORE);
-      npts_new += ntemp;
+    // Left receives first from all partner processes
+    if (rank < split_size) {
+      for (it = other.begin(); it != other.end(); it++) {
+	MPI_Recv(&ntemp, 1, MPI_UNSIGNED_LONG, *it, *it, comm,
+		 MPI_STATUS_IGNORE);
+	debug_msg(local_debug, "redistribute_split", "receiving %lu from %d",
+		  ntemp, *it);
+	(*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+ntemp)*sizeof(uint64_t));
+	(*all_pts) = (double*)realloc(*all_pts, (npts_new+ntemp)*ndim*sizeof(double));
+	MPI_Recv((*all_idx)+npts_new, ntemp, MPI_UNSIGNED_LONG, *it, *it, comm,
+		 MPI_STATUS_IGNORE);
+	MPI_Recv((*all_pts)+npts_new*ndim, ntemp*ndim, MPI_DOUBLE, *it, *it, comm,
+		 MPI_STATUS_IGNORE);
+	npts_new += ntemp;
+      }
     }
-    // Left sends second
+    // Left sends second to only the first partner process
     debug_msg(local_debug, "redistribute_split", "sending %lu to %d",
 	      nexch, other[0]);
     MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, other[0], rank, comm);
     MPI_Send(exch_idx, nexch, MPI_UNSIGNED_LONG, other[0], rank, comm);
     MPI_Send(exch_pts, nexch*ndim, MPI_DOUBLE, other[0], rank, comm);
   } else {
-    // Right sends first
+    // RIGHT
+    rel_rank = (rank - split_rank) % split_size;
+    for (int i = 0; i < split_rank; i++) {
+      if ((i % split_size) == rel_rank)
+	other.push_back(i);
+    }
+    debug_msg(local_debug, "redistribute_split",
+	      "rel_rank = %d, size(other) = %u", rel_rank, other.size());
+    // Right sends first to just the first partner process
     nexch = split_idx + 1;
     debug_msg(local_debug, "redistribute_split", "sending %lu to %d",
 	      nexch, other[0]);
@@ -468,21 +544,24 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
     memcpy(*all_idx, exch_idx, nexch*sizeof(uint64_t));
     memcpy(*all_pts, exch_pts, nexch*ndim*sizeof(double));
     npts_new = nexch;
-    // Right receives second
-    if ((rank/split_size) < 2) {
-      MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, other[0], other[0], comm,
-	       MPI_STATUS_IGNORE);
-      debug_msg(local_debug, "redistribute_split", "receiving %lu from %d",
-		nexch, other[0]);
-      (*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+nexch)*sizeof(uint64_t));
-      (*all_pts) = (double*)realloc(*all_pts, (npts_new+nexch)*ndim*sizeof(double));
-      MPI_Recv((*all_idx)+npts_new, nexch, MPI_UNSIGNED_LONG, other[0], other[0],
-	       comm, MPI_STATUS_IGNORE);
-      MPI_Recv((*all_pts)+npts_new*ndim, nexch*ndim, MPI_DOUBLE, other[0], other[0],
-	       comm, MPI_STATUS_IGNORE);
-      npts_new += nexch;
+    // Right receives second from all partner processes
+    if ((rank - split_rank) < split_size) { 
+      for (it = other.begin(); it != other.end(); it++) {
+	MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, *it, *it, comm,
+		 MPI_STATUS_IGNORE);
+	debug_msg(local_debug, "redistribute_split", "receiving %lu from %d",
+		  nexch, *it);
+	(*all_idx) = (uint64_t*)realloc(*all_idx, (npts_new+nexch)*sizeof(uint64_t));
+	(*all_pts) = (double*)realloc(*all_pts, (npts_new+nexch)*ndim*sizeof(double));
+	MPI_Recv((*all_idx)+npts_new, nexch, MPI_UNSIGNED_LONG, *it, *it,
+		 comm, MPI_STATUS_IGNORE);
+	MPI_Recv((*all_pts)+npts_new*ndim, nexch*ndim, MPI_DOUBLE, *it, *it,
+		 comm, MPI_STATUS_IGNORE);
+	npts_new += nexch;
+      }
     }
   }
+  debug_msg(local_debug, "redistribute_split", "cleanup");
 
   free(sort_idx);
   free(exch_idx);
@@ -535,6 +614,7 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 				    double *left_edge, double *right_edge,
 				    bool *periodic_left, bool *periodic_right,
 				    exch_rec &src_exch, std::vector<exch_rec> &dst_exch,
+				    
 				    MPI_Comm comm) {
   bool local_debug = true;
   MPI_Comm orig_comm = comm;
@@ -560,7 +640,6 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   double *maxs = max_pts(*pts, npts, ndim);
 
   // Split until communicator is singular
-  SplitNode *root_node;
   int size = orig_size, rank = orig_rank;
   int round = 0;
   int color = 1;
@@ -576,14 +655,15 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   src_exch = exch_rec();
   while (size > 1) {
     lroot = 0;
-    rroot = size/2;
+    rroot = size/2 + size%2;
     debug_msg(local_debug, "kdtree_parallel_distribute",
 	      "round %d, comm size now %d, lroot = %d, rroot = %d",
 	      round, size, lroot, rroot);
 
     // Split points between lower/upper processes
     npts = redistribute_split(pts, idx, npts, ndim, mins, maxs,
-			      split_idx, split_dim, split_val, comm);
+			      split_idx, split_dim, split_val, 
+			      rroot, comm);
 
 
     // Construct exchange
@@ -630,6 +710,36 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   free(mins);
   free(maxs);
   return npts;
+}
+
+SplitNode* consolidate_split_tree(exch_rec src_exch,
+				  std::vector<exch_rec> dst_exch,
+				  MPI_Comm comm) {
+  bool local_debug = true;
+  int rank;
+  MPI_Comm_rank( comm, &rank);
+  // Reconstruct tree of splits
+  std::vector<exch_rec>::iterator it;
+  SplitNode *lnode = new SplitNode(rank);
+  SplitNode *rnode = NULL;
+  for (it = dst_exch.begin(); it != dst_exch.end(); it++) {
+    debug_msg(local_debug, "consolidate_split_tree", 
+	      "receiving from %d", it->dst);
+    rnode = new SplitNode(-1);
+    rnode->recv(it->dst, comm);
+    lnode = new SplitNode(*it, lnode, rnode);
+  }
+  if (src_exch.src >= 0) {
+    debug_msg(local_debug, "consolidate_split_tree",
+	      "sending to %d", src_exch.src);
+    lnode->send(src_exch.src, comm);
+    delete lnode; // Don't delete rnode because its free as member of lnode
+    lnode = NULL;
+    rnode = NULL;
+  }
+  debug_msg(local_debug, "consolidate_split_tree",
+	    "finished");
+  return lnode;
 }
 
 
