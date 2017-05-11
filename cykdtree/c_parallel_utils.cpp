@@ -600,14 +600,14 @@ int calc_rounds(int &src_round, MPI_Comm comm) {
   int color = 1;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
-  src_round = 0;
+  src_round = round++;
   while (size > 1) {
     rroot = calc_split_rank(size);
     color = (color << 1);
     if (rank >= rroot)
       color++;
     if (rank == rroot)
-      src_round = (round+1);
+      src_round = round;
     MPI_Comm_split(comm, color, rank, &comm);
     MPI_Comm_size(comm, &size);
     MPI_Comm_rank(comm, &rank);

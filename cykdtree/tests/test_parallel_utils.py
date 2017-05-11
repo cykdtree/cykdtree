@@ -197,7 +197,7 @@ def test_calc_rounds():
     rank = comm.Get_rank()
     size = comm.Get_size()
     # Get answers
-    ans_nrounds = int(np.ceil(np.log2(size)))
+    ans_nrounds = int(np.ceil(np.log2(size))) + 1
     ans_src_round = 0
     curr_rank = rank
     curr_size = size
