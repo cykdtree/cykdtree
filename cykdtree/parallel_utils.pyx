@@ -306,7 +306,7 @@ def py_calc_rounds():
 
     """
     cdef int nrounds, src_round
-    src_round = -1
+    src_round = 0
     nrounds = calc_rounds(src_round)
     return (nrounds, src_round)
 

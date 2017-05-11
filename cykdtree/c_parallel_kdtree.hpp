@@ -1126,6 +1126,7 @@ public:
     MPI_Allgather(&(my_splits[0]), nrounds, *mpi_type_exch_rec,
 		  &(all_splits[0]), nrounds, *mpi_type_exch_rec,
 		  MPI_COMM_WORLD);
+    printf("%d: src_round = %d\n", rank, src_round);
     print_exch_vec(my_splits);
     // Init left right for root based on periodicity
     if (src_exch.src == -1) {
@@ -1189,6 +1190,7 @@ public:
       // 	print_neighbors();
       // }
     }
+    print_neighbors();
     end_time(_t0, "consolidate_splits");
   }
 

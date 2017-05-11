@@ -115,16 +115,19 @@ def test_search_errors(periodic=False, ndim=2):
 
 @MPITest(Nproc, periodic=(False, True))
 def test_neighbors(periodic = False):
+    print(periodic)
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
     pts, le, re, ls = fake_input(-2, leafsize=10)
     tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic)
-    if False:
+    if True:
         from cykdtree.plot import plot2D_parallel
+        plotfile = 'test_neighbors.png'
         plot2D_parallel(tree, label_boxes=True, label_procs=True,
-                        plotfile='test_neighbors.png')
+                        plotfile=plotfile)
+        print(plotfile)
     # Prepare neighbors
     if periodic:
         left_neighbors = [left_neighbors_x_periodic, left_neighbors_y_periodic]
