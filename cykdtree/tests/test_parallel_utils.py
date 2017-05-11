@@ -180,12 +180,40 @@ def test_redistribute_split_errors(ndim=2, npts=50):
 
 
 def test_calc_split_rank():
+    # Default split (currently left)
+    assert_equal(parallel_utils.py_calc_split_rank(4), 2)
+    assert_equal(parallel_utils.py_calc_split_rank(5), 3)
     # Left split
     assert_equal(parallel_utils.py_calc_split_rank(4, split_left=True), 2)
     assert_equal(parallel_utils.py_calc_split_rank(5, split_left=True), 3)
     # Right split
     assert_equal(parallel_utils.py_calc_split_rank(4, split_left=False), 2)
     assert_equal(parallel_utils.py_calc_split_rank(5, split_left=False), 2)
+
+
+@MPITest(Nproc)
+def test_calc_rounds():
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    # Get answers
+    ans_nrounds = int(np.ceil(np.log2(size)))
+    ans_src_round = -1
+    curr_rank = rank
+    curr_size = size
+    while curr_rank != 0:
+        split_rank = parallel_utils.py_calc_split_rank(curr_size)
+        if curr_rank < split_rank:
+            curr_size = split_rank
+            curr_rank = curr_rank
+        else:
+            curr_size = curr_size - split_rank
+            curr_rank = curr_rank - split_rank
+        ans_src_round += 1
+    # Test
+    nrounds, src_round = parallel_utils.py_calc_rounds()
+    assert_equal(nrounds, ans_nrounds)
+    assert_equal(src_round, ans_src_round)
 
 
 @MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))

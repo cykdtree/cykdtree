@@ -594,8 +594,9 @@ int calc_split_rank(int size, bool split_left) {
 }
 
 int calc_rounds(int &src_round, MPI_Comm comm) {
+  MPI_Comm orig_comm = comm;
   int size, rank, rroot;
-  int round = 0;
+  int round = 0, max_round = 0;
   int color = 1;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
@@ -612,7 +613,8 @@ int calc_rounds(int &src_round, MPI_Comm comm) {
     MPI_Comm_rank(comm, &rank);
     round++;
   }
-  return round;
+  MPI_Allreduce(&round, &max_round, 1, MPI_INT, MPI_MAX, orig_comm);
+  return max_round;
 }
 
 uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,

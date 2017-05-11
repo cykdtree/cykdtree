@@ -271,23 +271,44 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
     return new_pts, new_idx, split_idx, split_dim, split_val
 
 
-def py_calc_split_rank(int size, pybool split_left = False):
+def py_calc_split_rank(int size, pybool split_left = None):
     r"""Determine the minimum rank in the right half of the processor split.
 
     Args:
         size (int): The size of the communicator that will be split.
         split_left (bool): If True, the middle process in an odd sized 
             communicator will be left of the split. If False, it will be
-            right of the split. Defaults to False.
+            right of the split. Defaults to None and uses the default at the
+            c++ level.
 
     Returns:
         int: The rank of the first process in the right split.
 
     """
     cdef int split_rank
-    cdef cbool c_split_left = <cbool>split_left
-    split_rank = calc_split_rank(size, split_left)
+    cdef cbool c_split_left = <cbool>False
+    if split_left is None:
+        split_rank = calc_split_rank(size)
+    else:
+        c_split_left = <cbool>split_left
+        split_rank = calc_split_rank(size, c_split_left)
     return split_rank
+
+def py_calc_rounds():
+    r"""Determine the number of rounds of splits required to populate all
+    process in the world communicator and the round that this process would
+    become the root of its subset.
+
+    Returns:
+        tuple(int, int): The number of rounds of splits required to populate
+            all processes in the world communicator and the round that this
+            process would become the root of a process subset.
+
+    """
+    cdef int nrounds, src_round
+    src_round = -1
+    nrounds = calc_rounds(src_round)
+    return (nrounds, src_round)
 
 
 def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
