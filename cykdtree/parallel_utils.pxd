@@ -61,6 +61,10 @@ cdef extern from "c_parallel_utils.hpp":
                                 int64_t &split_idx, uint32_t &split_dim,
                                 double &split_val, int split_rank,
                                 MPI_Comm comm) nogil
+    int calc_split_rank(int size) nogil
+    int calc_split_rank(int size, bool split_left) nogil
+    int calc_rounds(int &src_round) nogil
+    int calc_rounds(int &src_round, MPI_Comm comm) nogil
     uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
                                         uint64_t npts, uint32_t ndim,
                                         double *left_edge, double *right_edge,

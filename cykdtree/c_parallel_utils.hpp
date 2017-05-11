@@ -87,6 +87,7 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
                             MPI_Comm comm = MPI_COMM_WORLD);
 void bcast_bool(bool* arr, uint32_t n, int root,
 		MPI_Comm comm = MPI_COMM_WORLD);
+int calc_split_rank(int size, bool split_left = true);
 int calc_rounds(int &src_round, MPI_Comm comm = MPI_COMM_WORLD);
 uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 				    uint64_t npts, uint32_t ndim,

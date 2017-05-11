@@ -413,10 +413,8 @@ uint64_t redistribute_split(double **all_pts, uint64_t **all_idx,
   int size, rank, split_size, rel_rank;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
-  if (split_rank < 0) {
-    // split_rank = size/2; // Middle rank in right
-    split_rank = size/2 + size%2; // Middle rank in left
-  }
+  if (split_rank < 0)
+    split_rank = calc_split_rank(size);
   if (split_rank <= (size/2))
     split_size = split_rank;
   else
@@ -588,18 +586,26 @@ void bcast_bool(bool* arr, uint32_t n, int root, MPI_Comm comm) {
   free(dum);
 }
 
+int calc_split_rank(int size, bool split_left) {
+  int split_rank = size/2;
+  if (split_left)
+    split_rank += size%2;
+  return split_rank;
+}
+
 int calc_rounds(int &src_round, MPI_Comm comm) {
-  int size, rank;
+  int size, rank, rroot;
   int round = 0;
   int color = 1;
   MPI_Comm_size ( comm, &size);
   MPI_Comm_rank ( comm, &rank);
   src_round = -1;
   while (size > 1) {
+    rroot = calc_split_rank(size);
     color = (color << 1);
-    if (rank >= (size/2))
+    if (rank >= rroot)
       color++;
-    if (rank == (size/2))
+    if (rank == rroot)
       src_round = round;
     MPI_Comm_split(comm, color, rank, &comm);
     MPI_Comm_size(comm, &size);
@@ -655,7 +661,7 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   src_exch = exch_rec();
   while (size > 1) {
     lroot = 0;
-    rroot = size/2 + size%2;
+    rroot = calc_split_rank(size);
     debug_msg(local_debug, "kdtree_parallel_distribute",
 	      "round %d, comm size now %d, lroot = %d, rroot = %d",
 	      round, size, lroot, rroot);

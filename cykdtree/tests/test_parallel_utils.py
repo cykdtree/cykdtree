@@ -179,6 +179,15 @@ def test_redistribute_split_errors(ndim=2, npts=50):
                   pts, orig_idx, split_rank=size)
 
 
+def test_calc_split_rank():
+    # Left split
+    assert_equal(parallel_utils.py_calc_split_rank(4, split_left=True), 2)
+    assert_equal(parallel_utils.py_calc_split_rank(5, split_left=True), 3)
+    # Right split
+    assert_equal(parallel_utils.py_calc_split_rank(4, split_left=False), 2)
+    assert_equal(parallel_utils.py_calc_split_rank(5, split_left=False), 2)
+
+
 @MPITest(Nproc, ndim=(2,3), npts=(10, 11, 50, 51))
 def test_kdtree_parallel_distribute(ndim=2, npts=50):
     total_npts = npts

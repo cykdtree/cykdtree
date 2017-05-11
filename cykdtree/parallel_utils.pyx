@@ -271,6 +271,25 @@ def py_redistribute_split(np.ndarray[np.float64_t, ndim=2] pts,
     return new_pts, new_idx, split_idx, split_dim, split_val
 
 
+def py_calc_split_rank(int size, pybool split_left = False):
+    r"""Determine the minimum rank in the right half of the processor split.
+
+    Args:
+        size (int): The size of the communicator that will be split.
+        split_left (bool): If True, the middle process in an odd sized 
+            communicator will be left of the split. If False, it will be
+            right of the split. Defaults to False.
+
+    Returns:
+        int: The rank of the first process in the right split.
+
+    """
+    cdef int split_rank
+    cdef cbool c_split_left = <cbool>split_left
+    split_rank = calc_split_rank(size, split_left)
+    return split_rank
+
+
 def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     r"""Distribute a balanced number of points to each process using a kdtree
     structure.
