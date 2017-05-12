@@ -122,24 +122,28 @@ def test_neighbors():
         for i in range(tree.num_leaves):
             right_neighbors[d][i] = list(set(right_neighbors[d][i]))
     for leaf in tree.leaves:
-        print(leaf.id, leaf.left_edge, leaf.right_edge)
-    for leaf in tree.leaves:
-        print(leaf.id)
-        for d in range(tree.ndim):
-            print('    ', d, leaf.left_neighbors[d],
-                  left_neighbors[d][leaf.id])
-            assert(len(left_neighbors[d][leaf.id]) ==
-                   len(leaf.left_neighbors[d]))
-            for i in range(len(leaf.left_neighbors[d])):
-                assert(left_neighbors[d][leaf.id][i] ==
-                       leaf.left_neighbors[d][i])
-            print('    ', d, leaf.right_neighbors[d],
-                  right_neighbors[d][leaf.id])
-            assert(len(right_neighbors[d][leaf.id]) ==
-                   len(leaf.right_neighbors[d]))
-            for i in range(len(leaf.right_neighbors[d])):
-                assert(right_neighbors[d][leaf.id][i] ==
-                       leaf.right_neighbors[d][i])
+        out_str = str(leaf.id)
+        try:
+            for d in range(tree.ndim):
+                out_str += '\nleft:  {} {} {}'.format(d, leaf.left_neighbors[d],
+                                               left_neighbors[d][leaf.id])
+                assert(len(left_neighbors[d][leaf.id]) ==
+                       len(leaf.left_neighbors[d]))
+                for i in range(len(leaf.left_neighbors[d])):
+                    assert(left_neighbors[d][leaf.id][i] ==
+                           leaf.left_neighbors[d][i])
+                out_str += '\nright: {} {} {}'.format(d, leaf.right_neighbors[d],
+                                                right_neighbors[d][leaf.id])
+                assert(len(right_neighbors[d][leaf.id]) ==
+                       len(leaf.right_neighbors[d]))
+                for i in range(len(leaf.right_neighbors[d])):
+                    assert(right_neighbors[d][leaf.id][i] ==
+                           leaf.right_neighbors[d][i])
+        except:
+            for leaf in tree.leaves:
+                print(leaf.id, leaf.left_edge, leaf.right_edge)
+            print(out_str)
+            raise
 
 
 def test_neighbors_periodic():

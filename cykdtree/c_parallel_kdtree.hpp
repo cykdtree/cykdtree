@@ -144,6 +144,7 @@ public:
     init_mpi_exch_type();
     debug_msg(local_debug, "ParallelKDTree", "init");
     src = -1;
+    src_exch = exch_rec();
     all_avail = NULL;
     tree = NULL;
     local_left_idx = 0;
@@ -655,6 +656,7 @@ public:
   Node* recv_node(int sp, KDTree *this_tree, uint64_t prev_Lidx,
 		  double *le, double *re, bool *ple, bool *pre,
 		  std::vector<Node*> left_nodes) {
+    // bool local_debug = true;
     // TODO: Add neighbors
     int tag = 0;
     Node *out;
@@ -729,29 +731,44 @@ public:
   }
 
   void send_node(int dp, Node *node) {
+    bool local_debug = false;
     int tag = 0;
     int is_empty, is_leaf;
     is_empty = node->is_empty;
+    debug_msg(local_debug, "send_node",
+	      "sending is_empty to %d", dp);
     MPI_Send(&is_empty, 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
     // Empty node
     if (node->is_empty)
       return;
     // Send properties innernodes and leaf nodes have
+    debug_msg(local_debug, "send_node",
+	      "sending left_idx to %d", dp);
     MPI_Send(&(node->left_idx), 1, MPI_UNSIGNED_LONG, dp, tag++, MPI_COMM_WORLD);
     // Proceed based on status as leaf
+    debug_msg(local_debug, "send_node",
+	      "sending is_leaf to %d", dp);
     is_leaf = (int)(node->is_leaf);
     MPI_Send(&is_leaf, 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
     if (is_leaf) {
       // Leaf properties
+      debug_msg(local_debug, "send_node",
+		"sending children to %d", dp);
       MPI_Send(&(node->children), 1, MPI_UNSIGNED_LONG, dp, tag++,
 	       MPI_COMM_WORLD);
       // MPI_Send(&(node->leafid), 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
     } else {
       // Innernode properties
+      debug_msg(local_debug, "send_node",
+		"sending split info to %d", dp);
       MPI_Send(&(node->split_dim), 1, MPI_UNSIGNED, dp, tag++, MPI_COMM_WORLD);
       MPI_Send(&(node->split), 1, MPI_DOUBLE, dp, tag++, MPI_COMM_WORLD);
       // Child nodes
+      debug_msg(local_debug, "send_node",
+		"sending less to %d", dp);
       send_node(dp, node->less);
+      debug_msg(local_debug, "send_node",
+		"sending greater to %d", dp);
       send_node(dp, node->greater);
     }
   }
@@ -761,14 +778,17 @@ public:
   		  bool *PLE, bool *PRE,
   		  double *mins, double *maxs,
   		  std::vector<Node*> left_nodes, SplitNode *split) {
+    bool local_debug = true;
     Node *out;
     // Don't continue if split is NULL
     if (split == NULL)
       return NULL;
     // Leaf in the split tree
     if (split->proc >= 0) {
+      debug_msg(local_debug, "build", "leaf encountered");
       if (split->proc == rank) {
 	// This proc, add leaves manually
+	debug_msg(local_debug, "build", "adding from this processes");
 	std::vector<Node*>::iterator it;
 	for (it = tree->leaves.begin(); it != tree->leaves.end(); it++) {
 	  new_tree->leaves.push_back(*it);
@@ -777,15 +797,18 @@ public:
 	out = tree->root;
       } else {
 	// Receive root from another process
+	debug_msg(local_debug, "build", "receiving node from %d",
+		  split->proc);
 	out = recv_node(split->proc, new_tree, Lidx, LE, RE, PLE, PRE,
 			left_nodes);
       }
     } else {
+      debug_msg(local_debug, "build", "intermediate node");
       exch_rec idst = split->exch;
 
       // Determine boundaries
       uint32_t d;
-      uint64_t lN = idst.split_idx - Lidx + 1;
+      uint64_t lN = idst.left_idx - Lidx;
       uint64_t rN = n - lN;
       double *lRE = (double*)malloc(ndim*sizeof(double));
       double *rLE = (double*)malloc(ndim*sizeof(double));
@@ -810,13 +833,18 @@ public:
       rPLE[idst.split_dim] = false;
 
       // Build left node & receive right node
+      debug_msg(local_debug, "build",
+		"building left, Lidx = %lu", Lidx);
       Node *lnode = new_build(new_tree, Lidx, lN, LE, lRE, PLE, lPRE,
 			      mins, lmaxs, left_nodes, split->less);
       r_left_nodes[idst.split_dim] = lnode;
+      debug_msg(local_debug, "build",
+		"building right, Lidx = %lu", Lidx+lN);
       Node *rnode = new_build(new_tree, Lidx+lN, rN, rLE, RE, rPLE, PRE,
 			      rmins, maxs, r_left_nodes, split->greater);
 
       // Create innernode
+      debug_msg(local_debug, "build", "creating innernode");
       out = new Node(ndim, LE, RE, PLE, PRE, Lidx, idst.split_dim, 
 		     idst.split_val, lnode, rnode, left_nodes);
 
@@ -923,6 +951,7 @@ public:
 					    local_npts, ndim,
 					    local_domain_left_edge, local_domain_right_edge,
 					    local_periodic_left, local_periodic_right,
+					    local_domain_mins, local_domain_maxs,
 					    src_exch, dst_exch, MPI_COMM_WORLD);
     // Set things
     if (!(is_root)) {
@@ -951,7 +980,8 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      NULL, NULL, include_self, true);
+		      local_domain_mins, local_domain_maxs,
+		      include_self, true);
     end_time(_t0, "partition");
   }
 
@@ -1008,40 +1038,51 @@ public:
   }
 
   KDTree* new_consolidate_tree() {
+    bool local_debug = true;
     double _t0 = begin_time();
     KDTree* out = NULL;
-    // Consolidate idx
-    uint64_t *new_idx = NULL;
-    uint64_t new_npts = new_consolidate_idx(&new_idx);
-    printf("%d: %lu\n", rank, new_npts);
     // Consolidate splits
     SplitNode *split = consolidate_split_tree(src_exch, dst_exch,
     					      MPI_COMM_WORLD);
+    // Consolidate idx 
+    uint64_t *new_idx = NULL;
+    uint64_t new_npts = new_consolidate_idx(&new_idx);
+    debug_msg(local_debug, "consolidate_tree",
+	      "%lu points in consolidated index", new_npts);
+    // Create tree
     if (split != NULL) {
+      // TODO: Add self as neighbor on root for periodic domain? 
       uint32_t d;
       std::vector<Node*> left_nodes;
       for (d = 0; d < ndim; d++)
 	left_nodes.push_back(NULL);
-      // TODO: Add self as neighbor on root for periodic domain?
       // Initialize tree
+      debug_msg(local_debug, "consolidate_tree", "initializing tree");
       out = new KDTree(NULL, new_idx, new_npts, ndim, leafsize,
 		       inter_domain_left_edge, inter_domain_right_edge,
 		       inter_periodic_left, inter_periodic_right,
 		       inter_domain_mins, inter_domain_maxs,
 		       include_self, true);
       // Consolidate nodes
+      debug_msg(local_debug, "consolidate_tree", "building tree");
       double _tb = begin_time();
-      out->root = new_build(out, 0, out->npts,
-			    out->domain_left_edge, out->domain_right_edge,
-			    out->periodic_left, out->periodic_right,
-			    out->domain_mins, out->domain_maxs, left_nodes,
-			    split);
+      out->root = new_build(out, 0, new_npts,
+			    inter_domain_left_edge, inter_domain_right_edge,
+			    inter_periodic_left, inter_periodic_right,
+			    inter_domain_mins, inter_domain_maxs,
+			    left_nodes, split);
       end_time(_tb, "total build");
+      // Finalize neighbors
+      debug_msg(local_debug, "consolidate_tree", "finalizing neighbors");
       out->finalize_neighbors(include_self);
     } else {
       // Send root back to source
-      send_node(src_exch.src, out->root);
+      debug_msg(local_debug, "consolidate_tree",
+		"sending root to %d", root);
+      send_node(root, tree->root);
     }
+    debug_msg(local_debug, "consolidate_tree", "barrier");
+    MPI_Barrier(MPI_COMM_WORLD);
     end_time(_t0, "consolidate_tree");
     return out;
   }
@@ -1089,6 +1130,7 @@ public:
   }
 
   void consolidate_order() {
+    // Should be depth first traversal of processes
     int nexch, nprev;
     uint32_t i;
     // Add self
@@ -1120,14 +1162,12 @@ public:
     int nsplits = nrounds*size;
     all_splits = std::vector<exch_rec>(nsplits);
     int i, j0, j, idst;
-    // int prank = 0;
+    // int prank = 1;
     // Gather all splits
     debug_msg(local_debug, "consolidate_splits", "gathering splits");
     MPI_Allgather(&(my_splits[0]), nrounds, *mpi_type_exch_rec,
 		  &(all_splits[0]), nrounds, *mpi_type_exch_rec,
 		  MPI_COMM_WORLD);
-    printf("%d: src_round = %d\n", rank, src_round);
-    print_exch_vec(my_splits);
     // Init left right for root based on periodicity
     if (src_exch.src == -1) {
       debug_msg(local_debug, "consolidate_splits", "initializing l/r splits");
@@ -1190,7 +1230,6 @@ public:
       // 	print_neighbors();
       // }
     }
-    print_neighbors();
     end_time(_t0, "consolidate_splits");
   }
 
@@ -1325,34 +1364,50 @@ public:
   }
 
   uint64_t new_consolidate_idx(uint64_t **temp_idx) {
+    bool local_debug = true;
     int p0, p;
     uint64_t nexch;
     uint64_t nprev = 0;
     // Get original index in order from kdtree
+    debug_msg(local_debug, "consolidate_idx",
+	      "%lu local points", local_npts);
     (*temp_idx) = (uint64_t*)malloc(local_npts*sizeof(uint64_t));
     for (uint64_t i = 0; i < local_npts; i++)
       (*temp_idx)[i] = orig_idx[all_idx[i]];
+    debug_msg(local_debug, "consolidate_idx",
+	      "initialized local index");
     // Consolidate index on root
     if (rank == root) {
+      (*temp_idx) = (uint64_t*)realloc(*temp_idx, inter_npts*sizeof(uint64_t));
       nprev = local_npts;
       for (p0 = 0; p0 < size; p0++) {
 	p = proc_order[p0];
 	if (p != rank) {
+	  debug_msg(local_debug, "consolidate_idx",
+		    "receiving from %d", p);
 	  MPI_Recv(&nexch, 1, MPI_UNSIGNED_LONG, p, p, 
 		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	  (*temp_idx) = (uint64_t*)realloc(*temp_idx, nprev+nexch);
+	  debug_msg(local_debug, "consolidate_idx",
+		    "receiving %lu points from %d", nexch, p);
 	  MPI_Recv((*temp_idx)+nprev, nexch, MPI_UNSIGNED_LONG, p, p,
 		   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	  nprev += nexch;
+	  debug_msg(local_debug, "consolidate_idx",
+		    "received %lu points from %d, count is now %lu",
+		    nexch, p, nprev);
 	}
       }
     } else {
       nexch = local_npts;
+      debug_msg(local_debug, "consolidate_idx",
+		"sending %lu points to %d", nexch, root);
       MPI_Send(&nexch, 1, MPI_UNSIGNED_LONG, root, rank, MPI_COMM_WORLD);
       MPI_Send((*temp_idx), nexch, MPI_UNSIGNED_LONG, root, rank, MPI_COMM_WORLD);
       free(*temp_idx);
       (*temp_idx) = NULL;
     }
+    debug_msg(local_debug, "consolidate_idx", "barrier");
+    MPI_Barrier(MPI_COMM_WORLD);
     return nprev;
   }
 

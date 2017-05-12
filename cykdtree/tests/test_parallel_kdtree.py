@@ -47,7 +47,6 @@ def fake_input(ndim, N=100, leafsize=10):
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_PyParallelKDTree(periodic=False, ndim=2):
-    print(ndim, periodic)
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -79,8 +78,7 @@ def test_consolidate(periodic=False, ndim=2):
                           plotfile='test_consolidate.png')
         Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                   periodic=periodic)
-        np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
-        Tpara.assert_equal(Tseri)
+        Tpara.assert_equal(Tseri, strict_idx=False)
     else:
         assert(Tpara is None)
 
@@ -115,7 +113,6 @@ def test_search_errors(periodic=False, ndim=2):
 
 @MPITest(Nproc, periodic=(False, True))
 def test_neighbors(periodic = False):
-    print(periodic)
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
@@ -127,7 +124,6 @@ def test_neighbors(periodic = False):
         plotfile = 'test_neighbors.png'
         plot2D_parallel(tree, label_boxes=True, label_procs=True,
                         plotfile=plotfile)
-        print(plotfile)
     # Prepare neighbors
     if periodic:
         left_neighbors = [left_neighbors_x_periodic, left_neighbors_y_periodic]

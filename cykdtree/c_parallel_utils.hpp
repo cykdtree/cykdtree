@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <cstdarg>
 #include "mpi.h"
+#include <time.h>
+#include <unistd.h>
 //#define DEBUG
 //#define TIMINGS
 #ifdef TIMINGS
@@ -93,6 +95,7 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 				    uint64_t npts, uint32_t ndim,
 				    double *left_edge, double *right_edge,
                                     bool *periodic_left, bool *periodic_right,
+				    double *domain_mins, double *domain_maxs,
 				    exch_rec &src_exch, std::vector<exch_rec> &dst_exch,
 				    MPI_Comm comm = MPI_COMM_WORLD);
 SplitNode* consolidate_split_tree(exch_rec src_exch, std::vector<exch_rec> dst_exch,

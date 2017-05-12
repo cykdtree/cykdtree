@@ -142,26 +142,36 @@ SplitNode::~SplitNode() {
     delete greater;
 }
 void SplitNode::send(int idst, MPI_Comm comm) {
+  bool local_debug = true;
   int rank;
   MPI_Comm_rank ( comm, &rank);
+  debug_msg(local_debug, "SplitNode::send", "sending processor");
   MPI_Send(&proc, 1, MPI_INT, idst, rank, comm);
   if (proc < 0) {
+    debug_msg(local_debug, "SplitNode::send", "sending exch");
     exch.send(idst, comm);
+    debug_msg(local_debug, "SplitNode::send", "sending less");
     less->send(idst, comm);
+    debug_msg(local_debug, "SplitNode::send", "sending greater");
     greater->send(idst, comm);
   }
 }
 void SplitNode::recv(int isrc, MPI_Comm comm) {
+  bool local_debug = true;
   int rank;
   MPI_Comm_rank ( comm, &rank);
+  debug_msg(local_debug, "SplitNode::recv", "receiving processor");
   MPI_Recv(&proc, 1, MPI_INT, isrc, isrc, comm, MPI_STATUS_IGNORE);
   if (proc < 0) {
+    debug_msg(local_debug, "SplitNode::recv", "receiving exch");
+    exch.recv(isrc, comm);
+    debug_msg(local_debug, "SplitNode::recv", "receiving less");
     if (less == NULL)
       less = new SplitNode(-1);
+    less->recv(isrc, comm);
+    debug_msg(local_debug, "SplitNode::recv", "receiving greater");
     if (greater == NULL)
       greater = new SplitNode(-1);
-    exch.recv(isrc, comm);
-    less->recv(isrc, comm);
     greater->recv(isrc, comm);
   }
 }
@@ -621,8 +631,8 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 				    uint64_t npts, uint32_t ndim,
 				    double *left_edge, double *right_edge,
 				    bool *periodic_left, bool *periodic_right,
+				    double *domain_mins, double *domain_maxs,
 				    exch_rec &src_exch, std::vector<exch_rec> &dst_exch,
-				    
 				    MPI_Comm comm) {
   bool local_debug = true;
   MPI_Comm orig_comm = comm;
@@ -637,15 +647,13 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   MPI_Bcast(right_edge, ndim, MPI_DOUBLE, root, orig_comm);
   bcast_bool(periodic_left, ndim, root, orig_comm);
   bcast_bool(periodic_right, ndim, root, orig_comm);
+  MPI_Bcast(domain_mins, ndim, MPI_DOUBLE, root, orig_comm);
+  MPI_Bcast(domain_maxs, ndim, MPI_DOUBLE, root, orig_comm);
 
   // Distribute randomly
   npts = parallel_distribute(pts, idx, npts, ndim, comm);
   debug_msg(local_debug, "kdtree_parallel_distribute",
 	    "%lu points", npts);
-
-  // Get mins/maxs
-  double *mins = min_pts(*pts, npts, ndim);
-  double *maxs = max_pts(*pts, npts, ndim);
 
   // Split until communicator is singular
   int size = orig_size, rank = orig_rank;
@@ -669,7 +677,8 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
 	      round, size, lroot, rroot);
 
     // Split points between lower/upper processes
-    npts = redistribute_split(pts, idx, npts, ndim, mins, maxs,
+    npts = redistribute_split(pts, idx, npts, ndim, 
+			      domain_mins, domain_maxs,
 			      split_idx, split_dim, split_val, 
 			      rroot, comm);
 
@@ -691,7 +700,7 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
     if (rank < rroot) {
       // Left split
       color = (color << 1);
-      maxs[split_dim] = split_val;
+      domain_maxs[split_dim] = split_val;
       right_edge[split_dim] = split_val;
       periodic_right[split_dim] = false;
       if (rank == lroot)
@@ -699,7 +708,7 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
     } else {
       // Right split
       color = (color << 1) + 1;
-      mins[split_dim] = split_val;
+      domain_mins[split_dim] = split_val;
       left_edge[split_dim] = split_val;
       periodic_left[split_dim] = false;
       if (rank == rroot)
@@ -715,8 +724,6 @@ uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
   }
 
   // Free and return
-  free(mins);
-  free(maxs);
   return npts;
 }
 
@@ -724,12 +731,14 @@ SplitNode* consolidate_split_tree(exch_rec src_exch,
 				  std::vector<exch_rec> dst_exch,
 				  MPI_Comm comm) {
   bool local_debug = true;
+  debug_msg(local_debug, "consolidate_split_tree", "begin");
   int rank;
   MPI_Comm_rank( comm, &rank);
   // Reconstruct tree of splits
   std::vector<exch_rec>::iterator it;
   SplitNode *lnode = new SplitNode(rank);
   SplitNode *rnode = NULL;
+  debug_msg(local_debug, "consolidate_split_tree", "initalized SplitNode");
   for (it = dst_exch.begin(); it != dst_exch.end(); it++) {
     debug_msg(local_debug, "consolidate_split_tree", 
 	      "receiving from %d", it->dst);
@@ -741,6 +750,8 @@ SplitNode* consolidate_split_tree(exch_rec src_exch,
     debug_msg(local_debug, "consolidate_split_tree",
 	      "sending to %d", src_exch.src);
     lnode->send(src_exch.src, comm);
+    debug_msg(local_debug, "consolidate_split_tree",
+	      "sent to %d", src_exch.src);
     delete lnode; // Don't delete rnode because its free as member of lnode
     lnode = NULL;
     rnode = NULL;

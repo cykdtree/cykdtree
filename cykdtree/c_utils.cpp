@@ -110,14 +110,19 @@ int64_t partition_given_pivot(double *pts, uint64_t *idx,
   // If all greater than pivot, j will be l-1
   if (r < l)
     return -1;
-  int64_t i, j;
+  int64_t i, j, tp = -1;
   uint64_t t;
   for (i = l, j = r; i <= j; ) {
     if ((pts[ndim*idx[i]+d] > pivot) && (pts[ndim*idx[j]+d] <= pivot)) {
       t = idx[i]; idx[i] = idx[j]; idx[j] = t;
     }
+    if (isEqual(pts[ndim*idx[i]+d], pivot)) tp = i;
+    // if (pts[ndim*idx[i]+d] == pivot) tp = i;
     if (pts[ndim*idx[i]+d] <= pivot) i++;
     if (pts[ndim*idx[j]+d] > pivot) j--;
+  }
+  if ((tp >= 0) && (tp != j)) {
+    t = idx[tp]; idx[tp] = idx[j]; idx[j] = t;
   }
 
   return j;

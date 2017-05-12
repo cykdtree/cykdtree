@@ -335,6 +335,8 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     cdef double *ptr_re = <double*>malloc(ndim*sizeof(double));
     cdef cbool *ptr_ple = <cbool*>malloc(ndim*sizeof(cbool));
     cdef cbool *ptr_pre = <cbool*>malloc(ndim*sizeof(cbool));
+    cdef double *ptr_min = <double*>malloc(ndim*sizeof(double));
+    cdef double *ptr_max = <double*>malloc(ndim*sizeof(double));
     cdef uint32_t d;
     cdef exch_rec src;
     cdef vector[exch_rec] dst;
@@ -351,6 +353,8 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
             ptr_re[d] = re[d]
             ptr_ple[d] = <cbool>ple[d]
             ptr_pre[d] = <cbool>pre[d]
+            ptr_min[d] = le[d]
+            ptr_max[d] = re[d]
     else:
         assert(pts is None)
     ndim = comm.bcast(ndim, root=0)
@@ -372,7 +376,7 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     # Distribute
     cdef uint64_t new_npts = kdtree_parallel_distribute(
         &ptr_pts, &ptr_idx, npts, ndim,
-        ptr_le, ptr_re, ptr_ple, ptr_pre,
+        ptr_le, ptr_re, ptr_ple, ptr_pre, ptr_min, ptr_max,
         src, dst)
     # Array version
     cdef np.ndarray[np.float64_t, ndim=2] new_pts
@@ -403,6 +407,8 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     free(ptr_re)
     free(ptr_ple)
     free(ptr_pre)
+    free(ptr_min)
+    free(ptr_max)
     # Memory view version
     # cdef np.float64_t[:,:] new_pts
     # cdef np.uint64_t[:] new_idx

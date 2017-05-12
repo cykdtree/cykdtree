@@ -69,10 +69,12 @@ cdef extern from "c_parallel_utils.hpp":
                                         uint64_t npts, uint32_t ndim,
                                         double *left_edge, double *right_edge,
                                         bool *periodic_left, bool *periodic_right,
+                                        double *domain_mins, double *domain_maxs,
                                         exch_rec &src, vector[exch_rec] &dst) nogil
     uint64_t kdtree_parallel_distribute(double **pts, uint64_t **idx,
                                         uint64_t npts, uint32_t ndim,
                                         double *left_edge, double *right_edge,
                                         bool *periodic_left, bool *periodic_right,
+                                        double *domain_mins, double *domain_maxs,
                                         exch_rec &src, vector[exch_rec] &dst,
                                         MPI_Comm comm) nogil

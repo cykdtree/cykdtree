@@ -303,21 +303,21 @@ public:
     periodic_left = periodic_left0;
     periodic_right = periodic_right0;
     periodic = (bool*)malloc(ndim*sizeof(bool));
+    domain_mins = NULL;
+    domain_maxs = NULL;
     num_leaves = 0;
 
-    if (domain_mins0 == NULL)
-      domain_mins = min_pts(pts, n, m);
-    else {
+    if (domain_mins0 != NULL) {
       domain_mins = (double*)malloc(ndim*sizeof(double));
-      for (uint32_t d = 0; d < ndim; d++)
-	domain_mins[d] = domain_mins0[d];
+      memcpy(domain_mins, domain_mins0, ndim*sizeof(double));
+    } else if (pts != NULL) {
+      domain_mins = min_pts(pts, n, m);
     }
-    if (domain_maxs0 == NULL)
-      domain_maxs = max_pts(pts, n, m);
-    else {
+    if (domain_maxs0 != NULL) {
       domain_maxs = (double*)malloc(ndim*sizeof(double));
-      for (uint32_t d = 0; d < ndim; d++)
-	domain_maxs[d] = domain_maxs0[d];
+      memcpy(domain_maxs, domain_maxs0, ndim*sizeof(double));
+    } else if (pts != NULL) {
+      domain_maxs = max_pts(pts, n, m);
     }
 
     any_periodic = false;
@@ -335,7 +335,7 @@ public:
       domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
     }
 
-    if (!(dont_build))
+    if ((pts != NULL) && (!(dont_build)))
       build_tree(pts, include_self);
 
   }
@@ -355,10 +355,14 @@ public:
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
     periodic = periodic0;
+    domain_mins = NULL;
+    domain_maxs = NULL;
     num_leaves = 0;
 
-    domain_mins = min_pts(pts, n, m);
-    domain_maxs = max_pts(pts, n, m);
+    if (pts != NULL) {
+      domain_mins = min_pts(pts, n, m);
+      domain_maxs = max_pts(pts, n, m);
+    }
 
     any_periodic = false;
     for (uint32_t d = 0; d < ndim; d++) {
@@ -377,15 +381,17 @@ public:
       domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
     }
 
-    if (!(dont_build))
+    if ((pts != NULL) && (!(dont_build)))
       build_tree(pts, include_self);
 
   }
   ~KDTree()
   {
     free(domain_width);
-    free(domain_mins);
-    free(domain_maxs);
+    if (domain_mins != NULL)
+      free(domain_mins);
+    if (domain_maxs != NULL)
+      free(domain_maxs);
     free(root);
     if (is_partial) {
       free(periodic);
@@ -415,6 +421,11 @@ public:
     double *mins = (double*)malloc(ndim*sizeof(double));
     double *maxs = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> left_nodes;
+
+    if (domain_mins == NULL)
+      domain_mins = min_pts(all_pts, npts, ndim);
+    if (domain_maxs == NULL)
+      domain_maxs = max_pts(all_pts, npts, ndim);
 
     for (d = 0; d < ndim; d++) {
       LE[d] = domain_left_edge[d];
