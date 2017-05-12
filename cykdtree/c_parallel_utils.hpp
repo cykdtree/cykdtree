@@ -14,6 +14,7 @@
 #include <unistd.h>
 //#define DEBUG
 //#define TIMINGS
+//#define NEW_VERSION
 #ifdef TIMINGS
 #include <ctime>
 #endif

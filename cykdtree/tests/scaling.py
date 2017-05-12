@@ -6,7 +6,6 @@ import cProfile
 import pstats
 from cykdtree.tests import run_test
 import matplotlib.pyplot as plt
-np.random.seed(10)
 
 
 def stats_run(npart, nproc, ndim, periodic=False, overwrite=False,
@@ -29,10 +28,13 @@ def stats_run(npart, nproc, ndim, periodic=False, overwrite=False,
 
     """
     perstr = ""
+    outstr = ""
     if periodic:
         perstr = "_periodic"
-    fname_stat = 'stat_{}part_{}proc_{}dim{}.txt'.format(
-        npart, nproc, ndim, perstr)
+    if suppress_final_output:
+        outstr = "_noout"
+    fname_stat = 'stat_{}part_{}proc_{}dim{}{}.txt'.format(
+        npart, nproc, ndim, perstr, outstr)
     if overwrite or not os.path.isfile(fname_stat):
         cProfile.run(
             "from cykdtree.tests import run_test; "+
@@ -47,7 +49,7 @@ def stats_run(npart, nproc, ndim, periodic=False, overwrite=False,
     return fname_stat
 
 
-def time_run(npart, nproc, ndim, nrep=1, periodic=False, 
+def time_run(npart, nproc, ndim, nrep=1, periodic=False, leafsize=10,
              suppress_final_output=False):
     r"""Get runing times using :package:`time`.
 
@@ -59,6 +61,8 @@ def time_run(npart, nproc, ndim, nrep=1, periodic=False,
             get an average. Defaults to 1.
         periodic (bool, optional): If True, the domain is assumed to be
             periodic. Defaults to False.
+        leafsize (int, optional): The maximum number of points that should be
+            in any leaf in the tree. Defaults to 10.
         suppress_final_output (bool, optional): If True, the final output 
             from spawned MPI processes is suppressed. This is mainly for
             timing purposes. Defaults to False.
@@ -67,14 +71,16 @@ def time_run(npart, nproc, ndim, nrep=1, periodic=False,
     times = np.empty(nrep, 'float')
     for i in range(nrep):
         t1 = time.time()
-        run_test(npart, ndim, nproc=nproc, periodic=periodic,
+        run_test(npart, ndim, nproc=nproc,
+                 periodic=periodic, leafsize=leafsize,
                  suppress_final_output=suppress_final_output)
         t2 = time.time()
         times[i] = t2 - t1
     return np.mean(times), np.std(times)
 
 
-def strong_scaling(npart=1e6, nrep=1, periodic=False, overwrite=True,
+def strong_scaling(npart=1e6, nrep=1, periodic=False,
+                   leafsize=10, overwrite=True,
                    suppress_final_output=False):
     r"""Plot the scaling with number of processors for a particular function.
 
@@ -84,6 +90,8 @@ def strong_scaling(npart=1e6, nrep=1, periodic=False, overwrite=True,
             get an average. Defaults to 1.
         periodic (bool, optional): If True, the domain is assumed to be
             periodic. Defaults to False.
+        leafsize (int, optional): The maximum number of points that should be
+            in any leaf in the tree. Defaults to 10.
         overwrite (bool, optional): If True, the existing file for this
             set of input parameters if overwritten. Defaults to False.
         suppress_final_output (bool, optional): If True, the final output 
@@ -93,10 +101,13 @@ def strong_scaling(npart=1e6, nrep=1, periodic=False, overwrite=True,
     """
     npart = int(npart)
     perstr = ""
+    outstr = ""
     if periodic:
         perstr = "_periodic"
-    fname_plot = 'plot_strong_scaling_nproc_{}part{}.png'.format(
-        npart, perstr)
+    if suppress_final_output:
+        outstr = "_noout"
+    fname_plot = 'plot_strong_scaling_nproc_{}part{}_{}leafsize{}.png'.format(
+        npart, perstr, leafsize, outstr)
     nproc_list = [1, 2, 4, 8, 16]
     ndim_list = [2, 3, 4]
     clr_list = ['b', 'r', 'g', 'm']
@@ -104,7 +115,8 @@ def strong_scaling(npart=1e6, nrep=1, periodic=False, overwrite=True,
     for j, nproc in enumerate(nproc_list):
         for i, ndim in enumerate(ndim_list):
             times[j, i, 0], times[j, i, 1] = time_run(
-                npart, nproc, ndim, nrep=nrep, periodic=periodic,
+                npart, nproc, ndim, nrep=nrep,
+                periodic=periodic, leafsize=leafsize,
                 suppress_final_output=suppress_final_output)
             print("Finished {}D on {}.".format(ndim, nproc))
     fig, axs = plt.subplots(1, 1)
@@ -120,8 +132,8 @@ def strong_scaling(npart=1e6, nrep=1, periodic=False, overwrite=True,
     print('    '+fname_plot)
 
 
-def weak_scaling(npart=1e4, nrep=1, periodic=False, overwrite=True,
-                 suppress_final_output=False):
+def weak_scaling(npart=1e4, nrep=1, periodic=False, leafsize=10,
+                 overwrite=True, suppress_final_output=False):
     r"""Plot the scaling with number of processors with a constant number of
     particles per processor for a particular function.
 
@@ -132,6 +144,8 @@ def weak_scaling(npart=1e4, nrep=1, periodic=False, overwrite=True,
             get an average. Defaults to 1.
         periodic (bool, optional): If True, the domain is assumed to be
             periodic. Defaults to False.
+        leafsize (int, optional): The maximum number of points that should be
+            in any leaf in the tree. Defaults to 10.
         overwrite (bool, optional): If True, the existing file for this
             set of input parameters if overwritten. Defaults to False.
         suppress_final_output (bool, optional): If True, the final output 
@@ -141,9 +155,13 @@ def weak_scaling(npart=1e4, nrep=1, periodic=False, overwrite=True,
     """
     npart = int(npart)
     perstr = ""
+    outstr = ""
     if periodic:
         perstr = "_periodic"
-    fname_plot = 'plot_weak_scaling_nproc_{}part{}.png'.format(npart, perstr)
+    if suppress_final_output:
+        outstr = "_noout"
+    fname_plot = 'plot_weak_scaling_nproc_{}part{}_{}leafsize.png'.format(
+        npart, perstr, leafsize, outstr)
     nproc_list = [1, 2, 4, 8, 16]
     ndim_list = [2, 3]
     clr_list = ['b', 'r', 'g', 'm']
@@ -151,7 +169,8 @@ def weak_scaling(npart=1e4, nrep=1, periodic=False, overwrite=True,
     for j, nproc in enumerate(nproc_list):
         for i, ndim in enumerate(ndim_list):
             times[j, i, 0], times[j, i, 1] = time_run(
-                npart*nproc, nproc, ndim, nrep=nrep, periodic=periodic,
+                npart*nproc, nproc, ndim, nrep=nrep,
+                periodic=periodic, leafsize=leafsize,
                 suppress_final_output=suppress_final_output)
     fig, axs = plt.subplots(1, 1)
     for i in range(len(ndim_list)):

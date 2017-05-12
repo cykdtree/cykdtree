@@ -5,6 +5,8 @@ from datetime import datetime
 import os
 import traceback
 import signal
+import cProfile
+import pstats
 from subprocess import Popen, PIPE
 from mpi4py import MPI
 from cykdtree import PY_MAJOR_VERSION
@@ -27,6 +29,11 @@ def spawn_parallel(np.ndarray[np.float64_t, ndim=2] pts, int nproc, **kwargs):
     Args:
         pts (np.ndarray of float64): (n,m) Array of n mD points.
         nproc (int): The number of MPI processes that should be spawned.
+        profile (str, optional): If set to a file path, cProfile timing
+            statistics are saved to it. If set to True, the 25 most
+            costly calls are printed. Defaults to False.
+        suppress_final_output (bool, optional): If True, the tree is not
+            saved. Defaults to False.
         \*\*kwargs: Additional keyword arguments are passed to the appropriate
             class for constructuing the tree. 
 
@@ -55,7 +62,7 @@ def spawn_parallel(np.ndarray[np.float64_t, ndim=2] pts, int nproc, **kwargs):
         assert(os.path.isfile(finput))
     # Spawn in parallel
     cmd = ("mpirun -n %d python -c " +
-           "'from cykdtree import parallel_worker; "+
+           "'from cykdtree import parallel_worker; " +
            "parallel_worker(\"%s\", \"%s\")'") % (nproc, finput, foutput)
     print('Running the following command:\n%s' % cmd)
     p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
@@ -66,11 +73,15 @@ def spawn_parallel(np.ndarray[np.float64_t, ndim=2] pts, int nproc, **kwargs):
         print(err.decode('utf-8'))
         raise RuntimeError("Error on spawned process. See output.")
     # Read tree
-    assert(os.path.isfile(foutput))
-    tree = PyKDTree.from_file(foutput)
+    if not kwargs.get("suppress_final_output", False):
+        assert(os.path.isfile(foutput))
+        tree = PyKDTree.from_file(foutput)
+    else:
+        tree = None
     # Clean up
     os.remove(finput)
-    os.remove(foutput)
+    if not kwargs.get("suppress_final_output", False):
+        os.remove(foutput)
     # Return tree
     return tree
     
@@ -84,6 +95,13 @@ def parallel_worker(finput, foutput):
         foutput (str): Full path the file where the resulting tree should be
             saved.
 
+    Keyword arguments from input file:
+        profile (str, optional): If set to a file path, cProfile timing
+            statistics are saved to it. If set to True, the 25 most
+            costly calls are printed. Defaults to False.
+        suppress_final_output (bool, optional): If True, the tree is not
+            saved. Defaults to False.
+
     """
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -93,11 +111,28 @@ def parallel_worker(finput, foutput):
             pts, kwargs = pickle.load(fd)
     else:
         pts, kwargs = (None, {})
+    profile = kwargs.pop("profile", False)
+    suppress_final_output = kwargs.pop("suppress_final_output", False)
+    suppress_final_output = comm.bcast(suppress_final_output, root=0)
     # Build & consolidate tree
+    if profile:
+        pr = cProfile.Profile()
+        pr.enable()
+    print('constructing')
     ptree = PyParallelKDTree(pts, **kwargs)
-    tree = ptree.consolidate()
+    # Consolidate
+    if not suppress_final_output:
+        print('consolidating')
+        tree = ptree.consolidate()
+    if profile:
+        pr.disable()
+        if isinstance(profile, str):
+            pr.dump_stats(profile)
+        else:
+            pstats.Stats(pr).sort_stats('time').print_stats(25)
     # Save output
-    if rank == 0:
+    if not suppress_final_output and (rank == 0):
+        print('saving')
         tree.save(foutput)
 
 

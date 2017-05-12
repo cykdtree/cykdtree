@@ -280,6 +280,7 @@ def run_test(npts, ndim, nproc=0, distrib='rand', periodic=False, leafsize=10,
             timing purposes. Defaults to False.
 
     """
+    from cykdtree import make_tree
     unique_str = datetime.today().strftime("%Y%j%H%M%S")
     pts, left_edge, right_edge, leafsize = make_points(npts, ndim,
                                                        leafsize=leafsize,
@@ -300,8 +301,7 @@ def run_test(npts, ndim, nproc=0, distrib='rand', periodic=False, leafsize=10,
         pr.disable()
         t1 = time.time()
         ps = pstats.Stats(pr)
-        if kwargs.get('use_mpi', False):
-            ps.add(kwargs['profile'])
+        ps.add(kwargs['profile'])
         if isinstance(profile, str):
             ps.dump_stats(profile)
             print("Stats saved to {}".format(profile))
@@ -317,7 +317,8 @@ from cykdtree.tests import test_utils
 from cykdtree.tests import test_kdtree
 from cykdtree.tests import test_plot
 from cykdtree.tests import test_parallel_kdtree
+from cykdtree.tests import scaling
 
 __all__ = ["MPITest", "test_utils", "test_kdtree",
            "test_parallel_kdtree", "test_plot", "make_points",
-           "make_points_neighbors", "run_test"]
+           "make_points_neighbors", "run_test", "scaling"]

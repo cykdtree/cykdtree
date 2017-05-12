@@ -7,7 +7,6 @@
 #include "c_parallel_utils.hpp"
 //#include "c_kdtree.hpp"
 
-#define new_version 1
 
 void send_leafnode(int dp, Node *node) {
   int i = 0;
@@ -32,6 +31,7 @@ void send_leafnode(int dp, Node *node) {
   MPI_Send(&(node->leafid), 1, MPI_UNSIGNED, dp, i++, MPI_COMM_WORLD);
   free(pe);
 }
+
 
 Node* recv_leafnode(int sp) {
   int i = 0;
@@ -69,6 +69,7 @@ Node* recv_leafnode(int sp) {
   free(re);
   return node;
 }
+
 
 class ParallelKDTree
 {
@@ -163,7 +164,11 @@ public:
 	  MPI_Send(&root, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
       }
       available = 0;
+#ifdef NEW_VERSION
+      all_idx = NULL;
+#else
       all_idx = idx;
+#endif
       orig_idx = idx;
       ndim = m;
       leafsize = leafsize0;
@@ -278,10 +283,10 @@ public:
       if (all_idx != NULL)
 	free(all_idx);
     }
-    if (new_version) {
-      if (orig_idx != NULL)
-	free(orig_idx);
-    }
+#ifdef NEW_VERSION
+    if (orig_idx != NULL)
+      free(orig_idx);
+#endif
     free(total_domain_left_edge);
     free(total_domain_right_edge);
     free(total_domain_width);
@@ -656,11 +661,12 @@ public:
   Node* recv_node(int sp, KDTree *this_tree, uint64_t prev_Lidx,
 		  double *le, double *re, bool *ple, bool *pre,
 		  std::vector<Node*> left_nodes) {
-    // bool local_debug = true;
-    // TODO: Add neighbors
+    bool local_debug = false;
     int tag = 0;
     Node *out;
     int is_empty, is_leaf;
+    debug_msg(local_debug, "recv_node",
+	      "receiving is_empty from %d", sp);
     MPI_Recv(&is_empty, 1, MPI_INT, sp, tag++, MPI_COMM_WORLD,
 	   MPI_STATUS_IGNORE);
     // Empty node
@@ -671,6 +677,8 @@ public:
     // Receive properties innernodes and leaf nodes have
     uint32_t d;
     uint64_t Lidx;
+    debug_msg(local_debug, "recv_node",
+	      "receiving node properties from %d", sp);
     MPI_Recv(&Lidx, 1, MPI_UNSIGNED_LONG, sp, tag++, MPI_COMM_WORLD,
     	     MPI_STATUS_IGNORE);
     // Proceed based on status as leaf
@@ -678,12 +686,11 @@ public:
 	     MPI_STATUS_IGNORE);
     if (is_leaf) {
       uint64_t children;
-      // int leafid;
       // Leaf properties
+      debug_msg(local_debug, "recv_node",
+		"receiving leaf from %d", sp);
       MPI_Recv(&children, 1, MPI_UNSIGNED_LONG, sp, tag++,
 	       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      // MPI_Recv(&leafid, 1, MPI_INT, sp, tag++, MPI_COMM_WORLD,
-      // 	       MPI_STATUS_IGNORE);
       out = new Node(ndim, le, re, ple, pre, 
 		     prev_Lidx + Lidx, children, 
 		     this_tree->num_leaves, left_nodes);
@@ -693,6 +700,8 @@ public:
       // Innernode properties
       uint32_t sdim;
       double split;
+      debug_msg(local_debug, "recv_node",
+		"receiving innernode from %d", sp);
       MPI_Recv(&sdim, 1, MPI_UNSIGNED, sp, tag++, MPI_COMM_WORLD,
 	       MPI_STATUS_IGNORE);
       MPI_Recv(&split, 1, MPI_DOUBLE, sp, tag++, MPI_COMM_WORLD,
@@ -704,8 +713,8 @@ public:
       bool *pre_l = (bool*)malloc(ndim*sizeof(bool));
       memcpy(le_r, le, ndim*sizeof(double));
       memcpy(re_l, re, ndim*sizeof(double));
-      memcpy(ple_r, ple, ndim*sizeof(double));
-      memcpy(pre_l, pre, ndim*sizeof(double));
+      memcpy(ple_r, ple, ndim*sizeof(bool));
+      memcpy(pre_l, pre, ndim*sizeof(bool));
       le_r[sdim] = split;
       re_l[sdim] = split;
       ple_r[sdim] = false;
@@ -714,18 +723,25 @@ public:
       for (d = 0; d < ndim; d++)
 	greater_left_nodes.push_back(left_nodes[d]);
       // Child nodes
+      debug_msg(local_debug, "recv_node",
+		"receiving less from %d", sp);
       Node *less = recv_node(sp, this_tree, prev_Lidx,
 			     le, re_l, ple, pre_l, left_nodes);
       greater_left_nodes[sdim] = less;
+      debug_msg(local_debug, "recv_node",
+		"receiving greater from %d", sp);
       Node *greater = recv_node(sp, this_tree, prev_Lidx,
 				le_r, re, ple_r, pre, greater_left_nodes);
+      debug_msg(local_debug, "recv_node", "creating node");
       out = new Node(ndim, le, re, ple, pre, prev_Lidx+Lidx, sdim, split, 
 		     less, greater, left_nodes);
       // Free child properties
+      debug_msg(local_debug, "recv_node", "freeing things");
       free(le_r);
       free(re_l);
       free(ple_r);
       free(pre_l);
+      debug_msg(local_debug, "recv_node", "freed");
     }
     return out;
   }
@@ -743,11 +759,11 @@ public:
       return;
     // Send properties innernodes and leaf nodes have
     debug_msg(local_debug, "send_node",
-	      "sending left_idx to %d", dp);
+	      "sending left_idx = %lu to %d", node->left_idx, dp);
     MPI_Send(&(node->left_idx), 1, MPI_UNSIGNED_LONG, dp, tag++, MPI_COMM_WORLD);
     // Proceed based on status as leaf
     debug_msg(local_debug, "send_node",
-	      "sending is_leaf to %d", dp);
+	      "sending is_leaf = %d to %d", (int)(node->is_leaf), dp);
     is_leaf = (int)(node->is_leaf);
     MPI_Send(&is_leaf, 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
     if (is_leaf) {
@@ -756,7 +772,6 @@ public:
 		"sending children to %d", dp);
       MPI_Send(&(node->children), 1, MPI_UNSIGNED_LONG, dp, tag++,
 	       MPI_COMM_WORLD);
-      // MPI_Send(&(node->leafid), 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
     } else {
       // Innernode properties
       debug_msg(local_debug, "send_node",
@@ -781,8 +796,8 @@ public:
     bool local_debug = true;
     Node *out;
     // Don't continue if split is NULL
-    if (split == NULL)
-      return NULL;
+    if (split == NULL) return NULL;
+      
     // Leaf in the split tree
     if (split->proc >= 0) {
       debug_msg(local_debug, "build", "leaf encountered");
@@ -801,6 +816,8 @@ public:
 		  split->proc);
 	out = recv_node(split->proc, new_tree, Lidx, LE, RE, PLE, PRE,
 			left_nodes);
+	debug_msg(local_debug, "build", "received node from %d",
+		  split->proc);
       }
     } else {
       debug_msg(local_debug, "build", "intermediate node");
@@ -817,12 +834,12 @@ public:
       double *lmaxs = (double*)malloc(ndim*sizeof(double));
       double *rmins = (double*)malloc(ndim*sizeof(double));
       std::vector<Node*> r_left_nodes;
-      memcpy(lmaxs, maxs, ndim*sizeof(double));
-      memcpy(rmins, mins, ndim*sizeof(double));
       memcpy(lRE, RE, ndim*sizeof(double));
       memcpy(rLE, LE, ndim*sizeof(double));
-      memcpy(lPRE, PRE, ndim*sizeof(double));
-      memcpy(rPLE, PLE, ndim*sizeof(double));
+      memcpy(lPRE, PRE, ndim*sizeof(bool));
+      memcpy(rPLE, PLE, ndim*sizeof(bool));
+      memcpy(lmaxs, maxs, ndim*sizeof(double));
+      memcpy(rmins, mins, ndim*sizeof(double));
       for (d = 0; d < ndim; d++) 
 	r_left_nodes.push_back(left_nodes[d]);
       lmaxs[idst.split_dim] = idst.split_val;
@@ -887,12 +904,12 @@ public:
     double *lmaxs = (double*)malloc(ndim*sizeof(double));
     double *rmins = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> r_left_nodes;
-    memcpy(lmaxs, maxs, ndim*sizeof(double));
-    memcpy(rmins, mins, ndim*sizeof(double));
     memcpy(lRE, RE, ndim*sizeof(double));
     memcpy(rLE, LE, ndim*sizeof(double));
-    memcpy(lPRE, PRE, ndim*sizeof(double));
-    memcpy(rPLE, PLE, ndim*sizeof(double));
+    memcpy(lPRE, PRE, ndim*sizeof(bool));
+    memcpy(rPLE, PLE, ndim*sizeof(bool));
+    memcpy(lmaxs, maxs, ndim*sizeof(double));
+    memcpy(rmins, mins, ndim*sizeof(double));
     for (d = 0; d < ndim; d++) 
       r_left_nodes.push_back(left_nodes[d]);
     lmaxs[idst.split_dim] = idst.split_val;
@@ -925,10 +942,11 @@ public:
   void build_tree(double *all_pts) {
     // Get points for this process
     double **new_all_pts = &all_pts;
-    if (new_version)
-      new_partition(new_all_pts);
-    else
-      partition(new_all_pts);
+#ifdef NEW_VERSION
+    new_partition(new_all_pts);
+#else
+    partition(new_all_pts);
+#endif
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
     tree->build_tree(*new_all_pts, include_self);
@@ -936,8 +954,9 @@ public:
     end_time(_t0, "build_tree");
     consolidate();
     // Free points (only new version)
-    if (new_version)
-      free(*new_all_pts);
+#ifdef NEW_VERSION
+    free(*new_all_pts);
+#endif
   }
 
   void new_partition(double **all_pts) {
@@ -954,11 +973,9 @@ public:
 					    local_domain_mins, local_domain_maxs,
 					    src_exch, dst_exch, MPI_COMM_WORLD);
     // Set things
-    if (!(is_root)) {
-      all_idx = (uint64_t*)malloc(local_npts*sizeof(uint64_t));
-      for (uint64_t i = 0; i < local_npts; i++)
-	all_idx[i] = i;
-    }
+    all_idx = (uint64_t*)realloc(all_idx, local_npts*sizeof(uint64_t));
+    for (uint64_t i = 0; i < local_npts; i++)
+      all_idx[i] = i;
     for (uint32_t d = 0; d < ndim; d++) {
       if ((local_periodic_left[d]) && (local_periodic_right[d])) {
         local_any_periodic = true;
@@ -1031,10 +1048,11 @@ public:
   }
 
   KDTree* consolidate_tree() {
-    if (new_version) 
-      return new_consolidate_tree();
-    else
-      return old_consolidate_tree();
+#ifdef NEW_VERSION
+    return new_consolidate_tree();
+#else
+    return old_consolidate_tree();
+#endif
   }
 
   KDTree* new_consolidate_tree() {
@@ -1371,14 +1389,18 @@ public:
     // Get original index in order from kdtree
     debug_msg(local_debug, "consolidate_idx",
 	      "%lu local points", local_npts);
-    (*temp_idx) = (uint64_t*)malloc(local_npts*sizeof(uint64_t));
+    if (rank == root)
+      (*temp_idx) = (uint64_t*)malloc(inter_npts*sizeof(uint64_t));
+    else
+      (*temp_idx) = (uint64_t*)malloc(local_npts*sizeof(uint64_t));
+    debug_msg(local_debug, "consolidate_idx",
+	      "allocated local index");
     for (uint64_t i = 0; i < local_npts; i++)
       (*temp_idx)[i] = orig_idx[all_idx[i]];
     debug_msg(local_debug, "consolidate_idx",
 	      "initialized local index");
     // Consolidate index on root
     if (rank == root) {
-      (*temp_idx) = (uint64_t*)realloc(*temp_idx, inter_npts*sizeof(uint64_t));
       nprev = local_npts;
       for (p0 = 0; p0 < size; p0++) {
 	p = proc_order[p0];

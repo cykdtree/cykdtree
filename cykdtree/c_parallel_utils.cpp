@@ -312,6 +312,7 @@ int64_t parallel_select(double *pts, uint64_t *idx,
 			uint32_t ndim, uint32_t d,
 			int64_t l0, int64_t r0, int64_t n,
 			double &pivot_val, MPI_Comm comm) {
+  bool local_debug = false;
   int64_t p, nl, nl_tot;
   int size, rank;
   MPI_Comm_size ( comm, &size);
@@ -383,18 +384,21 @@ uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
   }
 
   // Consolidate mins/maxs
+  debug_msg(local_debug, "parallel_split", "consolidating mins/maxs");
   double *mins_tot = (double*)malloc(ndim*sizeof(double));
   double *maxs_tot = (double*)malloc(ndim*sizeof(double));
   MPI_Allreduce(mins, mins_tot, ndim, MPI_DOUBLE, MPI_MIN, comm);
   MPI_Allreduce(maxs, maxs_tot, ndim, MPI_DOUBLE, MPI_MAX, comm);
 
   // Find dimension to split along
+  debug_msg(local_debug, "parallel_split", "locating split dimension");
   uint32_t dmax, d;
   dmax = 0;
   for (d = 1; d < ndim; d++)
     if ((maxs_tot[d]-mins_tot[d]) > (maxs_tot[dmax]-mins_tot[dmax]))
       dmax = d;
   if (maxs_tot[dmax] == mins_tot[dmax]) {
+    debug_msg(local_debug, "parallel_split", "all points singular");
     // all points singular
     free(mins_tot);
     free(maxs_tot);
@@ -403,10 +407,12 @@ uint32_t parallel_split(double *all_pts, uint64_t *all_idx,
 
   // Find median along dimension
   int64_t nsel = (ntot/2) + (ntot%2);
+  debug_msg(local_debug, "parallel_split", "selecting %ld points", nsel);
   split_idx = parallel_select(all_pts, all_idx, ndim, dmax,
 			      Lidx, Lidx+n-1, nsel, split_val, comm);
 
   // Free and return
+  debug_msg(local_debug, "parallel_split", "freeing things");
   free(mins_tot);
   free(maxs_tot);
   return dmax;
