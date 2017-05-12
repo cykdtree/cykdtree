@@ -7,7 +7,7 @@
 #include "c_parallel_utils.hpp"
 //#include "c_kdtree.hpp"
 
-#define new_version 0
+#define new_version 1
 
 void send_leafnode(int dp, Node *node) {
   int i = 0;

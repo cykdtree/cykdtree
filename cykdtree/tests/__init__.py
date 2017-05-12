@@ -1,3 +1,8 @@
+from datetime import datetime
+import cProfile
+import pstats
+import time
+import signal
 from subprocess import Popen, PIPE
 from nose.tools import istest, nottest
 from mpi4py import MPI
@@ -28,6 +33,7 @@ def assert_less_equal(x, y):
         raise AssertionError("Variables are not less-equal ordered\n\n" +
                              "x: %s\ny: %s\n" % (str(x), str(y)))
 
+
 def call_subprocess(np, func, args, kwargs):
     # Create string with arguments & kwargs
     args_str = ""
@@ -52,6 +58,7 @@ def call_subprocess(np, func, args, kwargs):
         return None
     return output.decode('utf-8')
 
+
 def iter_dict(dicts):
     try:
         return (dict(itertools.izip(dicts, x)) for x in
@@ -59,6 +66,7 @@ def iter_dict(dicts):
     except AttributeError:
         # python 3
         return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
+
 
 def parametrize(**pargs):
     for k in pargs.keys():
@@ -88,6 +96,7 @@ def parametrize(**pargs):
         return func_param
 
     return dec
+
 
 def MPITest(Nproc, **pargs):
 
@@ -133,10 +142,182 @@ def MPITest(Nproc, **pargs):
             return try_func
     return dec
 
+
+np.random.seed(100)
+pts2 = np.random.rand(100, 2).astype('float64')
+pts3 = np.random.rand(100, 3).astype('float64')
+rand_state = np.random.get_state()
+left_neighbors_x = [[],  # None
+                    [0],
+                    [1],
+                    [2],
+                    [],  # None
+                    [],  # None
+                    [4, 5],
+                    [5]]
+left_neighbors_y = [[],  # None
+                    [],  # None
+                    [],  # None
+                    [],  # None
+                    [0, 1],
+                    [4],
+                    [1, 2, 3],
+                    [6]]
+left_neighbors_x_periodic = [[3],
+                             [0],
+                             [1],
+                             [2],
+                             [6],
+                             [6, 7],
+                             [4, 5],
+                             [5]]
+left_neighbors_y_periodic = [[5],
+                             [5, 7],
+                             [7],
+                             [7],
+                             [0, 1],
+                             [4],
+                             [1, 2, 3],
+                             [6]]
+
+
+@nottest
+def make_points_neighbors(periodic=False):
+    ndim = 2
+    npts = 50
+    leafsize = 10
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    if (size == 0) or (rank == 0):
+        np.random.set_state(rand_state)
+        pts = np.random.rand(npts, ndim).astype('float64')
+        left_edge = np.zeros(ndim, 'float64')
+        right_edge = np.ones(ndim, 'float64')
+    else:
+        pts = None
+        left_edge = None
+        right_edge = None
+    if periodic:
+        lx = left_neighbors_x_periodic
+        ly = left_neighbors_y_periodic
+    else:
+        lx = left_neighbors_x
+        ly = left_neighbors_y
+    num_leaves = len(lx)
+    ln = [lx, ly]
+    rn = [[[] for i in range(num_leaves)] for _
+              in range(ndim)]
+    for d in range(ndim):
+        for i in range(num_leaves):
+            for j in ln[d][i]:
+                rn[d][j].append(i)
+        for i in range(num_leaves):
+            rn[d][i] = list(set(rn[d][i]))
+    return pts, left_edge, right_edge, leafsize, ln, rn
+
+
+@nottest
+def make_points(npts, ndim, leafsize=10, distrib='rand', seed=100):
+    ndim = int(ndim)
+    npts = int(npts)
+    leafsize = int(leafsize)
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    np.random.seed(seed)
+    LE = 0.0
+    RE = 1.0
+    left_edge = LE*np.ones(ndim, 'float64')
+    right_edge = RE*np.ones(ndim, 'float64')
+    if (size == 0) or (rank == 0):
+        if npts <= 0:
+            npts = 100
+            leafsize = 10
+            if ndim == 2:
+                pts = pts2
+            elif ndim == 3:
+                pts = pts3
+            else:
+                pts = np.random.rand(npts, ndim).astype('float64')
+        else:
+            if distrib == 'rand':
+                pts = np.random.rand(npts, ndim).astype('float64')
+            elif distrib == 'uniform':
+                pts = np.random.uniform(low=LE, high=RE, size=(npts, ndim))
+            elif distrib in ('gaussian', 'normal'):
+                pts = np.random.normal(loc=(LE+RE)/2.0, scale=(RE-LE)/4.0,
+                                       size=(npts, ndim))
+                np.clip(pts, LE, RE)
+            else:
+                raise ValueError("Invalid 'distrib': {}".format(distrib))
+    else:
+        pts = None
+        left_edge = None
+        right_edge = None
+    return pts, left_edge, right_edge, leafsize
+
+
+@nottest
+def run_test(npts, ndim, nproc=0, distrib='rand', periodic=False, leafsize=10,
+             profile=False, suppress_final_output=False, **kwargs):
+    r"""Run a rountine with a designated number of points & dimensions on a
+    selected number of processors.
+
+    Args:
+        npart (int): Number of particles.
+        nproc (int): Number of processors.
+        ndim (int): Number of dimensions.
+        distrib (str, optional): Distribution that should be used when
+            generating points. Defaults to 'rand'.
+        periodic (bool, optional): If True, the domain is assumed to be
+            periodic. Defaults to False.
+        leafsize (int, optional): Maximum number of points that should be in
+            an leaf. Defaults to 10.
+        profile (bool, optional): If True cProfile is used. Defaults to False.
+        suppress_final_output (bool, optional): If True, the final output
+            from spawned MPI processes is suppressed. This is mainly for
+            timing purposes. Defaults to False.
+
+    """
+    unique_str = datetime.today().strftime("%Y%j%H%M%S")
+    pts, left_edge, right_edge, leafsize = make_points(npts, ndim,
+                                                       leafsize=leafsize,
+                                                       distrib=distrib)
+    # Set keywords for multiprocessing version
+    if nproc > 1:
+        kwargs['suppress_final_output'] = suppress_final_output
+        if profile:
+            kwargs['profile'] = '{}_mpi_profile.dat'.format(unique_str)
+    # Run
+    if profile:
+        pr = cProfile.Profile()
+        t0 = time.time()
+        pr.enable()
+    out = make_tree(pts, nproc=nproc, left_edge=left_edge, right_edge=right_edge,
+                    periodic=periodic, leafsize=leafsize, **kwargs)
+    if profile:
+        pr.disable()
+        t1 = time.time()
+        ps = pstats.Stats(pr)
+        if kwargs.get('use_mpi', False):
+            ps.add(kwargs['profile'])
+        if isinstance(profile, str):
+            ps.dump_stats(profile)
+            print("Stats saved to {}".format(profile))
+        else:
+            sort_key = 'tottime'
+            ps.sort_stats(sort_key).print_stats(25)
+            # ps.sort_stats(sort_key).print_callers(5)
+            print("{} s according to 'time'".format(t1-t0))
+        return ps    
+
+
 from cykdtree.tests import test_utils
 from cykdtree.tests import test_kdtree
 from cykdtree.tests import test_plot
 from cykdtree.tests import test_parallel_kdtree
 
 __all__ = ["MPITest", "test_utils", "test_kdtree",
-           "test_parallel_kdtree", "test_plot"]
+           "test_parallel_kdtree", "test_plot", "make_points",
+           "make_points_neighbors", "run_test"]

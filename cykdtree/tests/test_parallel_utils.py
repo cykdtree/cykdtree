@@ -5,8 +5,8 @@ from mpi4py import MPI
 from cykdtree.tests import MPITest, assert_less_equal
 from cykdtree import utils
 from cykdtree import parallel_utils
-
 Nproc = (3,4,5)
+
 
 @MPITest(Nproc, ndim=(2,3))
 def test_parallel_distribute(ndim=2):

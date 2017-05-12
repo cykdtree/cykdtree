@@ -2,13 +2,99 @@ import cython
 import numpy as np
 cimport numpy as np
 import traceback
+import signal
+from subprocess import Popen, PIPE
 from mpi4py import MPI
+from cykdtree import PY_MAJOR_VERSION
+if PY_MAJOR_VERSION == 2:
+    import cPickle as pickle
+else:
+    import pickle
 
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from cpython cimport bool as pybool
 
 from libc.stdint cimport uint32_t, uint64_t, int32_t, int64_t
+
+
+def spawn_parallel(pts, nproc, **kwargs):
+    r"""Spawn processes to construct a tree in parallel and then
+    return the consolidated tree to the calling process.
+
+    Args:
+        pts (np.ndarray of float64): (n,m) Array of n mD points.
+        nproc (int): The number of MPI processes that should be spawned.
+        \*\*kwargs: Additional keyword arguments are passed to the appropriate
+            class for constructuing the tree. 
+
+    Returns:
+        T (:class:`cykdtree.PyKDTree`): KDTree object.
+
+    Raises:
+        AssertionError: If the input file cannot be created.
+        RuntimeError: If there is an error on one or more of the spawned
+            processes.
+        AssertionError: If the output file does not exist.
+
+    """
+    unique_str = datetime.today().strftime("%Y%j%H%M%S")
+    finput = 'input_%s.dat' % unique_str
+    foutput = 'output_%s.dat' % unique_str
+    # Save input to a file
+    out = [pts, kwargs]
+    if PY_MAJOR_VERSION == 2:
+        with open(finput, 'wb') as fd:
+            pickle.dump(out, fd, pickle.HIGHEST_PROTOCOL)
+        assert(os.path.isfile(finput))
+    else:
+        with open(finput, 'wb') as fd:
+            pickle.dump(out, fd)
+        assert(os.path.isfile(finput))
+    # Spawn in parallel
+    cmd = str("mpirun -n %d python -c " +
+              "'from cykdtree import parallel_worker; "+
+              "parallel_worker(\"%s\", \"%s\")'" % (nproc, finput, foutput))
+    print('Running the following command:\n%s' % cmd)
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+    output, err = p.communicate()
+    exit_code = p.returncode
+    print(output.decode('utf-8'))
+    if exit_code != 0:
+        print(err.decode('utf-8'))
+        raise RuntimeError("Error on spawned process. See output.")
+    # Read tree
+    assert(os.path.isfile(foutput))
+    # Clean up
+    os.remove(finput)
+    os.remove(foutput)
+    # Return tree
+
+
+def parallel_worker(finput, foutput):
+    r"""Load input on the root process, construct the tree in parallel,
+    consolidate the tree on the root process, and save the tree to a file.
+
+    Args:
+        finput (str): Full path to location of the input file.
+        foutput (str): Full path the file where the resulting tree should be
+            saved.
+
+    """
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    # Read input
+    if rank == 0:
+        with open(finput, 'rb') as fd:
+            pts, kwargs = pickle.load(fd)
+    else:
+        pts, kwargs = (None, {})
+    # Build & consolidate tree
+    ptree = PyParallelKDTree(pts, **kwargs)
+    tree = ptree.consolidate()
+    # Save output
+    if rank == 0:
+        pass
 
 
 cdef class PyParallelKDTree:

@@ -1,6 +1,8 @@
 import nose
 import sys
 import os
+PY_MAJOR_VERSION = sys.version_info[0]
+FLAG_MULTIPROC = True # TODO: check that mpi installed
 from cykdtree.kdtree import PyKDTree, PyNode
 from cykdtree.parallel_kdtree import PyParallelKDTree
 from cykdtree import tests, plot
@@ -33,6 +35,7 @@ def run_nose(verbose=False):
     finally:
         os.chdir(initial_dir)
 
+
 def get_include():
     """
     Return the directory that contains the NumPy \\*.h header files.
@@ -52,5 +55,34 @@ def get_include():
     return os.path.dirname(cykdtree.__file__)
 
 
+def make_tree(pts, nproc=0, **kwargs):
+    r"""Build a KD-tree for a set of points.
+
+    Args:
+        pts (np.ndarray of float64): (n,m) Array of n mD points.
+        nproc (int, optional): The number of MPI processes that should be
+            spawned. If <2, no processes are spawned. Defaults to 0.
+        \*\*kwargs: Additional keyword arguments are passed to the appropriate
+            class for constructuing the tree.
+
+    Returns:
+        T (:class:`cykdtree.PyKDTree`): KDTree object.
+
+    Raises:
+        ValueError: If `pts` is not a 2D array.
+
+    """
+    # Check input
+    if (pts.ndim != 2):
+        raise ValueError("pts must be a 2D array of coordinates")
+    # Parallel
+    if nproc > 1 and FLAG_MULTIPROC:
+        T = spawn_parallel(pts, nproc, **kwargs)
+    # Serial
+    else:
+        T = PyKDTree(pts, **kwargs)
+    return T
+
+
 __all__ = ["PyKDTree", "PyNode", "tests", "run_nose", "get_include",
-           "PyParallelKDTree", "plot"]
+           "PyParallelKDTree", "plot", "make_tree"]
