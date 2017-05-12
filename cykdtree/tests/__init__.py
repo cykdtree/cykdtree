@@ -43,7 +43,7 @@ def call_subprocess(np, func, args, kwargs):
         args_str += k+"="+str(v)+","
     if args_str.endswith(","):
         args_str = args_str[:-1]
-    cmd = ["mpirun", "-n", str(np), "python", "-c",
+    cmd = ["mpirun", "-n", str(np), sys.executable, "-c",
            "'from %s import %s; %s(%s)'" % (func.__module__, func.__name__,
                                             func.__name__, args_str)] 
     cmd = ' '.join(cmd)

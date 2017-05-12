@@ -7,3 +7,4 @@ cykdtree/utils.cpp
 cykdtree.egg-info/
 *.so
 *.o
+*.pyc

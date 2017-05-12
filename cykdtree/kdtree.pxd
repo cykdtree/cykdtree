@@ -4,6 +4,36 @@ from libcpp.pair cimport pair
 from libcpp cimport bool
 from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
+cdef extern from "<iostream>" namespace "std":
+    cdef cppclass istream:
+        pass
+
+    cdef cppclass ostream:
+        pass
+
+# the following extern definitions adapted from
+# http://stackoverflow.com/a/31009461/1382869
+    
+# obviously std::ios_base isn't a namespace, but this lets
+# Cython generate the correct C++ code
+cdef extern from "<iostream>" namespace "std::ios_base":
+    cdef cppclass open_mode:
+        pass
+    cdef open_mode binary
+    # you can define other constants as needed
+
+cdef extern from "<fstream>" namespace "std":
+    cdef cppclass ofstream(ostream):
+        # constructors
+        ofstream(const char*) except +
+        ofstream(const char*, open_mode) except+
+
+    cdef cppclass ifstream(istream):
+        # constructors
+        ifstream(const char*) except +
+        ifstream(const char*, open_mode) except+
+
+
 cdef extern from "c_kdtree.hpp":
     cdef cppclass Node:
         bool is_leaf
@@ -38,6 +68,8 @@ cdef extern from "c_kdtree.hpp":
         Node* root
         KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
                double *left_edge, double *right_edge, bool *periodic)
+        KDTree(istream &ist)
+        void serialize(ostream &os)
         double* wrap_pos(double* pos) nogil
         vector[uint32_t] get_neighbor_ids(double* pos) nogil
         Node* search(double* pos) nogil

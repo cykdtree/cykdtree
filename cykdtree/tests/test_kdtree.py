@@ -1,6 +1,6 @@
 import numpy as np
 import time
-# from nose.tools import assert_equal
+import tempfile
 from nose.tools import assert_raises
 import cykdtree
 from cykdtree.tests import parametrize, make_points, make_points_neighbors
@@ -93,3 +93,14 @@ def time_neighbor_search(Ntime, LStime, ndim=2):
     tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
     t1 = time.time()
     print("{} {}D points, leafsize {}: took {} s".format(Ntime, ndim, LStime, t1-t0))
+
+def test_save_load():
+    for periodic in (True, False):
+        for ndim in range(1, 5):
+            pts, le, re, ls = fake_input(ndim)
+            tree = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
+                                     periodic=periodic)
+            with tempfile.NamedTemporaryFile() as tf:
+                tree.save(tf.name)
+                restore_tree = cykdtree.PyKDTree.from_file(tf.name)
+                tree.assert_equal(restore_tree)

@@ -5,6 +5,7 @@ cimport numpy as np
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from cpython cimport bool as pybool
+from cython.operator cimport dereference
 
 from libc.stdint cimport uint32_t, uint64_t, int32_t, int64_t
 
@@ -14,21 +15,21 @@ cdef class PyNode:
     Attributes:
         npts (np.uint64_t): Number of points in this node.
         ndim (np.uint32_t): Number of dimensions in domain.
-        num_leaves (np.uint32_t): Number of leaves in the tree containing this 
+        num_leaves (np.uint32_t): Number of leaves in the tree containing this
             node.
         start_idx (np.uint64_t): Index where indices for this node begin.
         stop_idx (np.uint64_t): One passed the end of indices for this node.
-        left_edge (np.ndarray of float64): Minimum bounds of this node in each 
+        left_edge (np.ndarray of float64): Minimum bounds of this node in each
             dimension.
-        right_edge (np.ndarray of float64): Maximum bounds of this node in each 
+        right_edge (np.ndarray of float64): Maximum bounds of this node in each
             dimension.
         periodic_left (np.ndarray of bool): Periodicity of minimum bounds.
         periodic_right (np.ndarray of bool): Periodicity of maximum bounds.
         domain_width (np.ndarray of float64): Width of the total domain in each
             dimension.
-        left_neighbors (list of lists): Indices of neighbor leaves at the 
+        left_neighbors (list of lists): Indices of neighbor leaves at the
             minimum bounds in each dimension.
-        right_neighbors (list of lists): Indices of neighbor leaves at the 
+        right_neighbors (list of lists): Indices of neighbor leaves at the
             maximum bounds in each dimension.
 
     """
@@ -118,26 +119,26 @@ cdef class PyNode:
             np.testing.assert_equal(self.left_neighbors[i], solf.left_neighbors[i])
             np.testing.assert_equal(self.right_neighbors[i], solf.right_neighbors[i])
         np.testing.assert_equal(self.neighbors, solf.neighbors)
-        
+
 
 cdef class PyKDTree:
     r"""Construct a KDTree for a set of points.
 
     Args:
-        pts (np.ndarray of double): (n,m) array of n coordinates in a 
+        pts (np.ndarray of double): (n,m) array of n coordinates in a
             m-dimensional domain.
         left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
         right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
-        periodic (bool or np.ndarray of bool, optional): Truth of the domain 
+        periodic (bool or np.ndarray of bool, optional): Truth of the domain
             periodicity overall (if bool), or in each dimension (if np.ndarray).
             Defaults to `False`.
-        leafsize (int, optional): The maximum number of points that should be in 
+        leafsize (int, optional): The maximum number of points that should be in
             a leaf. Defaults to 10000.
-        nleaves (int, optional): The number of leaves that should be in the 
-            resulting tree. If greater than 0, leafsize is adjusted to produce a 
-            tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword 
+        nleaves (int, optional): The number of leaves that should be in the
+            resulting tree. If greater than 0, leafsize is adjusted to produce a
+            tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword
             argument is ignored if nleaves is greater zero. Defaults to 0.
-        
+
     Raises:
         ValueError: If `leafsize < 2`. This currectly segfaults.
 
@@ -151,8 +152,8 @@ cdef class PyKDTree:
         left_edge (np.ndarray of double): (m,) domain minimum in each dimension.
         right_edge (np.ndarray of double): (m,) domain maximum in each dimension.
         domain_width (np.ndarray of double): (m,) domain width in each dimension.
-        periodic (np.ndarray of bool): Truth of domain periodicity in each 
-            dimension. 
+        periodic (np.ndarray of bool): Truth of domain periodicity in each
+            dimension.
 
     """
 
@@ -171,11 +172,7 @@ cdef class PyKDTree:
         for i in range(self.npts):
             self.idx[i] = tree.all_idx[i]
 
-    def __cinit__(self, np.ndarray[double, ndim=2] pts = None, 
-                  np.ndarray[double, ndim=1] left_edge = None, 
-                  np.ndarray[double, ndim=1] right_edge = None,
-                  object periodic = False, int leafsize = 10000,
-                  int nleaves = 0):
+    def __cinit__(self):
         # Initialize everthing to NULL/0/None to prevent seg fault
         self._tree = NULL
         self.npts = 0
@@ -187,6 +184,14 @@ cdef class PyKDTree:
         self._periodic = NULL
         self.leaves = None
         self.idx = None
+
+
+    def __init__(self, np.ndarray[double, ndim=2] pts = None,
+                 left_edge = None,
+                 right_edge = None,
+                 periodic = False,
+                 int leafsize = 10000,
+                 int nleaves = 0):
         # Return with nothing set if points not provided
         if pts is None:
             return
@@ -195,13 +200,17 @@ cdef class PyKDTree:
             nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
             leafsize = pts.shape[0]/nleaves + 1
         if (leafsize < 2):
-            # This is here to prevent segfault. The cpp code needs modified to 
+            # This is here to prevent segfault. The cpp code needs modified to
             # support leafsize = 1
             raise ValueError("'leafsize' cannot be smaller than 2.")
         if left_edge is None:
             left_edge = np.min(pts, axis=0)
+        else:
+            left_edge = np.array(left_edge)
         if right_edge is None:
             right_edge = np.max(pts, axis=0)
+        else:
+            right_edge = np.array(right_edge)
         cdef uint32_t k,i,j
         self.npts = <uint64_t>pts.shape[0]
         self.ndim = <uint32_t>pts.shape[1]
@@ -270,7 +279,7 @@ cdef class PyKDTree:
     cdef void _make_tree(self, double *pts):
         r"""Carry out creation of KDTree at C++ level."""
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
-        self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize, 
+        self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize,
                                 self._left_edge, self._right_edge, self._periodic)
         self.idx = idx
 
@@ -284,7 +293,7 @@ cdef class PyKDTree:
         for k in xrange(self.num_leaves):
             leafnode = self._tree.leaves[k]
             leafnode_py = PyNode(self.ndim)
-            leafnode_py._init_node(leafnode, self.num_leaves, 
+            leafnode_py._init_node(leafnode, self.num_leaves,
                                    self._tree.domain_width)
             self.leaves[leafnode.leafid] = leafnode_py
 
@@ -336,7 +345,7 @@ cdef class PyKDTree:
 
         Args:
             pos (np.ndarray of double): Coordinates.
-            
+
         Returns:
             np.ndarray of uint32: Leaves containing/neighboring `pos`.
 
@@ -367,7 +376,7 @@ cdef class PyKDTree:
 
         Args:
             pos (np.ndarray of double): Coordinates.
-            
+
         Returns:
             :class:`cykdtree.PyNode`: Leaf containing `pos`.
 
@@ -393,3 +402,41 @@ cdef class PyKDTree:
         leaves_re = np.empty((self.num_leaves, self.ndim), 'float64')
         self._tree.consolidate_edges(&leaves_le[0,0], &leaves_re[0,0])
         return (leaves_le, leaves_re)
+
+    def save(self, str filename):
+        r"""Saves the PyKDTree to disk as raw binary data.
+
+        Note that this file may not necessarily be portable.
+
+        Args:
+            filename (string): Name of the file to serialize the kdtree to
+
+        """
+        cdef KDTree* my_tree = self._tree
+        cdef ofstream* outputter = new ofstream(filename.encode('utf8'), binary)
+        try:
+            my_tree.serialize(dereference(outputter))
+        finally:
+            del outputter
+
+    @classmethod
+    def from_file(cls, str filename):
+        r"""Create a PyKDTree from a binary file created by ``PyKDTree.save()``
+
+        Note that loading a file created on another machine may create
+        a corrupted PyKDTree instance.
+
+        Args:
+            filename (string): Name of the file to serialize the kdtree to
+        
+        Returns:
+            :class:`cykdtree.PyKDTree`: A KDTree restored from the file
+
+        """
+        cdef ifstream* inputter = new ifstream(filename.encode(), binary)
+        cdef PyKDTree ret = cls()
+        try:
+            ret._init_tree(new KDTree(dereference(inputter)))
+        finally:
+            del inputter
+        return ret
