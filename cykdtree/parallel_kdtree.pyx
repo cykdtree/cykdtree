@@ -1,6 +1,8 @@
 import cython
 import numpy as np
 cimport numpy as np
+from datetime import datetime
+import os
 import traceback
 import signal
 from subprocess import Popen, PIPE
@@ -18,7 +20,7 @@ from cpython cimport bool as pybool
 from libc.stdint cimport uint32_t, uint64_t, int32_t, int64_t
 
 
-def spawn_parallel(pts, nproc, **kwargs):
+def spawn_parallel(np.ndarray[np.float64_t, ndim=2] pts, int nproc, **kwargs):
     r"""Spawn processes to construct a tree in parallel and then
     return the consolidated tree to the calling process.
 
@@ -52,9 +54,9 @@ def spawn_parallel(pts, nproc, **kwargs):
             pickle.dump(out, fd)
         assert(os.path.isfile(finput))
     # Spawn in parallel
-    cmd = str("mpirun -n %d python -c " +
-              "'from cykdtree import parallel_worker; "+
-              "parallel_worker(\"%s\", \"%s\")'" % (nproc, finput, foutput))
+    cmd = ("mpirun -n %d python -c " +
+           "'from cykdtree import parallel_worker; "+
+           "parallel_worker(\"%s\", \"%s\")'") % (nproc, finput, foutput)
     print('Running the following command:\n%s' % cmd)
     p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
     output, err = p.communicate()
@@ -65,11 +67,13 @@ def spawn_parallel(pts, nproc, **kwargs):
         raise RuntimeError("Error on spawned process. See output.")
     # Read tree
     assert(os.path.isfile(foutput))
+    tree = PyKDTree.from_file(foutput)
     # Clean up
     os.remove(finput)
     os.remove(foutput)
     # Return tree
-
+    return tree
+    
 
 def parallel_worker(finput, foutput):
     r"""Load input on the root process, construct the tree in parallel,
@@ -94,7 +98,7 @@ def parallel_worker(finput, foutput):
     tree = ptree.consolidate()
     # Save output
     if rank == 0:
-        pass
+        tree.save(foutput)
 
 
 cdef class PyParallelKDTree:

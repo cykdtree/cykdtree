@@ -97,7 +97,7 @@ def time_neighbor_search(Ntime, LStime, ndim=2):
 def test_save_load():
     for periodic in (True, False):
         for ndim in range(1, 5):
-            pts, le, re, ls = fake_input(ndim)
+            pts, le, re, ls = make_points(100, ndim)
             tree = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic)
             with tempfile.NamedTemporaryFile() as tf:

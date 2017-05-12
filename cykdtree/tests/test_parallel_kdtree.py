@@ -7,6 +7,15 @@ from cykdtree.tests import MPITest, parametrize, make_points, make_points_neighb
 Nproc = (3,4,5)
 
 
+@parametrize(nproc=(1,2,3), periodic=(False, True))
+def test_spawn_parallel(nproc=1, npts=20, ndim=2, periodic=False,
+                        leafsize=3):
+    pts, le, re, ls = make_points(npts, ndim, leafsize=leafsize)
+    Tseri = cykdtree.spawn_parallel(pts, nproc, leafsize=leafsize,
+                                    left_edge=le, right_edge=re,
+                                    periodic=periodic)
+
+
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_PyParallelKDTree(periodic=False, ndim=2):
     pts, le, re, ls = make_points(20, ndim, leafsize=3)

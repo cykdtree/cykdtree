@@ -4,8 +4,9 @@ import os
 PY_MAJOR_VERSION = sys.version_info[0]
 FLAG_MULTIPROC = True # TODO: check that mpi installed
 from cykdtree.kdtree import PyKDTree, PyNode
-from cykdtree.parallel_kdtree import PyParallelKDTree
+from cykdtree.parallel_kdtree import PyParallelKDTree, spawn_parallel, parallel_worker
 from cykdtree import tests, plot
+
 
 def run_nose(verbose=False):
     nose_argv = sys.argv
