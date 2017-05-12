@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.command.sdist import sdist as _sdist
 from subprocess import Popen, PIPE
@@ -80,7 +80,6 @@ if not RTDFLAG and not release:
     directive_defaults['binding'] = True
 
 ext_modules = []
-src_include = []
 
 def make_cpp(cpp_file):
     if not os.path.isfile(cpp_file):
@@ -112,13 +111,6 @@ if compile_parallel:
                   **ext_options_mpi))
     print("compiling parallel")
 
-src_include += [
-    "cykdtree/kdtree.pyx", "cykdtree/kdtree.pxd", "cykdtree/c_kdtree.hpp",
-    "cykdtree/utils.pyx", "cykdtree/utils.pxd", "cykdtree/c_utils.hpp",
-    "cykdtree/parallel_kdtree.pyx", "cykdtree/parallel_kdtree.pxd",
-    "cykdtree/c_parallel_kdtree.hpp", "cykdtree/c_kdtree.cpp",
-    "cykdtree/c_utils.cpp", "cykdtree/c_parallel_kdtree.cpp"]
-
 class sdist(_sdist):
     # subclass setuptools source distribution builder to ensure cython
     # generated C files are included in source distribution and readme
@@ -148,9 +140,8 @@ except (ImportError, IOError):
         long_description = file.read()
 
 setup(name='cykdtree',
-      packages=['cykdtree', 'cykdtree.tests'],
-      package_dir={'cykdtree': 'cykdtree'},
-      package_data={'cykdtree': ['README.md', 'README.rst'] + src_include},
+      packages=find_packages(),
+      include_package_data=True,
       version='0.2.5.dev0',
       description='Cython based KD-Tree',
       long_description=long_description,
@@ -172,5 +163,4 @@ setup(name='cykdtree',
       license='BSD',
       zip_safe=False,
       cmdclass={'build_ext': build_ext, 'sdist': sdist},
-      ext_modules=cythonize(ext_modules),
-      data_files=[('cykdtree', src_include)])
+      ext_modules=cythonize(ext_modules))
