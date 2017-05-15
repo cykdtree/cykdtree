@@ -65,7 +65,12 @@ def py_quickSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    quickSort(&pos[0,0], &idx[0], ndim, d, l, r)
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    quickSort(ptr_pos, ptr_idx, ndim, d, l, r)
     return idx
 
 def py_insertSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
@@ -84,7 +89,12 @@ def py_insertSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    insertSort(&pos[0,0], &idx[0], ndim, d, l, r)
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    insertSort(ptr_pos, ptr_idx, ndim, d, l, r)
     return idx
 
 def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
@@ -97,8 +107,9 @@ def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
 
     Returns:
         tuple of int64 and np.ndarray of uint64: Index q of idx that is the 
-            median of medians & array of indices that partition pos such that 
-            the first q elements are less than the median of medians.
+            pivot. All elements of idx before the pivot will be less than
+            the pivot. If there is an odd number of points, the pivot will
+            be the median.
 
     """
     cdef uint32_t ndim = pos.shape[1]
@@ -106,8 +117,13 @@ def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    cdef int64_t q = pivot(&pos[0,0], &idx[0], ndim, d, l, r)
-    return q+1, idx
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = pivot(ptr_pos, ptr_idx, ndim, d, l, r)
+    return q, idx
 
 def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
                  np.int64_t p):
@@ -116,14 +132,14 @@ def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     Args:
         pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
         d (np.uint32_t): Dimension that pos should be partitioned along.
-        p (np.int64_t): Element of pos[:,d] that pos should be used to partition 
-            pos.
+        p (np.int64_t): Element of pos[:,d] that should be used as the pivot
+            to partition pos.
 
     Returns:
-        tuple of int64 and np.ndarray of uint64: Number of elements q in pos 
-            that are less that or equal to the pivot & array of indices that 
-            partition pos such that the first q elements are less than the 
-            pivot and the last (n-q) elements are greater than the pivot.
+        tuple of int64 and np.ndarray of uint64: Location of the pivot in the
+            partitioned array and the indices required to partition the array
+            such that elements before the pivot are smaller and elements after
+            the pivot are larger.
 
     """
     cdef uint32_t ndim = pos.shape[1]
@@ -131,8 +147,43 @@ def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    cdef int64_t q = partition(&pos[0,0], &idx[0], ndim, d, l, r, p)
-    return q+1, idx
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = partition(ptr_pos, ptr_idx, ndim, d, l, r, p)
+    return q, idx
+
+def py_partition_given_pivot(np.ndarray[np.float64_t, ndim=2] pos,
+                             np.uint32_t d, np.float64_t pval):
+    r"""Get the indices required to partition coordinates along one dimension.
+
+    Args:
+        pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
+        d (np.uint32_t): Dimension that pos should be partitioned along.
+        pval (np.float64_t): Value that should be used to partition pos.
+
+    Returns:
+        tuple of int64 and np.ndarray of uint64: Location of the largest value
+            that is smaller than pval in partitioned array and the indices 
+            required to partition the array such that elements before the pivot
+            are smaller and elements after the pivot are larger.
+
+    """
+    cdef uint32_t ndim = pos.shape[1]
+    cdef int64_t l = 0
+    cdef int64_t r = pos.shape[0]-1
+    cdef uint64_t[:] idx
+    idx = np.arange(pos.shape[0]).astype('uint64')
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = partition_given_pivot(ptr_pos, ptr_idx, ndim, d, l, r,
+                                           pval)
+    return q, idx
 
 def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
               np.int64_t t):
@@ -146,8 +197,10 @@ def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
             partitioned.
 
     Returns:
-        np.ndarray of uint64: Indices required to partition pos such that the 
-            1st t elements in pos[:,d] are the smallest t elements in pos[:,d].
+        tuple of int64 and np.ndarray of uint64: Location of element t in the
+            partitioned array and the indices required to partition the array
+            such that elements before element t are smaller and elements after
+            the pivot are larger.
 
     """
     cdef uint32_t ndim = pos.shape[1]
@@ -155,7 +208,54 @@ def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
-    cdef int64_t q = select(&pos[0,0], &idx[0], ndim, d, l, r, t)
-    return idx
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    if pos.shape[0] != 0:
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+    cdef int64_t q = select(ptr_pos, ptr_idx, ndim, d, l, r, t)
+    return q, idx
 
 
+def py_split(np.ndarray[np.float64_t, ndim=2] pos, 
+             np.ndarray[np.float64_t, ndim=1] mins = None,
+             np.ndarray[np.float64_t, ndim=1] maxs = None):
+    r"""Get the indices required to split the positions equally along the
+    largest dimension.
+
+    Args:
+        pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
+        mins (np.ndarray of float64, optional): (m,) array of mins. Defaults
+            to None and is set to mins of pos along each dimension.
+        maxs (np.ndarray of float64, optional): (m,) array of maxs. Defaults
+            to None and is set to maxs of pos along each dimension.
+
+    Returns:
+        tuple(int64, uint32, np.ndarray of uint64): The index of the split in
+            the partitioned array, the dimension of the split, and the indices
+            required to partition the array.
+
+    """
+    cdef uint64_t npts = pos.shape[0]
+    cdef uint32_t ndim = pos.shape[1]
+    cdef uint64_t Lidx = 0
+    cdef uint64_t[:] idx
+    idx = np.arange(pos.shape[0]).astype('uint64')
+    cdef double *ptr_pos = NULL
+    cdef uint64_t *ptr_idx = NULL
+    cdef double *ptr_mins = NULL
+    cdef double *ptr_maxs = NULL
+    if (npts != 0) and (ndim != 0):
+        if mins is None:
+            mins = np.min(pos, axis=0)
+        if maxs is None:
+            maxs = np.max(pos, axis=0)
+        ptr_pos = &pos[0,0]
+        ptr_idx = &idx[0]
+        ptr_mins = &mins[0]
+        ptr_maxs = &maxs[0]
+    cdef int64_t q = 0
+    cdef double split_val = 0.0
+    cdef uint32_t dsplit = split(ptr_pos, ptr_idx, Lidx, npts, ndim,
+                                 ptr_mins, ptr_maxs, q, split_val)
+    return q, dsplit, idx

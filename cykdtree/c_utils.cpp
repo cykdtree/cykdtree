@@ -61,7 +61,7 @@ void insertSort(double *pts, uint64_t *idx,
   int64_t i, j;
   uint64_t t;
 
-  if (l == r) return;
+  if (r <= l) return;
   for (i = l+1; i <= r; i++) {
     t = idx[i];
     j = i - 1;
@@ -77,7 +77,11 @@ int64_t pivot(double *pts, uint64_t *idx,
               uint32_t ndim, uint32_t d,
               int64_t l, int64_t r)
 { 
-  if ((r - l) < 5) {
+  if (r < l) {
+    return -1;
+  } else if (r == l) {
+    return l;
+  } else if ((r - l) < 5) {
     insertSort(pts, idx, ndim, d, l, r);
     return (l+r)/2;
   }
@@ -95,7 +99,33 @@ int64_t pivot(double *pts, uint64_t *idx,
 
     nsub++;
   }
-  return select(pts, idx, ndim, d, l, l+nsub-1, l+(nsub-1)/2);
+  return pivot(pts, idx, ndim, d, l, l+nsub-1);
+  // return select(pts, idx, ndim, d, l, l+nsub-1, (nsub/2)+(nsub%2));
+}
+
+int64_t partition_given_pivot(double *pts, uint64_t *idx,
+			      uint32_t ndim, uint32_t d,
+			      int64_t l, int64_t r, double pivot) {
+  // If all less than pivot, j will remain r
+  // If all greater than pivot, j will be l-1
+  if (r < l)
+    return -1;
+  int64_t i, j, tp = -1;
+  uint64_t t;
+  for (i = l, j = r; i <= j; ) {
+    if ((pts[ndim*idx[i]+d] > pivot) && (pts[ndim*idx[j]+d] <= pivot)) {
+      t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+    }
+    if (isEqual(pts[ndim*idx[i]+d], pivot)) tp = i;
+    // if (pts[ndim*idx[i]+d] == pivot) tp = i;
+    if (pts[ndim*idx[i]+d] <= pivot) i++;
+    if (pts[ndim*idx[j]+d] > pivot) j--;
+  }
+  if ((tp >= 0) && (tp != j)) {
+    t = idx[tp]; idx[tp] = idx[j]; idx[j] = t;
+  }
+
+  return j;
 }
 
 int64_t partition(double *pts, uint64_t *idx,
@@ -103,18 +133,14 @@ int64_t partition(double *pts, uint64_t *idx,
                   int64_t l, int64_t r, int64_t p)
 { 
   double pivot;
-  int64_t i, j;
+  int64_t j;
   uint64_t t;
+  if (r < l)
+    return -1;
   pivot = pts[ndim*idx[p]+d];
   t = idx[p]; idx[p] = idx[l]; idx[l] = t;
 
-  for (i = l+1, j = r; i <= j; ) {
-    if ((pts[ndim*idx[i]+d] > pivot) && (pts[ndim*idx[j]+d] <= pivot)) {
-      t = idx[i]; idx[i] = idx[j]; idx[j] = t;
-    }
-    if (pts[ndim*idx[i]+d] <= pivot) i++;
-    if (pts[ndim*idx[j]+d] > pivot) j--;
-  }
+  j = partition_given_pivot(pts, idx, ndim, d, l+1, r, pivot);
 
   t = idx[l]; idx[l] = idx[j]; idx[j] = t;
 
@@ -124,18 +150,21 @@ int64_t partition(double *pts, uint64_t *idx,
 // https://en.wikipedia.org/wiki/Median_of_medians
 int64_t select(double *pts, uint64_t *idx,
                uint32_t ndim, uint32_t d,
-               int64_t l, int64_t r, int64_t n)
+               int64_t l0, int64_t r0, int64_t n)
 {
   int64_t p;
+  int64_t l = l0, r = r0;
 
   while ( 1 ) {
     if (l == r) return l;
 
     p = pivot(pts, idx, ndim, d, l, r);
     p = partition(pts, idx, ndim, d, l, r, p);
-    if (n == p) {
-      return n;
-    } else if (n < p) {
+    if (p < 0) 
+      return -1;
+    else if (n == (p-l0+1)) {
+      return p;
+    } else if (n < (p-l0+1)) {
       r = p - 1;
     } else {
       l = p + 1;
@@ -147,6 +176,13 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
                uint64_t Lidx, uint64_t n, uint32_t ndim,
                double *mins, double *maxes,
                int64_t &split_idx, double &split_val) {
+  // Return immediately if variables empty
+  if ((n == 0) or (ndim == 0)) {
+    split_idx = -1;
+    split_val = 0.0;
+    return 0;
+  }
+
   // Find dimension to split along
   uint32_t dmax, d;
   dmax = 0;
@@ -159,9 +195,8 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
   }
 
   // Find median along dimension
-  int64_t stop = n-1;
-  select(all_pts, all_idx, ndim, dmax, Lidx, stop+Lidx, (stop/2)+Lidx);
-  split_idx = (stop/2)+Lidx;
+  int64_t nsel = (n/2) + (n%2);
+  split_idx = select(all_pts, all_idx, ndim, dmax, Lidx, Lidx+n-1, nsel);
   split_val = all_pts[ndim*all_idx[split_idx] + dmax];
 
   return dmax;

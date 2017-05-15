@@ -243,7 +243,21 @@ cdef class PyKDTree:
         if self._tree != NULL:
             free(self._periodic)
 
-    def assert_equal(self, PyKDTree solf):
+    def assert_equal(self, PyKDTree solf, pybool strict_idx = True):
+        r"""Compare this tree to another tree.
+
+        Args:
+            solf (PyKDTree): Another KDTree to compare with this one.
+            strict_idx (bool, optional): If True, the index vectors are
+                compared for equality element by element. If False,
+                corresponding leaves must contain the same indices, but they
+                can be in any order. Defaults to True.
+
+        Raises:
+            AssertionError: If there are missmatches between any of the two
+                trees' parameters.
+
+        """
         np.testing.assert_equal(self.npts, solf.npts)
         np.testing.assert_equal(self.ndim, solf.ndim)
         np.testing.assert_equal(self.leafsize, solf.leafsize)
@@ -251,9 +265,16 @@ cdef class PyKDTree:
         np.testing.assert_array_equal(self.left_edge, solf.left_edge)
         np.testing.assert_array_equal(self.right_edge, solf.right_edge)
         np.testing.assert_array_equal(self.periodic, solf.periodic)
-        np.testing.assert_array_equal(self.idx, solf.idx)
+        # Compare index at the leaf level since we only care that the leaves
+        # contain the same points
+        if strict_idx:
+            np.testing.assert_array_equal(self.idx, solf.idx)
         for i in range(self.num_leaves):
             self.leaves[i].assert_equal(solf.leaves[i])
+            if not strict_idx:
+                np.testing.assert_array_equal(
+                    np.sort(self.idx[self.leaves[i].slice]),
+                    np.sort(solf.idx[solf.leaves[i].slice]))
 
     cdef void _make_tree(self, double *pts):
         r"""Carry out creation of KDTree at C++ level."""

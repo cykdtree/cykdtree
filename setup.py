@@ -56,8 +56,12 @@ if RTDFLAG:
     ext_options['extra_compile_args'].append('-DREADTHEDOCS')
     compile_parallel = False
 else:
-    # Check for existence of mpi
     compile_parallel = True
+    # And mpi4py
+    import mpi4py
+    _mpi4py_dir = os.path.dirname(mpi4py.__file__)
+    ext_options_mpi['include_dirs'].append(_mpi4py_dir)
+    # Check for existence of mpi
     ret = (
         get_mpi_args('mpic++', '-compile_info', '-link_info') or  # MPICH
         get_mpi_args('mpic++', '--showme:compile', '--showme:link')  # OpenMPI
@@ -89,6 +93,7 @@ def make_cpp(cpp_file):
 make_cpp("cykdtree/c_kdtree.cpp")
 make_cpp("cykdtree/c_utils.cpp")
 if compile_parallel:
+    make_cpp("cykdtree/c_parallel_utils.cpp")
     make_cpp("cykdtree/c_parallel_kdtree.cpp")
 
 ext_modules += [
@@ -102,13 +107,20 @@ ext_modules += [
                        "cykdtree/c_utils.cpp"],
               **ext_options)]
 if compile_parallel:
-    ext_modules.append(
+    ext_modules += [
+        Extension("cykdtree.parallel_utils",
+                  sources=["cykdtree/parallel_utils.pyx",
+                           "cykdtree/c_parallel_utils.cpp",
+                           "cykdtree/c_utils.cpp"],
+                  **ext_options_mpi),
         Extension("cykdtree.parallel_kdtree",
                   sources=["cykdtree/parallel_kdtree.pyx",
                            "cykdtree/c_parallel_kdtree.cpp",
                            "cykdtree/c_kdtree.cpp",
-                           "cykdtree/c_utils.cpp"],
-                  **ext_options_mpi))
+                           "cykdtree/c_utils.cpp",
+                           "cykdtree/c_parallel_utils.cpp"],
+                  **ext_options_mpi)
+        ]
     print("compiling parallel")
 
 class sdist(_sdist):

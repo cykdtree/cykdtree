@@ -3,61 +3,29 @@ import time
 from nose.tools import istest, nottest, assert_raises, assert_equal
 from mpi4py import MPI
 import cykdtree
-from cykdtree.tests import MPITest
-from cykdtree.tests.test_kdtree import left_neighbors_x, left_neighbors_y, left_neighbors_x_periodic, left_neighbors_y_periodic
-np.random.seed(100)
+from cykdtree.tests import MPITest, parametrize, make_points, make_points_neighbors
 Nproc = (3,4,5)
-#Nproc = 4
-
-N = 100
-leafsize = 10
-pts2 = np.random.rand(N, 2).astype('float64')
-left_edge2 = np.zeros(2, 'float64')
-right_edge2 = np.ones(2, 'float64')
-pts3 = np.random.rand(N, 3).astype('float64')
-left_edge3 = np.zeros(3, 'float64')
-right_edge3 = np.ones(3, 'float64')
-rand_state = np.random.get_state()
 
 
-def fake_input(ndim, N=100, leafsize=10):
-    ndim = int(ndim)
-    N = int(N)
-    leafsize=int(leafsize)
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
-    np.random.seed(100)
-    if rank == 0:
-        if ndim == -2:
-            np.random.set_state(rand_state)
-            pts = np.random.rand(50, 2).astype('float64')
-            left_edge = left_edge2
-            right_edge = right_edge2
-        else:
-            pts = np.random.rand(N, ndim).astype('float64')
-            left_edge = np.zeros(ndim, 'float64')
-            right_edge = np.ones(ndim, 'float64')
-    else:
-        pts = None
-        left_edge = None
-        right_edge = None
-    return pts, left_edge, right_edge, leafsize
+@parametrize(nproc=Nproc, periodic=(False, True))
+def test_spawn_parallel(nproc=1, npts=20, ndim=2, periodic=False,
+                        leafsize=3):
+    pts, le, re, ls = make_points(npts, ndim, leafsize=leafsize)
+    Tseri = cykdtree.spawn_parallel(pts, nproc, leafsize=leafsize,
+                                    left_edge=le, right_edge=re,
+                                    periodic=periodic)
 
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_PyParallelKDTree(periodic=False, ndim=2):
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    pts, le, re, ls = make_points(20, ndim, leafsize=3)
     Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                       periodic=periodic)
 
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_PyParallelKDTree_errors(periodic=False, ndim=2):
-    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    pts, le, re, ls = make_points(20, ndim, leafsize=3)
     assert_raises(ValueError, cykdtree.PyParallelKDTree, pts,
                   le, re, leafsize=1)
 
@@ -67,7 +35,7 @@ def test_consolidate(periodic=False, ndim=2):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    pts, le, re, ls = make_points(20, ndim, leafsize=3)
     Tpara0 = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                        periodic=periodic)
     Tpara = Tpara0.consolidate()
@@ -78,17 +46,14 @@ def test_consolidate(periodic=False, ndim=2):
                           plotfile='test_consolidate.png')
         Tseri = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                   periodic=periodic)
-        np.testing.assert_array_equal(Tpara.idx, Tseri.idx)
-        Tpara.assert_equal(Tseri)
+        Tpara.assert_equal(Tseri, strict_idx=False)
     else:
         assert(Tpara is None)
 
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_search(periodic=False, ndim=2):
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    pts, le, re, ls = fake_input(ndim)
+    pts, le, re, ls = make_points(100, ndim)
     tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic)
     if periodic:
@@ -104,7 +69,7 @@ def test_search(periodic=False, ndim=2):
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))
 def test_search_errors(periodic=False, ndim=2):
-    pts, le, re, ls = fake_input(ndim)
+    pts, le, re, ls = make_points(100, ndim)
     tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic)
     if not periodic:
@@ -117,28 +82,15 @@ def test_neighbors(periodic = False):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-    pts, le, re, ls = fake_input(-2, leafsize=10)
+    pts, le, re, ls, left_neighbors, right_neighbors = make_points_neighbors(
+        periodic=periodic)
     tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic)
-    if False:
+    if True:
         from cykdtree.plot import plot2D_parallel
+        plotfile = 'test_neighbors.png'
         plot2D_parallel(tree, label_boxes=True, label_procs=True,
-                        plotfile='test_neighbors.png')
-    # Prepare neighbors
-    if periodic:
-        left_neighbors = [left_neighbors_x_periodic, left_neighbors_y_periodic]
-        right_neighbors = [[[] for i in range(tree.total_num_leaves)] for
-                           _ in range(tree.ndim)]
-    else:
-        left_neighbors = [left_neighbors_x, left_neighbors_y]
-        right_neighbors = [[[] for i in range(tree.total_num_leaves)] for _
-                           in range(tree.ndim)]
-    for d in range(tree.ndim):
-        for i in range(tree.total_num_leaves):
-            for j in left_neighbors[d][i]:
-                right_neighbors[d][j].append(i)
-        for i in range(tree.total_num_leaves):
-            right_neighbors[d][i] = list(set(right_neighbors[d][i]))
+                        plotfile=plotfile)
     # Check left/right neighbors
     for leaf in tree.leaves.values():
         out_str = str(leaf.id)
@@ -170,7 +122,7 @@ def test_neighbors(periodic = False):
 def test_get_neighbor_ids(periodic=False, ndim=2):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
-    pts, le, re, ls = fake_input(ndim)
+    pts, le, re, ls = make_points(100, ndim)
     tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic)
     if periodic:
@@ -187,7 +139,7 @@ def test_consolidate_edges(periodic=False, ndim=2):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    pts, le, re, ls = make_points(20, ndim, leafsize=3)
     Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                       periodic=periodic)
     LEpara, REpara = Tpara.consolidate_edges()
@@ -207,7 +159,7 @@ def test_consolidate_process_bounds(periodic=False, ndim=2):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
-    pts, le, re, ls = fake_input(ndim, N=20, leafsize=3)
+    pts, le, re, ls = make_points(20, ndim, leafsize=3)
     Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
                                       periodic=periodic)
     LEpara, REpara = Tpara.consolidate_process_bounds()
@@ -218,7 +170,7 @@ def test_consolidate_process_bounds(periodic=False, ndim=2):
 
 
 def time_tree_construction(Ntime, LStime, ndim=2):
-    pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
+    pts, le, re, ls = make_points(Ntime, ndim, leafsize=LStime)
     t0 = time.time()
     cykdtree.PyParallelKDTree(pts, le, re, leafsize=LStime)
     t1 = time.time()
@@ -226,7 +178,7 @@ def time_tree_construction(Ntime, LStime, ndim=2):
 
 
 def time_neighbor_search(Ntime, LStime, ndim=2):
-    pts, le, re, ls = fake_input(ndim, N=Ntime, leafsize=LStime)
+    pts, le, re, ls = make_points(Ntime, ndim, leafsize=LStime)
     tree = cykdtree.PyParallelKDTree(pts, le, re, leafsize=LStime)
     t0 = time.time()
     tree.get_neighbor_ids(0.5*np.ones(tree.ndim, 'double'))
