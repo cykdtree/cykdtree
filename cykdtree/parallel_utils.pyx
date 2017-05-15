@@ -30,7 +30,7 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
     cdef uint32_t ndim = 0
     cdef double *ptr_pts = NULL
     cdef uint64_t *ptr_idx = NULL
-    cdef np.uint64_t[:] idx0
+    cdef uint64_t[:] idx0
     if rank == 0:
         assert(pts0 is not None)
         npts = pts0.shape[0]
@@ -53,7 +53,7 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
     # idx = <np.uint64_t[:nout]> ptr_idx
     # Direct construction (ensures memory freed)
     cdef np.ndarray[np.float64_t, ndim=2] pts = np.empty((nout, ndim), 'float64')
-    cdef np.ndarray[np.uint64_t, ndim=1] idx = np.empty((nout,), 'uint64')
+    cdef uint64_t[:] idx = np.empty((nout,), 'uint64')
     cdef uint64_t i
     cdef uint32_t d
     for i in range(nout):
@@ -64,7 +64,7 @@ def py_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts0 = None):
         free(ptr_pts)
     if ptr_idx != NULL:
         free(ptr_idx)
-    return (pts, idx)
+    return (pts, np.asarray(idx))
 
 
 def py_parallel_pivot_value(np.ndarray[np.float64_t, ndim=2] pts,
@@ -358,7 +358,7 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     else:
         assert(pts is None)
     ndim = comm.bcast(ndim, root=0)
-    cdef np.ndarray[np.uint64_t, ndim=1] idx = np.arange(npts).astype('uint64')
+    cdef uint64_t[:] idx = np.arange(npts).astype('uint64')
     # Set pointers
     cdef double *ptr_pts = NULL
     cdef uint64_t *ptr_idx = NULL
@@ -380,7 +380,7 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
         src, dst)
     # Array version
     cdef np.ndarray[np.float64_t, ndim=2] new_pts
-    cdef np.ndarray[np.uint64_t, ndim=1] new_idx
+    cdef np.uint64_t[:] new_idx
     cdef np.ndarray[np.float64_t, ndim=1] new_le
     cdef np.ndarray[np.float64_t, ndim=1] new_re
     # cdef np.ndarray[bool, ndim=1] new_ple
@@ -414,7 +414,7 @@ def py_kdtree_parallel_distribute(np.ndarray[np.float64_t, ndim=2] pts = None):
     # cdef np.uint64_t[:] new_idx
     # new_pts = <np.float64_t[:new_npts, :ndim]> ptr_pts
     # new_idx = <np.uint64_t[:new_npts]> ptr_idx
-    return new_pts, new_idx, new_le, new_re, new_ple, new_pre
+    return new_pts, np.asarray(new_idx), new_le, new_re, new_ple, new_pre
 
 
 
