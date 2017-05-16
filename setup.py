@@ -50,26 +50,28 @@ if not release:
     ext_options['define_macros'] = [('CYTHON_TRACE', '1')]
 
 ext_options_mpi = copy.deepcopy(ext_options)
+compile_parallel = True
 if RTDFLAG:
     ext_options['libraries'] = []
     ext_options['extra_link_args'] = []
     ext_options['extra_compile_args'].append('-DREADTHEDOCS')
     compile_parallel = False
 else:
-    compile_parallel = True
-    # And mpi4py
-    import mpi4py
-    _mpi4py_dir = os.path.dirname(mpi4py.__file__)
-    ext_options_mpi['include_dirs'].append(_mpi4py_dir)
-    # Check for existence of mpi
-    ret = (
-        get_mpi_args('mpic++', '-compile_info', '-link_info') or  # MPICH
-        get_mpi_args('mpic++', '--showme:compile', '--showme:link')  # OpenMPI
-    )
-    if ret is not None:
-        mpi_compile_args, mpi_link_args = ret
-        ext_options_mpi['extra_compile_args'] += mpi_compile_args
-        ext_options_mpi['extra_link_args'] += mpi_link_args
+    try:
+        import mpi4py
+        _mpi4py_dir = os.path.dirname(mpi4py.__file__)
+        ext_options_mpi['include_dirs'].append(_mpi4py_dir)
+        # Check for existence of mpi
+        ret = (
+            get_mpi_args('mpic++', '-compile_info', '-link_info') or  # MPICH
+            get_mpi_args('mpic++', '--showme:compile', '--showme:link')  # OpenMPI
+        )
+        if ret is not None:
+            mpi_compile_args, mpi_link_args = ret
+            ext_options_mpi['extra_compile_args'] += mpi_compile_args
+            ext_options_mpi['extra_link_args'] += mpi_link_args
+    except ImportError:
+        compile_parallel = False
 
 # Needed for line_profiler - disable for production code
 if not RTDFLAG and not release:
