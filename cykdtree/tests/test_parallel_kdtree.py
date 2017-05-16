@@ -1,7 +1,10 @@
 import numpy as np
 import time
 from nose.tools import istest, nottest, assert_raises, assert_equal
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
 import cykdtree
 from cykdtree.tests import MPITest, parametrize, make_points, make_points_neighbors
 Nproc = (3,4,5)
@@ -10,6 +13,8 @@ Nproc = (3,4,5)
 @parametrize(nproc=Nproc, periodic=(False, True))
 def test_spawn_parallel(nproc=1, npts=20, ndim=2, periodic=False,
                         leafsize=3):
+    if MPI is None:
+        return
     pts, le, re, ls = make_points(npts, ndim, leafsize=leafsize)
     Tseri = cykdtree.spawn_parallel(pts, nproc, leafsize=leafsize,
                                     left_edge=le, right_edge=re,

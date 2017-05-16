@@ -5,7 +5,10 @@ import time
 import signal
 from subprocess import Popen, PIPE
 from nose.tools import istest, nottest
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI=None
 import numpy as np
 import itertools
 import sys
@@ -99,13 +102,14 @@ def parametrize(**pargs):
 
 
 def MPITest(Nproc, **pargs):
+    if MPI is None:
+        return lambda x: None
 
     if not isinstance(Nproc, (tuple, list)):
         Nproc = (Nproc,)
     max_size = max(Nproc)
 
     def dec(func):
-
         comm = MPI.COMM_WORLD
         size = comm.Get_size()
         rank = comm.Get_rank()
@@ -186,9 +190,13 @@ def make_points_neighbors(periodic=False):
     ndim = 2
     npts = 50
     leafsize = 10
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
+    if MPI is not None:
+        comm = MPI.COMM_WORLD
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+    else:
+        size = 0
+        rank = 0
     if (size == 0) or (rank == 0):
         np.random.set_state(rand_state)
         pts = np.random.rand(npts, ndim).astype('float64')
@@ -222,9 +230,13 @@ def make_points(npts, ndim, leafsize=10, distrib='rand', seed=100):
     ndim = int(ndim)
     npts = int(npts)
     leafsize = int(leafsize)
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
+    if MPI is not None:
+        comm = MPI.COMM_WORLD
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+    else:
+        size = 0
+        rank = 0
     np.random.seed(seed)
     LE = 0.0
     RE = 1.0

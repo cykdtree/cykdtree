@@ -1,10 +1,16 @@
 import numpy as np
 import time
 from nose.tools import istest, nottest, assert_raises, assert_equal
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
 from cykdtree.tests import MPITest, assert_less_equal
 from cykdtree import utils
-from cykdtree import parallel_utils
+try:
+    from cykdtree import parallel_utils
+except ImportError:
+    parallel_utils = None
 Nproc = (3,4,5)
 
 
@@ -180,6 +186,9 @@ def test_redistribute_split_errors(ndim=2, npts=50):
 
 
 def test_calc_split_rank():
+    if MPI is None:
+        return
+
     # Default split (currently left)
     assert_equal(parallel_utils.py_calc_split_rank(4), 2)
     assert_equal(parallel_utils.py_calc_split_rank(5), 3)

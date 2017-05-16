@@ -1,3 +1,5 @@
+from __future__ import division
+
 import numpy as np
 from nose.tools import istest, nottest, assert_raises, assert_equal
 from cykdtree.tests import parametrize, assert_less_equal
@@ -94,7 +96,7 @@ def test_select(N=10, ndim=2):
     d = ndim-1
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
-    p = int(N)/2 + int(N)%2
+    p = int(N)//2 + int(N)%2
     q, idx = utils.py_select(pts, d, p)
     assert_equal(idx.size, N)
     if (N == 0):
@@ -114,7 +116,7 @@ def test_select(N=10, ndim=2):
 def test_split(N=10, ndim=2):
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
-    p = int(N)/2 + int(N)%2
+    p = int(N)//2 + int(N)%2
     q, d, idx = utils.py_split(pts)
     assert_equal(idx.size, N)
     if (N == 0):

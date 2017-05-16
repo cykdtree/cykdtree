@@ -1,7 +1,10 @@
 import os
 from cykdtree.plot import plot2D_serial, plot2D_parallel
 from cykdtree.kdtree import PyKDTree
-from cykdtree.parallel_kdtree import PyParallelKDTree
+try:
+    from cykdtree.parallel_kdtree import PyParallelKDTree
+except ImportError:
+    PyParallelKDTree = None
 from cykdtree.tests import make_points
 
 
@@ -17,6 +20,9 @@ def test_plot2D_serial():
 
 
 def test_plot2D_parallel():
+    if PyParallelKDTree is None:
+        return
+
     fname_test = "test_plot2D_parallel.png"
     pts, le, re, ls = make_points(100, 2)
     tree = PyParallelKDTree(pts, le, re, leafsize=ls)
