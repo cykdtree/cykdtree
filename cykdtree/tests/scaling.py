@@ -5,7 +5,6 @@ import os
 import cProfile
 import pstats
 from cykdtree.tests import run_test
-import matplotlib.pyplot as plt
 
 
 def stats_run(npart, nproc, ndim, periodic=False, overwrite=False,
@@ -99,6 +98,7 @@ def strong_scaling(npart=1e6, nrep=1, periodic=False,
             timing purposes. Defaults to False.
 
     """
+    import matplotlib.pyplot as plt
     npart = int(npart)
     perstr = ""
     outstr = ""
@@ -153,6 +153,7 @@ def weak_scaling(npart=1e4, nrep=1, periodic=False, leafsize=10,
             timing purposes. Defaults to False.
 
     """
+    import matplotlib.pyplot as plt
     npart = int(npart)
     perstr = ""
     outstr = ""
