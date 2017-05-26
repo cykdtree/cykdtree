@@ -470,7 +470,7 @@ public:
 	 uint32_t leafsize0, double *left_edge, double *right_edge,
 	 bool *periodic_left0, bool *periodic_right0,
 	 double *domain_mins0, double *domain_maxs0,
-	 bool include_self = true, bool dont_build = false)
+	 bool include_self = false, bool dont_build = false)
   {
     is_partial = true;
 
@@ -521,7 +521,7 @@ public:
   }
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
 	 double *left_edge, double *right_edge, bool *periodic0,
-	 bool include_self = true, bool dont_build = false)
+	 bool include_self = false, bool dont_build = false)
   {
     is_partial = false;
     left_idx = 0;
@@ -637,7 +637,7 @@ public:
     }
   }
 
-  void build_tree(double* all_pts, bool include_self = true) {
+  void build_tree(double* all_pts, bool include_self = false) {
     uint32_t d;
     double *LE = (double*)malloc(ndim*sizeof(double));
     double *RE = (double*)malloc(ndim*sizeof(double));
@@ -677,7 +677,7 @@ public:
 
   }
 
-  void finalize_neighbors(bool include_self = true) {
+  void finalize_neighbors(bool include_self = false) {
     uint32_t d;
 
     // Add periodic neighbors
