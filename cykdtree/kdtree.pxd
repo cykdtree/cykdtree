@@ -100,7 +100,7 @@ cdef class PyKDTree:
     cdef double *_right_edge
     cdef bool *_periodic
     cdef readonly object leaves
-    cdef readonly object idx
+    cdef readonly object _idx
     cdef void _init_tree(self, KDTree* tree)
     cdef void _make_tree(self, double *pts)
     cdef void _make_leaves(self)

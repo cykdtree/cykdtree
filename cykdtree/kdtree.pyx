@@ -167,10 +167,10 @@ cdef class PyKDTree:
         self._right_edge = tree.domain_right_edge
         self._periodic = tree.periodic
         self._make_leaves()
-        self.idx = np.empty(self.npts, 'uint64')
+        self._idx = np.empty(self.npts, 'uint64')
         cdef uint64_t i
         for i in range(self.npts):
-            self.idx[i] = tree.all_idx[i]
+            self._idx[i] = tree.all_idx[i]
 
     def __cinit__(self):
         # Initialize everthing to NULL/0/None to prevent seg fault
@@ -183,7 +183,7 @@ cdef class PyKDTree:
         self._right_edge = NULL
         self._periodic = NULL
         self.leaves = None
-        self.idx = None
+        self._idx = None
 
 
     def __init__(self, np.ndarray[double, ndim=2] pts = None,
@@ -268,20 +268,20 @@ cdef class PyKDTree:
         # Compare index at the leaf level since we only care that the leaves
         # contain the same points
         if strict_idx:
-            np.testing.assert_array_equal(self.idx, solf.idx)
+            np.testing.assert_array_equal(self._idx, solf._idx)
         for i in range(self.num_leaves):
             self.leaves[i].assert_equal(solf.leaves[i])
             if not strict_idx:
                 np.testing.assert_array_equal(
-                    np.sort(self.idx[self.leaves[i].slice]),
-                    np.sort(solf.idx[solf.leaves[i].slice]))
+                    np.sort(self._idx[self.leaves[i].slice]),
+                    np.sort(solf._idx[solf.leaves[i].slice]))
 
     cdef void _make_tree(self, double *pts):
         r"""Carry out creation of KDTree at C++ level."""
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize,
                                 self._left_edge, self._right_edge, self._periodic)
-        self.idx = idx
+        self._idx = idx
 
     cdef void _make_leaves(self):
         r"""Create a list of Python leaf objects from C++ leaves."""
@@ -329,7 +329,7 @@ cdef class PyKDTree:
             np.ndarray of np.uint64_t: Indices of points belonging to leaf.
 
         """
-        cdef np.ndarray[np.uint64_t] out = self.idx[self.leaves[leafid].slice]
+        cdef np.ndarray[np.uint64_t] out = self._idx[self.leaves[leafid].slice]
         return out
 
     cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
@@ -339,6 +339,10 @@ cdef class PyKDTree:
         for i in xrange(vout.size()):
             out[i] = vout[i]
         return out
+
+    @property
+    def idx(self):
+        return np.asarray(self._idx)
 
     def get_neighbor_ids(self, np.ndarray[double, ndim=1] pos):
         r"""Return the IDs of leaves containing & neighboring a given position.
