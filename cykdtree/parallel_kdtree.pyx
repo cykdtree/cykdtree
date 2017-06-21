@@ -83,6 +83,7 @@ def spawn_parallel(np.ndarray[np.float64_t, ndim=2] pts, int nproc, **kwargs):
     if not kwargs.get("suppress_final_output", False):
         os.remove(foutput)
     # Return tree
+    print('returning')
     return tree
     
 
@@ -124,6 +125,7 @@ def parallel_worker(finput, foutput):
     if not suppress_final_output:
         print('consolidating')
         tree = ptree.consolidate()
+        print('done', rank)
     if profile:
         pr.disable()
         if isinstance(profile, str):
@@ -149,10 +151,17 @@ cdef class PyParallelKDTree:
         cdef object comm = MPI.COMM_WORLD
         self.size = comm.Get_size()
         self.rank = comm.Get_rank()
+        self._ptree = NULL
+        self.npts = 0
+        self.ndim = 0
+        self.num_leaves = 0
+        self.total_num_leaves = 0
+        self.local_num_leaves = 0
         self.leafsize = leafsize
         self._left_edge = NULL
         self._right_edge = NULL
         self._periodic = NULL
+        self.leaves = None
         cdef uint32_t i
         cdef object error = None
         cdef object error_flags = None
@@ -164,9 +173,6 @@ cdef class PyParallelKDTree:
             if nleaves > 0:
                 nleaves = <int>(2**np.ceil(np.log2(<float>nleaves)))
                 self.leafsize = self.npts/nleaves + 1
-        else:
-            self.ndim = 0
-            self.npts = 0
         self.ndim = comm.bcast(self.ndim, root=0)
         self.leafsize = comm.bcast(self.leafsize, root=0)
         if (self.leafsize < 2):
@@ -221,17 +227,20 @@ cdef class PyParallelKDTree:
         cdef object leaf_neighbors = None
         for k in xrange(self.local_num_leaves):
             leafnode = self._ptree.tree.leaves[k]
-            leafnode_py = PyNode(self.ndim)
+            leafnode_py = PyNode()
             leafnode_py._init_node(leafnode, self.local_num_leaves,
                                    self._ptree.total_domain_width)
             self.leaves[leafnode.leafid] = leafnode_py
 
     def __dealloc__(self):
-        if self.rank == 0:
+        if self._left_edge != NULL:
             free(self._left_edge)
+        if self._right_edge != NULL:
             free(self._right_edge)
+        if self._periodic != NULL:
             free(self._periodic)
-        free(self._ptree)
+        if self._ptree != NULL:
+            del self._ptree
 
     cdef void _make_tree(self, double *ptr_pts):
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
@@ -241,9 +250,11 @@ cdef class PyParallelKDTree:
         else:
             ptr_idx = NULL
         with nogil, cython.boundscheck(False), cython.wraparound(False):
-            self._ptree = new ParallelKDTree(ptr_pts, ptr_idx, self.npts, self.ndim,
+            self._ptree = new ParallelKDTree(ptr_pts, ptr_idx,
+                                             self.npts, self.ndim,
                                              self.leafsize, self._left_edge,
                                              self._right_edge, self._periodic)
+        self._idx = idx  # Ensure that memory view freed
 
     @property
     def local_npts(self):
@@ -374,6 +385,7 @@ cdef class PyParallelKDTree:
             out._init_tree(stree)
             return out
         else:
+            assert(stree == NULL)
             return None
 
     def consolidate(self):

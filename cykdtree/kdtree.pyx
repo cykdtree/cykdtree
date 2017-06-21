@@ -53,6 +53,22 @@ cdef class PyNode:
             self.right_neighbors[i] = [node.right_neighbors[i][j] for j in
                                        range(node.right_neighbors[i].size())]
 
+    def __cinit__(self):
+        # Initialize everthing to NULL/0/None to prevent seg fault
+        self._node = NULL
+        self.id = 0
+        self.npts = 0
+        self.ndim = 0
+        self.num_leaves = 0
+        self.start_idx = 0
+        self.stop_idx = 0
+        self._domain_width = NULL
+        self.left_neighbors = None
+        self.right_neighbors = None
+
+    def __init__(self):
+        pass
+
     def __repr__(self):
         nchars = 1 + len(str(self.__class__.__name__))
         return ('%s(id=%i, npts=%i, start_idx=%i, stop_idx=%i,\n' +
@@ -163,9 +179,6 @@ cdef class PyKDTree:
         self.npts = tree.npts
         self.num_leaves = tree.num_leaves
         self.leafsize = tree.leafsize
-        self._left_edge = tree.domain_left_edge
-        self._right_edge = tree.domain_right_edge
-        self._periodic = tree.periodic
         self._make_leaves()
         self._idx = np.empty(self.npts, 'uint64')
         cdef uint64_t i
@@ -184,7 +197,6 @@ cdef class PyKDTree:
         self._periodic = NULL
         self.leaves = None
         self._idx = None
-
 
     def __init__(self, np.ndarray[double, ndim=2] pts = None,
                  left_edge = None,
@@ -235,12 +247,12 @@ cdef class PyKDTree:
 
     def __dealloc__(self):
         if self._tree != NULL:
-            free(self._tree)
-        if self._tree != NULL:
+            del self._tree
+        if self._left_edge != NULL:
             free(self._left_edge)
-        if self._tree != NULL:
+        if self._right_edge != NULL:
             free(self._right_edge)
-        if self._tree != NULL:
+        if self._periodic != NULL:
             free(self._periodic)
 
     def assert_equal(self, PyKDTree solf, pybool strict_idx = True):
@@ -292,18 +304,18 @@ cdef class PyKDTree:
         cdef object leaf_neighbors = None
         for k in xrange(self.num_leaves):
             leafnode = self._tree.leaves[k]
-            leafnode_py = PyNode(self.ndim)
+            leafnode_py = PyNode()
             leafnode_py._init_node(leafnode, self.num_leaves,
                                    self._tree.domain_width)
             self.leaves[leafnode.leafid] = leafnode_py
 
     @property
     def left_edge(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._left_edge
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_left_edge
         return np.asarray(view)
     @property
     def right_edge(self):
-        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._right_edge
+        cdef np.float64_t[:] view = <np.float64_t[:self.ndim]> self._tree.domain_right_edge
         return np.asarray(view)
     @property
     def domain_width(self):
@@ -311,7 +323,7 @@ cdef class PyKDTree:
         return np.asarray(view)
     @property
     def periodic(self):
-        cdef cbool[:] view = <cbool[:self.ndim]> self._periodic
+        cdef cbool[:] view = <cbool[:self.ndim]> self._tree.periodic
         # return np.asarray(view)
         cdef object out = np.empty(self.ndim, 'bool')
         cdef np.uint32_t i

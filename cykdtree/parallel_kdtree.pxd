@@ -27,9 +27,6 @@ cdef extern from "c_parallel_kdtree.hpp":
         KDTree *tree
         ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
                        uint32_t leafsize, double *left_edge0,
-                       double *right_edge0, bool *periodic0, bool include_self)
-        ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
-                       uint32_t leafsize, double *left_edge0,
                        double *right_edge0, bool *periodic0)
         vector[uint32_t] get_neighbor_ids(double* pos)
         Node* search(double* pos)

@@ -22,7 +22,7 @@ void send_leafnode(int dp, Node *node) {
     pe[j] = (int)(node->periodic_right[j]);
   MPI_Send(pe, ndim, MPI_INT, dp, i++, MPI_COMM_WORLD);
   for (j = 0; j < ndim; j++) {
-    if (node->left_nodes[j] == NULL)
+    if (!(node->left_nodes[j]))
       pe[j] = 0;
     else 
       pe[j] = 1;
@@ -108,7 +108,6 @@ public:
   bool *total_periodic;
   bool total_any_periodic;
   uint32_t total_num_leaves;
-  bool include_self;
   // Properties of original data received by this process
   uint64_t inter_npts;
   double *inter_domain_left_edge;
@@ -137,7 +136,7 @@ public:
   
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize0, double *left_edge, double *right_edge,
-		 bool *periodic0, bool include_self0 = true) {
+		 bool *periodic0) {
     bool local_debug = true;
     double *all_pts = pts;
     MPI_Comm_size ( MPI_COMM_WORLD, &size);
@@ -153,10 +152,9 @@ public:
     leaf2rank = NULL;
     double _t0 = begin_time();
     all_avail = (int*)malloc(size*sizeof(int));
-    include_self = include_self0;
     nrounds = 0;
      // Determine root
-    if (pts != NULL) {
+    if (pts) {
       root = rank;
       is_root = true;
       for (int i = 0; i < size; i++) {
@@ -166,10 +164,11 @@ public:
       available = 0;
 #ifdef NEW_VERSION
       all_idx = NULL;
+      orig_idx = idx;
 #else
       all_idx = idx;
+      orig_idx = NULL;
 #endif
-      orig_idx = idx;
       ndim = m;
       leafsize = leafsize0;
       inter_npts = n;
@@ -276,15 +275,16 @@ public:
     build_tree(all_pts);
   }
   ~ParallelKDTree() {
-    delete(tree);
+    if (tree)
+      delete(tree);
     free(dummy);
     free(all_avail);
     if (rank != root) {
-      if (all_idx != NULL)
+      if (all_idx)
 	free(all_idx);
     }
 #ifdef NEW_VERSION
-    if (orig_idx != NULL)
+    if (orig_idx)
       free(orig_idx);
 #endif
     free(total_domain_left_edge);
@@ -303,7 +303,7 @@ public:
     free(local_domain_maxs);
     free(local_periodic_left);
     free(local_periodic_right);
-    if (leaf2rank != NULL)
+    if (leaf2rank)
       free(leaf2rank);
     free_mpi_exch_type();
   }
@@ -329,7 +329,7 @@ public:
       MPI_Send(&s, 1, MPI_INT, dp, tag++, MPI_COMM_WORLD);
       MPI_Send(ids, s, MPI_UNSIGNED, dp, tag++, MPI_COMM_WORLD);
     }
-    if (ids != NULL)
+    if (ids)
       free(ids);
   }
 
@@ -354,7 +354,7 @@ public:
       for (j = 0; j < s; j++)
 	node->right_neighbors[d].push_back(ids[j]);
     }
-    if (ids != NULL)
+    if (ids)
       free(ids);
   }
 
@@ -796,7 +796,7 @@ public:
     bool local_debug = true;
     Node *out;
     // Don't continue if split is NULL
-    if (split == NULL) return NULL;
+    if (!(split)) return NULL;
       
     // Leaf in the split tree
     if (split->proc >= 0) {
@@ -949,7 +949,7 @@ public:
 #endif
     double _t0 = begin_time();
     // Build, don't include self in all neighbors for now
-    tree->build_tree(*new_all_pts, include_self);
+    tree->build_tree(*new_all_pts);
     debug_msg(true, "build_tree", "num_leaves = %u", tree->num_leaves);
     end_time(_t0, "build_tree");
     consolidate();
@@ -997,8 +997,7 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      local_domain_mins, local_domain_maxs,
-		      include_self, true);
+		      local_domain_mins, local_domain_maxs, true);
     end_time(_t0, "partition");
   }
 
@@ -1024,8 +1023,7 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      local_domain_mins, local_domain_maxs,
-		      include_self, true);
+		      local_domain_mins, local_domain_maxs, true);
     end_time(_t0, "partition");
   }
 
@@ -1068,7 +1066,7 @@ public:
     debug_msg(local_debug, "consolidate_tree",
 	      "%lu points in consolidated index", new_npts);
     // Create tree
-    if (split != NULL) {
+    if (split) {
       // TODO: Add self as neighbor on root for periodic domain? 
       uint32_t d;
       std::vector<Node*> left_nodes;
@@ -1079,8 +1077,7 @@ public:
       out = new KDTree(NULL, new_idx, new_npts, ndim, leafsize,
 		       inter_domain_left_edge, inter_domain_right_edge,
 		       inter_periodic_left, inter_periodic_right,
-		       inter_domain_mins, inter_domain_maxs,
-		       include_self, true);
+		       inter_domain_mins, inter_domain_maxs, true);
       // Consolidate nodes
       debug_msg(local_debug, "consolidate_tree", "building tree");
       double _tb = begin_time();
@@ -1092,7 +1089,7 @@ public:
       end_time(_tb, "total build");
       // Finalize neighbors
       debug_msg(local_debug, "consolidate_tree", "finalizing neighbors");
-      out->finalize_neighbors(include_self);
+      out->finalize_neighbors();
     } else {
       // Send root back to source
       debug_msg(local_debug, "consolidate_tree",
@@ -1117,8 +1114,7 @@ public:
     out = new KDTree(NULL, all_idx, inter_npts, ndim, leafsize,
 		     inter_domain_left_edge, inter_domain_right_edge,
 		     inter_periodic_left, inter_periodic_right,
-		     inter_domain_mins, inter_domain_maxs,
-		     include_self, true);
+		     inter_domain_mins, inter_domain_maxs, true);
     // Consolidate nodes
     double _tb = begin_time();
     out->root = build(out, 0, out->npts,
@@ -1130,8 +1126,16 @@ public:
     if (src_exch.src != -1)
       send_node(src_exch.src, out->root);
     // Consolidate idx
-    out->finalize_neighbors(include_self);
+    out->finalize_neighbors();
     consolidate_idx();
+    // Prevent root nodes from being freed twice
+    if (src_exch.src == -1) {
+      tree->skip_dealloc_root = true;
+    } else {
+      out->skip_dealloc_root = true;
+      delete(out);
+      out = NULL;
+    }
     end_time(_t0, "consolidate_tree");
     return out;
   }
@@ -1286,7 +1290,7 @@ public:
     for (it = tree->leaves.begin();
 	 it != tree->leaves.end(); ++it) {
       for (d = 0; d < ndim; d++) {
-	if (((*it)->left_nodes[d] == NULL) and (lsplit[d].size() > 0)) {
+	if ((!((*it)->left_nodes[d])) and (lsplit[d].size() > 0)) {
 	  leaves_send[d].push_back(*it);
 	}
       }
@@ -1304,7 +1308,7 @@ public:
     // Finalize neighbors
     debug_msg(local_debug, "consolidate_neighbors",
 	      "finalizing neighbors");
-    tree->finalize_neighbors(include_self);
+    tree->finalize_neighbors();
   }
 
   void exch_neigh(uint32_t d, std::vector<std::vector<Node*> > lsend,
@@ -1524,14 +1528,14 @@ public:
     MPI_Bcast(pos, ndim, MPI_DOUBLE, root, MPI_COMM_WORLD);
     Node* out = tree->search(pos, true);
     // if (rank == root) {
-    //   if (out == NULL) {
+    //   if (!(out)) {
     // 	int src;
     // 	MPI_Recv(&src, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD,
     // 		 MPI_STATUS_IGNORE);
     // 	out = recv_leafnode(src);
     //   }
     // } else {
-    //   if (out != NULL) {
+    //   if (out) {
     // 	MPI_Send(&rank, 1, MPI_INT, root, 0, MPI_COMM_WORLD);
     // 	send_leafnode(root, out);
     // 	out = NULL;
@@ -1551,7 +1555,7 @@ public:
     Node* leaf;
     std::vector<uint32_t> neighbors;
     leaf = search(pos);
-    if (leaf != NULL)
+    if (leaf)
       neighbors = leaf->all_neighbors;
     return neighbors;
   }

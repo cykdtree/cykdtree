@@ -78,7 +78,7 @@ def make_tree(pts, nproc=0, **kwargs):
     """
     # Check input
     if (pts.ndim != 2):
-        raise ValueError("pts must be a 2D array of coordinates")
+        raise ValueError("pts must be a 2D array of ND coordinates")
     # Parallel
     if nproc > 1 and FLAG_MULTIPROC:
         T = spawn_parallel(pts, nproc, **kwargs)

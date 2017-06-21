@@ -250,6 +250,49 @@ public:
     return os;
   }
 
+  Node* copy() {
+    Node *out;
+    if (is_empty) {
+      if (left_edge) {
+	out = new Node(ndim, left_edge, right_edge,
+		       periodic_left, periodic_right);
+      } else {
+	out = new Node();
+      }
+    } else if (is_leaf) {
+      std::vector<Node*> left_nodes_copy;
+      for (uint32_t d = 0; d < ndim; d++)
+	left_nodes_copy.push_back(NULL);
+      out = new Node(ndim, left_edge, right_edge,
+		     periodic_left, periodic_right,
+		     left_idx, children, leafid, 
+		     left_nodes_copy);
+    } else {
+      Node *lnode = less->copy();
+      Node *gnode = greater->copy();
+      std::vector<Node*> left_nodes_copy;
+      for (uint32_t d = 0; d < ndim; d++)
+	left_nodes_copy.push_back(NULL);
+      out = new Node(ndim, left_edge, right_edge,
+		     periodic_left, periodic_right,
+		     left_idx, split_dim, split, lnode, gnode,
+		     left_nodes_copy);
+      std::vector<uint32_t>::iterator it;
+      for (uint32_t d = 0; d < ndim; d++) {
+	for (it = left_neighbors[d].begin();
+	     it != left_neighbors[d].end(); it++) {
+	  out->left_neighbors[d].push_back(*it);
+	}
+	for (it = right_neighbors[d].begin();
+	     it != right_neighbors[d].end(); it++) {
+	  out->right_neighbors[d].push_back(*it);
+	}
+      }
+    }
+
+    return out;
+  }
+
   void update_ids(uint32_t add_to) {
     leafid += add_to;
     uint32_t i;
@@ -344,7 +387,7 @@ public:
     }
   }
 
-  void join_neighbors(bool include_self = true) {
+  void join_neighbors() {
     if (not is_leaf)
       return;
 
@@ -356,8 +399,6 @@ public:
       all_neighbors.insert(all_neighbors.end(), left_neighbors[d].begin(), left_neighbors[d].end());
     for (d = 0; d < ndim; d++)
       all_neighbors.insert(all_neighbors.end(), right_neighbors[d].begin(), right_neighbors[d].end());
-    if (include_self)
-      all_neighbors.push_back(leafid);
 
     // Get unique
     std::sort(all_neighbors.begin(), all_neighbors.end());
@@ -447,6 +488,7 @@ class KDTree
 {
 public:
   bool is_partial;
+  bool skip_dealloc_root;
   uint64_t* all_idx;
   uint64_t npts;
   uint32_t ndim;
@@ -470,22 +512,29 @@ public:
 	 uint32_t leafsize0, double *left_edge, double *right_edge,
 	 bool *periodic_left0, bool *periodic_right0,
 	 double *domain_mins0, double *domain_maxs0,
-	 bool include_self = false, bool dont_build = false)
+	 bool dont_build = false)
   {
     is_partial = true;
+    skip_dealloc_root = false;
 
     all_idx = idx;
     npts = n;
     ndim = m;
     leafsize = leafsize0;
-    domain_left_edge = left_edge;
-    domain_right_edge = right_edge;
-    periodic_left = periodic_left0;
-    periodic_right = periodic_right0;
+    domain_left_edge = (double*)malloc(ndim*sizeof(double));
+    domain_right_edge = (double*)malloc(ndim*sizeof(double));
+    periodic_left = (bool*)malloc(ndim*sizeof(bool));
+    periodic_right = (bool*)malloc(ndim*sizeof(bool));
     periodic = (bool*)malloc(ndim*sizeof(bool));
     domain_mins = NULL;
     domain_maxs = NULL;
+    domain_width = (double*)malloc(ndim*sizeof(double));
     num_leaves = 0;
+
+    memcpy(domain_left_edge, left_edge, ndim*sizeof(double));
+    memcpy(domain_right_edge, right_edge, ndim*sizeof(double));
+    memcpy(periodic_left, periodic_left0, ndim*sizeof(bool));
+    memcpy(periodic_right, periodic_right0, ndim*sizeof(bool));
 
     if (domain_mins0) {
       domain_mins = (double*)malloc(ndim*sizeof(double));
@@ -510,36 +559,40 @@ public:
       }
     }
 
-    domain_width = (double*)malloc(ndim*sizeof(double));
-    for (uint32_t d = 0; d < ndim; d++) {
+    for (uint32_t d = 0; d < ndim; d++)
       domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
-    }
 
-    if ((pts != NULL) && (!(dont_build)))
-      build_tree(pts, include_self);
+    if ((pts) && (!(dont_build)))
+      build_tree(pts);
 
   }
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
 	 double *left_edge, double *right_edge, bool *periodic0,
-	 bool include_self = false, bool dont_build = false)
+	 bool dont_build = false)
   {
     is_partial = false;
+    skip_dealloc_root = false;
     left_idx = 0;
 
     all_idx = idx;
     npts = n;
     ndim = m;
     leafsize = leafsize0;
-    domain_left_edge = left_edge;
-    domain_right_edge = right_edge;
+    domain_left_edge = (double*)malloc(ndim*sizeof(double));
+    domain_right_edge = (double*)malloc(ndim*sizeof(double));
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
-    periodic = periodic0;
+    periodic = (bool*)malloc(ndim*sizeof(bool));
     domain_mins = NULL;
     domain_maxs = NULL;
+    domain_width = (double*)malloc(ndim*sizeof(double));
     num_leaves = 0;
 
-    if (pts != NULL) {
+    memcpy(domain_left_edge, left_edge, ndim*sizeof(double));
+    memcpy(domain_right_edge, right_edge, ndim*sizeof(double));
+    memcpy(periodic, periodic0, ndim*sizeof(bool));
+
+    if (pts) {
       domain_mins = min_pts(pts, n, m);
       domain_maxs = max_pts(pts, n, m);
     }
@@ -556,13 +609,11 @@ public:
       }
     }
 
-    domain_width = (double*)malloc(ndim*sizeof(double));
-    for (uint32_t d = 0; d < ndim; d++) {
+    for (uint32_t d = 0; d < ndim; d++)
       domain_width[d] = domain_right_edge[d] - domain_left_edge[d];
-    }
 
-    if ((pts != NULL) && (!(dont_build)))
-      build_tree(pts, include_self);
+    if ((pts) && (!(dont_build)))
+      build_tree(pts);
 
   }
   KDTree(std::istream &is)
@@ -612,18 +663,18 @@ public:
   }
   ~KDTree()
   {
+    if (!(skip_dealloc_root))
+      free_tree_nodes(root);
+    free(domain_left_edge);
+    free(domain_right_edge);
     free(domain_width);
     if (domain_mins)
       free(domain_mins);
     if (domain_maxs)
       free(domain_maxs);
-    free_tree_nodes(root);
-    if (is_partial) {
-      free(periodic);
-    } else {
-      free(periodic_left);
-      free(periodic_right);
-    }
+    free(periodic);
+    free(periodic_left);
+    free(periodic_right);
   }
 
   void consolidate_edges(double *leaves_le, double *leaves_re) {
@@ -637,7 +688,7 @@ public:
     }
   }
 
-  void build_tree(double* all_pts, bool include_self = false) {
+  void build_tree(double* all_pts) {
     uint32_t d;
     double *LE = (double*)malloc(ndim*sizeof(double));
     double *RE = (double*)malloc(ndim*sizeof(double));
@@ -647,9 +698,9 @@ public:
     double *maxs = (double*)malloc(ndim*sizeof(double));
     std::vector<Node*> left_nodes;
 
-    if (domain_mins == NULL)
+    if (!(domain_mins))
       domain_mins = min_pts(all_pts, npts, ndim);
-    if (domain_maxs == NULL)
+    if (!(domain_maxs))
       domain_maxs = max_pts(all_pts, npts, ndim);
 
     for (d = 0; d < ndim; d++) {
@@ -673,11 +724,11 @@ public:
     free(maxs);
 
     // Finalize neighbors
-    finalize_neighbors(include_self);
+    finalize_neighbors();
 
   }
 
-  void finalize_neighbors(bool include_self = false) {
+  void finalize_neighbors() {
     uint32_t d;
 
     // Add periodic neighbors
@@ -687,7 +738,7 @@ public:
     // Remove duplicate neighbors
     for (d = 0; d < num_leaves; d++) {
       leaves[d]->select_unique_neighbors();
-      leaves[d]->join_neighbors(include_self);
+      leaves[d]->join_neighbors();
     }
   }
 
