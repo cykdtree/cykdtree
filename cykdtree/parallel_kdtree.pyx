@@ -83,7 +83,6 @@ def spawn_parallel(np.ndarray[np.float64_t, ndim=2] pts, int nproc, **kwargs):
     if not kwargs.get("suppress_final_output", False):
         os.remove(foutput)
     # Return tree
-    print('returning')
     return tree
     
 
@@ -119,13 +118,10 @@ def parallel_worker(finput, foutput):
     if profile:
         pr = cProfile.Profile()
         pr.enable()
-    print('constructing')
     ptree = PyParallelKDTree(pts, **kwargs)
     # Consolidate
     if not suppress_final_output:
-        print('consolidating')
         tree = ptree.consolidate()
-        print('done', rank)
     if profile:
         pr.disable()
         if isinstance(profile, str):
@@ -134,7 +130,6 @@ def parallel_worker(finput, foutput):
             pstats.Stats(pr).sort_stats('time').print_stats(25)
     # Save output
     if not suppress_final_output and (rank == 0):
-        print('saving')
         tree.save(foutput)
 
 
