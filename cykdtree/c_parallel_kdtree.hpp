@@ -997,7 +997,7 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      local_domain_mins, local_domain_maxs, true);
+                      local_domain_mins, local_domain_maxs, 0, true);
     end_time(_t0, "partition");
   }
 
@@ -1023,7 +1023,7 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      local_domain_mins, local_domain_maxs, true);
+		      local_domain_mins, local_domain_maxs, 0, true);
     end_time(_t0, "partition");
   }
 
@@ -1077,7 +1077,7 @@ public:
       out = new KDTree(NULL, new_idx, new_npts, ndim, leafsize,
 		       inter_domain_left_edge, inter_domain_right_edge,
 		       inter_periodic_left, inter_periodic_right,
-		       inter_domain_mins, inter_domain_maxs, true);
+		       inter_domain_mins, inter_domain_maxs, 0, true);
       // Consolidate nodes
       debug_msg(local_debug, "consolidate_tree", "building tree");
       double _tb = begin_time();
@@ -1114,7 +1114,7 @@ public:
     out = new KDTree(NULL, all_idx, inter_npts, ndim, leafsize,
 		     inter_domain_left_edge, inter_domain_right_edge,
 		     inter_periodic_left, inter_periodic_right,
-		     inter_domain_mins, inter_domain_maxs, true);
+		     inter_domain_mins, inter_domain_maxs, 0, true);
     // Consolidate nodes
     double _tb = begin_time();
     out->root = build(out, 0, out->npts,

@@ -99,7 +99,7 @@ def test_save_load():
         for ndim in range(1, 5):
             pts, le, re, ls = make_points(100, ndim)
             tree = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
-                                     periodic=periodic)
+                                     periodic=periodic, data_version=ndim+12)
             with tempfile.NamedTemporaryFile() as tf:
                 tree.save(tf.name)
                 restore_tree = cykdtree.PyKDTree.from_file(tf.name)
