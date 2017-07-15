@@ -56,6 +56,7 @@ cdef extern from "c_kdtree.hpp":
         uint64_t* all_idx
         uint64_t npts
         uint32_t ndim
+        int64_t data_version
         uint32_t leafsize
         double* domain_left_edge
         double* domain_right_edge
@@ -63,13 +64,16 @@ cdef extern from "c_kdtree.hpp":
         double* domain_mins
         double* domain_maxs
         bool* periodic
+        bool any_periodic
         uint32_t num_leaves
         vector[Node*] leaves
         Node* root
-        KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
-               double *left_edge, double *right_edge, bool *periodic)
-        KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
-               double *left_edge, double *right_edge, bool *periodic, 
+        KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
+               uint32_t leafsize0, double *left_edge, double *right_edge,
+               bool *periodic, int64_t data_version)
+        KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
+               uint32_t leafsize0, double *left_edge, double *right_edge,
+               bool *periodic, int64_t data_version,
                bool use_sliding_midpoint)
         KDTree(istream &ist)
         void serialize(ostream &os)
@@ -99,6 +103,7 @@ cdef class PyKDTree:
     cdef readonly uint32_t ndim
     cdef readonly uint32_t num_leaves
     cdef readonly uint32_t leafsize
+    cdef readonly int64_t data_version
     cdef double *_left_edge
     cdef double *_right_edge
     cdef bool *_periodic

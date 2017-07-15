@@ -1002,7 +1002,7 @@ public:
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
 		      local_domain_mins, local_domain_maxs, 
-		      use_sliding_midpoint, true);
+		      0, use_sliding_midpoint, true);
     end_time(_t0, "partition");
   }
 
@@ -1029,7 +1029,7 @@ public:
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
 		      local_domain_mins, local_domain_maxs,
-		      use_sliding_midpoint, true);
+		      0, use_sliding_midpoint, true);
     end_time(_t0, "partition");
   }
 
@@ -1084,7 +1084,7 @@ public:
 		       inter_domain_left_edge, inter_domain_right_edge,
 		       inter_periodic_left, inter_periodic_right,
 		       inter_domain_mins, inter_domain_maxs,
-		       use_sliding_midpoint, true);
+		       0, use_sliding_midpoint, true);
       // Consolidate nodes
       debug_msg(local_debug, "consolidate_tree", "building tree");
       double _tb = begin_time();
@@ -1122,7 +1122,7 @@ public:
 		     inter_domain_left_edge, inter_domain_right_edge,
 		     inter_periodic_left, inter_periodic_right,
 		     inter_domain_mins, inter_domain_maxs, 
-		     use_sliding_midpoint, true);
+		     0, use_sliding_midpoint, true);
     // Consolidate nodes
     double _tb = begin_time();
     out->root = build(out, 0, out->npts,

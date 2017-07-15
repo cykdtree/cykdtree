@@ -494,6 +494,7 @@ public:
   uint64_t npts;
   uint32_t ndim;
   uint64_t left_idx;
+  int64_t data_version;
   bool *periodic_left;
   bool *periodic_right;
   uint32_t leafsize;
@@ -511,7 +512,7 @@ public:
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 	 uint32_t leafsize0, double *left_edge, double *right_edge,
-	 bool *periodic_left0, bool *periodic_right0,
+	 bool *periodic_left0, bool *periodic_right0, int64_t dversion,
 	 double *domain_mins0, double *domain_maxs0,
 	 bool use_sliding_midpoint0 = false, bool dont_build = false)
   {
@@ -527,6 +528,7 @@ public:
     domain_right_edge = (double*)malloc(ndim*sizeof(double));
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
+    data_version = dversion;
     periodic = (bool*)malloc(ndim*sizeof(bool));
     domain_mins = NULL;
     domain_maxs = NULL;
@@ -569,7 +571,7 @@ public:
 
   }
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
-	 double *left_edge, double *right_edge, bool *periodic0,
+	 double *left_edge, double *right_edge, bool *periodic0, int64_t dversion,
 	 bool use_sliding_midpoint0 = false, bool dont_build = false)
   {
     is_partial = false;
@@ -583,6 +585,7 @@ public:
     leafsize = leafsize0;
     domain_left_edge = (double*)malloc(ndim*sizeof(double));
     domain_right_edge = (double*)malloc(ndim*sizeof(double));
+    data_version = dversion;
     periodic_left = (bool*)malloc(ndim*sizeof(bool));
     periodic_right = (bool*)malloc(ndim*sizeof(bool));
     periodic = (bool*)malloc(ndim*sizeof(bool));
@@ -621,6 +624,7 @@ public:
   }
   KDTree(std::istream &is)
   {
+    data_version = deserialize_scalar<int64_t>(is);
     is_partial = deserialize_scalar<bool>(is);
     use_sliding_midpoint = deserialize_scalar<bool>(is);
     npts = deserialize_scalar<uint64_t>(is);
@@ -647,6 +651,7 @@ public:
   }
   void serialize(std::ostream &os)
   {
+    serialize_scalar<int64_t>(os, data_version);
     serialize_scalar<bool>(os, is_partial);
     serialize_scalar<bool>(os, use_sliding_midpoint);
     serialize_scalar<uint64_t>(os, npts);

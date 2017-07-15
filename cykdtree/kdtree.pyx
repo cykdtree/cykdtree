@@ -154,6 +154,10 @@ cdef class PyKDTree:
             resulting tree. If greater than 0, leafsize is adjusted to produce a
             tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword
             argument is ignored if nleaves is greater zero. Defaults to 0.
+        data_version (int, optional): An optional user-provided integer that
+            can be used to uniquely identify the data used to generate the
+            KDTree. This is useful if you save the kdtree to disk and restore
+            it later and need to verify that the underlying data is the same.
         use_sliding_midpoint (bool, optional): If True, the sliding midpoint
             rule is used to perform splits. Otherwise, the median is used.
             Defaults to False.
@@ -164,6 +168,7 @@ cdef class PyKDTree:
     Attributes:
         npts (uint64): Number of points in the tree.
         ndim (uint32): Number of dimensions points occupy.
+        data_version (int64): User-provided version number (defaults to 0)
         num_leaves (uint32): Number of leaves in the tree.
         leafsize (uint32): Maximum number of points a leaf can have.
         leaves (list of `cykdtree.PyNode`): Tree leaves.
@@ -179,6 +184,7 @@ cdef class PyKDTree:
     cdef void _init_tree(self, KDTree* tree):
         self._tree = tree
         self.ndim = tree.ndim
+        self.data_version = tree.data_version
         self.npts = tree.npts
         self.num_leaves = tree.num_leaves
         self.leafsize = tree.leafsize
@@ -207,6 +213,7 @@ cdef class PyKDTree:
                  periodic = False,
                  int leafsize = 10000,
                  int nleaves = 0,
+                 data_version = None,
                  use_sliding_midpoint = False):
         # Return with nothing set if points not provided
         if pts is None:
@@ -227,6 +234,9 @@ cdef class PyKDTree:
             right_edge = np.max(pts, axis=0)
         else:
             right_edge = np.array(right_edge)
+        if data_version is None:
+            data_version = 0
+        self.data_version = data_version
         cdef uint32_t k,i,j
         self.npts = <uint64_t>pts.shape[0]
         self.ndim = <uint32_t>pts.shape[1]
@@ -276,6 +286,7 @@ cdef class PyKDTree:
         """
         np.testing.assert_equal(self.npts, solf.npts)
         np.testing.assert_equal(self.ndim, solf.ndim)
+        np.testing.assert_equal(self.data_version, solf.data_version)
         np.testing.assert_equal(self.leafsize, solf.leafsize)
         np.testing.assert_equal(self.num_leaves, solf.num_leaves)
         np.testing.assert_array_equal(self.left_edge, solf.left_edge)
@@ -297,7 +308,7 @@ cdef class PyKDTree:
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize,
                                 self._left_edge, self._right_edge, self._periodic,
-                                use_sliding_midpoint)
+                                self.data_version, use_sliding_midpoint)
         self._idx = idx
 
     cdef void _make_leaves(self):
@@ -441,14 +452,18 @@ cdef class PyKDTree:
             del outputter
 
     @classmethod
-    def from_file(cls, str filename):
+    def from_file(cls, str filename, data_version=None):
         r"""Create a PyKDTree from a binary file created by ``PyKDTree.save()``
 
         Note that loading a file created on another machine may create
         a corrupted PyKDTree instance.
 
         Args:
-            filename (string): Name of the file to serialize the kdtree to
+            filename (string): Name of the file to load the kdtree from
+            data_version (int): A unique integer corresponding to the data 
+                                being loaded. If the loaded data_version does 
+                                not match the data_version supplied here then 
+                                an OSError is raised. Optional.
         
         Returns:
             :class:`cykdtree.PyKDTree`: A KDTree restored from the file
@@ -456,6 +471,8 @@ cdef class PyKDTree:
         """
         cdef ifstream* inputter = new ifstream(filename.encode(), binary)
         cdef PyKDTree ret = cls()
+        if data_version is None:
+            data_version = 0
         try:
             ret._init_tree(new KDTree(dereference(inputter)))
         finally:
