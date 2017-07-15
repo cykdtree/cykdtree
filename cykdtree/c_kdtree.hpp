@@ -489,6 +489,7 @@ class KDTree
 public:
   bool is_partial;
   bool skip_dealloc_root;
+  bool use_sliding_midpoint;
   uint64_t* all_idx;
   uint64_t npts;
   uint32_t ndim;
@@ -512,10 +513,11 @@ public:
 	 uint32_t leafsize0, double *left_edge, double *right_edge,
 	 bool *periodic_left0, bool *periodic_right0,
 	 double *domain_mins0, double *domain_maxs0,
-	 bool dont_build = false)
+	 bool use_sliding_midpoint0 = false, bool dont_build = false)
   {
     is_partial = true;
     skip_dealloc_root = false;
+    use_sliding_midpoint = use_sliding_midpoint0;
 
     all_idx = idx;
     npts = n;
@@ -568,10 +570,11 @@ public:
   }
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m, uint32_t leafsize0,
 	 double *left_edge, double *right_edge, bool *periodic0,
-	 bool dont_build = false)
+	 bool use_sliding_midpoint0 = false, bool dont_build = false)
   {
     is_partial = false;
     skip_dealloc_root = false;
+    use_sliding_midpoint = use_sliding_midpoint0;
     left_idx = 0;
 
     all_idx = idx;
@@ -619,6 +622,7 @@ public:
   KDTree(std::istream &is)
   {
     is_partial = deserialize_scalar<bool>(is);
+    use_sliding_midpoint = deserialize_scalar<bool>(is);
     npts = deserialize_scalar<uint64_t>(is);
     all_idx = deserialize_pointer_array<uint64_t>(is, npts);
     ndim = deserialize_scalar<uint32_t>(is);
@@ -644,6 +648,7 @@ public:
   void serialize(std::ostream &os)
   {
     serialize_scalar<bool>(os, is_partial);
+    serialize_scalar<bool>(os, use_sliding_midpoint);
     serialize_scalar<uint64_t>(os, npts);
     serialize_pointer_array<uint64_t>(os, all_idx, npts);
     serialize_scalar<uint32_t>(os, ndim);
@@ -827,7 +832,7 @@ public:
       int64_t split_idx = 0;
       double split_val = 0.0;
       dmax = split(all_pts, all_idx, Lidx, n, ndim, mins, maxes,
-		   split_idx, split_val);
+		   split_idx, split_val, use_sliding_midpoint);
       if (maxes[dmax] == mins[dmax]) {
 	// all points singular
 	Node* out = new Node(ndim, LE, RE, PLE, PRE, Lidx, n, num_leaves,

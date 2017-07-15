@@ -154,6 +154,9 @@ cdef class PyKDTree:
             resulting tree. If greater than 0, leafsize is adjusted to produce a
             tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword
             argument is ignored if nleaves is greater zero. Defaults to 0.
+        use_sliding_midpoint (bool, optional): If True, the sliding midpoint
+            rule is used to perform splits. Otherwise, the median is used.
+            Defaults to False.
 
     Raises:
         ValueError: If `leafsize < 2`. This currectly segfaults.
@@ -203,7 +206,8 @@ cdef class PyKDTree:
                  right_edge = None,
                  periodic = False,
                  int leafsize = 10000,
-                 int nleaves = 0):
+                 int nleaves = 0,
+                 use_sliding_midpoint = False):
         # Return with nothing set if points not provided
         if pts is None:
             return
@@ -242,7 +246,7 @@ cdef class PyKDTree:
             for i in range(self.ndim):
                 self._periodic[i] = <cbool>periodic[i]
         # Create tree and leaves
-        self._make_tree(&pts[0,0])
+        self._make_tree(&pts[0,0], <cbool>use_sliding_midpoint)
         self._make_leaves()
 
     def __dealloc__(self):
@@ -288,11 +292,12 @@ cdef class PyKDTree:
                     np.sort(self._idx[self.leaves[i].slice]),
                     np.sort(solf._idx[solf.leaves[i].slice]))
 
-    cdef void _make_tree(self, double *pts):
+    cdef void _make_tree(self, double *pts, bool use_sliding_midpoint):
         r"""Carry out creation of KDTree at C++ level."""
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         self._tree = new KDTree(pts, &idx[0], self.npts, self.ndim, self.leafsize,
-                                self._left_edge, self._right_edge, self._periodic)
+                                self._left_edge, self._right_edge, self._periodic,
+                                use_sliding_midpoint)
         self._idx = idx
 
     cdef void _make_leaves(self):

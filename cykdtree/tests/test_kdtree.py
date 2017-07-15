@@ -6,10 +6,12 @@ import cykdtree
 from cykdtree.tests import parametrize, make_points, make_points_neighbors
 
 
-@parametrize(npts=100, ndim=(2, 3), periodic=(False, True))
-def test_PyKDTree(npts=100, ndim=2, periodic=False):
+@parametrize(npts=100, ndim=(2, 3), periodic=(False, True), 
+             use_sliding_midpoint=(False, True))
+def test_PyKDTree(npts=100, ndim=2, periodic=False, use_sliding_midpoint=False):
     pts, le, re, ls = make_points(npts, ndim)
-    cykdtree.PyKDTree(pts, le, re, leafsize=ls, periodic=periodic)
+    cykdtree.PyKDTree(pts, le, re, leafsize=ls, periodic=periodic,
+                      use_sliding_midpoint=use_sliding_midpoint)
 
 
 def test_PyKDTree_errors():

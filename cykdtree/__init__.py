@@ -1,4 +1,3 @@
-import nose
 import sys
 import os
 PY_MAJOR_VERSION = sys.version_info[0]
@@ -12,6 +11,7 @@ from cykdtree import tests, plot
 
 
 def run_nose(verbose=False):
+    import nose
     nose_argv = sys.argv
     nose_argv += ['--detailed-errors', '--exe']
     if verbose:

@@ -108,6 +108,7 @@ public:
   bool *total_periodic;
   bool total_any_periodic;
   uint32_t total_num_leaves;
+  bool use_sliding_midpoint;
   // Properties of original data received by this process
   uint64_t inter_npts;
   double *inter_domain_left_edge;
@@ -136,7 +137,7 @@ public:
   
   ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 		 uint32_t leafsize0, double *left_edge, double *right_edge,
-		 bool *periodic0) {
+		 bool *periodic0, bool use_sliding_midpoint0 = false) {
     bool local_debug = true;
     double *all_pts = pts;
     MPI_Comm_size ( MPI_COMM_WORLD, &size);
@@ -153,7 +154,7 @@ public:
     double _t0 = begin_time();
     all_avail = (int*)malloc(size*sizeof(int));
     nrounds = 0;
-     // Determine root
+    // Determine root
     if (pts) {
       root = rank;
       is_root = true;
@@ -192,6 +193,9 @@ public:
     rrank = (rank - root + size) % size;
     MPI_Bcast(&ndim, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
     MPI_Bcast(&leafsize, 1, MPI_UNSIGNED, root, MPI_COMM_WORLD);
+    int dummy_flag = (int)(use_sliding_midpoint0);
+    MPI_Bcast(&dummy_flag, 1, MPI_INT, root, MPI_COMM_WORLD);
+    use_sliding_midpoint = (bool)(dummy_flag);
     // Allocate things
     dummy = (int*)malloc(ndim*sizeof(int));
     lsplit = std::vector<std::vector<int> >(ndim);
@@ -997,7 +1001,8 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      local_domain_mins, local_domain_maxs, true);
+		      local_domain_mins, local_domain_maxs, 
+		      use_sliding_midpoint, true);
     end_time(_t0, "partition");
   }
 
@@ -1023,7 +1028,8 @@ public:
     tree = new KDTree(*all_pts, all_idx, local_npts, ndim, leafsize,
 		      local_domain_left_edge, local_domain_right_edge,
 		      local_periodic_left, local_periodic_right,
-		      local_domain_mins, local_domain_maxs, true);
+		      local_domain_mins, local_domain_maxs,
+		      use_sliding_midpoint, true);
     end_time(_t0, "partition");
   }
 
@@ -1035,9 +1041,9 @@ public:
     double split_val = 0.0;
     dsplit = split(all_pts, all_idx, 0, local_npts, ndim,
 		   local_domain_mins, local_domain_maxs,
-		   split_idx, split_val);
+		   split_idx, split_val, use_sliding_midpoint);
     // dsplit = tree->split(0, local_npts, local_domain_mins, local_domain_maxs,
-    // 			 split_idx, split_val);
+    // 			 split_idx, split_val, use_sliding_midpoint);
     this_exch = exch_rec(rank, other_rank, dsplit, split_val, split_idx,
 			 local_left_idx + split_idx + 1,
 			 local_npts - split_idx - 1);
@@ -1077,7 +1083,8 @@ public:
       out = new KDTree(NULL, new_idx, new_npts, ndim, leafsize,
 		       inter_domain_left_edge, inter_domain_right_edge,
 		       inter_periodic_left, inter_periodic_right,
-		       inter_domain_mins, inter_domain_maxs, true);
+		       inter_domain_mins, inter_domain_maxs,
+		       use_sliding_midpoint, true);
       // Consolidate nodes
       debug_msg(local_debug, "consolidate_tree", "building tree");
       double _tb = begin_time();
@@ -1114,7 +1121,8 @@ public:
     out = new KDTree(NULL, all_idx, inter_npts, ndim, leafsize,
 		     inter_domain_left_edge, inter_domain_right_edge,
 		     inter_periodic_left, inter_periodic_right,
-		     inter_domain_mins, inter_domain_maxs, true);
+		     inter_domain_mins, inter_domain_maxs, 
+		     use_sliding_midpoint, true);
     // Consolidate nodes
     double _tb = begin_time();
     out->root = build(out, 0, out->npts,

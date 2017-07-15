@@ -17,6 +17,24 @@ def test_min_pts():
     np.testing.assert_allclose(out, np.min(pts, axis=0))
 
 
+@parametrize(N=(10), ndim=(2, 3), Lidx=(0,5), Ridx=(5,9))
+def test_argmax_pts_dim(N=10, ndim=2, Lidx=0, Ridx=9):
+    d = ndim-1
+    pts = np.random.rand(N, ndim).astype('float64')
+    idx = np.argsort(pts[:, d]).astype('uint64')
+    out = utils.py_argmax_pts_dim(pts, idx, d, Lidx, Ridx)
+    assert_equal(out, np.argmax(pts[idx[Lidx:(Ridx+1)], d]) + Lidx)
+
+
+@parametrize(N=(10), ndim=(2, 3), Lidx=(0,5), Ridx=(5,9))
+def test_argmin_pts_dim(N=10, ndim=2, Lidx=0, Ridx=9):
+    d = ndim-1
+    pts = np.random.rand(N, ndim).astype('float64')
+    idx = np.argsort(pts[:, d]).astype('uint64')
+    out = utils.py_argmin_pts_dim(pts, idx, d, Lidx, Ridx)
+    assert_equal(out, np.argmin(pts[idx[Lidx:(Ridx+1)], d]) + Lidx)
+
+
 @parametrize(N=(0, 10, 11), ndim=(2, 3))
 def test_quickSort(N=10, ndim=2):
     d = ndim-1
@@ -112,21 +130,48 @@ def test_select(N=10, ndim=2):
             np.testing.assert_array_less(pts[idx[q], d], med)
 
 
-@parametrize(N=(0, 10, 11), ndim=(2, 3))
-def test_split(N=10, ndim=2):
+@parametrize(N=(0, 10, 11), ndim=(2, 3), use_sliding_midpoint=(False, True))
+def test_split(N=10, ndim=2, use_sliding_midpoint=False):
     np.random.seed(10)
     pts = np.random.rand(N, ndim).astype('float64')
     p = int(N)//2 + int(N)%2
-    q, d, idx = utils.py_split(pts)
+    q, d, idx = utils.py_split(pts, use_sliding_midpoint=use_sliding_midpoint)
     assert_equal(idx.size, N)
     if (N == 0):
         assert_equal(q, -1)
     else:
-        assert_equal(q, p-1)
-        med = np.median(pts[:, d])
-        np.testing.assert_array_less(pts[idx[:q], d], med)
-        np.testing.assert_array_less(med, pts[idx[(q+1):], d])
-        if (N%2):
-            np.testing.assert_approx_equal(pts[idx[q], d], med)
-        else:
+        if use_sliding_midpoint:
+            print N, ndim, use_sliding_midpoint
+            # Midpoint
+            med = 0.5*(np.min(pts[:,d]) + np.max(pts[:,d]))
+            np.testing.assert_array_less(pts[idx[:q], d], med)
+            np.testing.assert_array_less(med, pts[idx[(q+1):], d])
             np.testing.assert_array_less(pts[idx[q], d], med)
+            # Sliding midpoint (slide to minimum)
+            q, d, idx = utils.py_split(pts, 
+                                       mins=-1*np.ones(ndim),
+                                       maxs=np.ones(ndim),
+                                       use_sliding_midpoint=True)
+            med = np.min(pts[:,d])
+            assert_equal(q, 0)
+            np.testing.assert_array_less(pts[idx[:q], d], med)
+            np.testing.assert_array_less(med, pts[idx[(q+1):], d])
+            np.testing.assert_approx_equal(pts[idx[q], d], med)
+            # Sliding midpoint (slide to maximum)
+            q, d, idx = utils.py_split(pts, 
+                                       mins=np.zeros(ndim),
+                                       maxs=2*np.ones(ndim),
+                                       use_sliding_midpoint=True)
+            med = np.max(pts[:,d])
+            assert_equal(q, N-2)
+            np.testing.assert_array_less(pts[idx[:(q+1)], d], med)
+            np.testing.assert_approx_equal(pts[idx[q+1], d], med)
+        else:
+            assert_equal(q, p-1)
+            med = np.median(pts[:, d])
+            np.testing.assert_array_less(pts[idx[:q], d], med)
+            np.testing.assert_array_less(med, pts[idx[(q+1):], d])
+            if (N%2):
+                np.testing.assert_approx_equal(pts[idx[q], d], med)
+            else:
+                np.testing.assert_array_less(pts[idx[q], d], med)

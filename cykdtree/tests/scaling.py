@@ -108,7 +108,7 @@ def strong_scaling(npart=1e6, nrep=1, periodic=False,
         outstr = "_noout"
     fname_plot = 'plot_strong_scaling_nproc_{}part{}_{}leafsize{}.png'.format(
         npart, perstr, leafsize, outstr)
-    nproc_list = [1, 2, 4, 8, 16]
+    nproc_list = [1, 2, 4, 8]#, 16]
     ndim_list = [2, 3, 4]
     clr_list = ['b', 'r', 'g', 'm']
     times = np.empty((len(nproc_list), len(ndim_list), 2), 'float')
@@ -161,7 +161,7 @@ def weak_scaling(npart=1e4, nrep=1, periodic=False, leafsize=10,
         perstr = "_periodic"
     if suppress_final_output:
         outstr = "_noout"
-    fname_plot = 'plot_weak_scaling_nproc_{}part{}_{}leafsize.png'.format(
+    fname_plot = 'plot_weak_scaling_nproc_{}part{}_{}leafsize{}.png'.format(
         npart, perstr, leafsize, outstr)
     nproc_list = [1, 2, 4, 8, 16]
     ndim_list = [2, 3]

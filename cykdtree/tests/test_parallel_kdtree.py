@@ -21,11 +21,13 @@ def test_spawn_parallel(nproc=1, npts=20, ndim=2, periodic=False,
                                     periodic=periodic)
 
 
-@MPITest(Nproc, periodic=(False, True), ndim=(2,3))
-def test_PyParallelKDTree(periodic=False, ndim=2):
+@MPITest(Nproc, periodic=(False, True), ndim=(2,3),
+         use_sliding_midpoint=(False, True))
+def test_PyParallelKDTree(periodic=False, ndim=2, use_sliding_midpoint=False):
     pts, le, re, ls = make_points(20, ndim, leafsize=3)
     Tpara = cykdtree.PyParallelKDTree(pts, le, re, leafsize=ls,
-                                      periodic=periodic)
+                                      periodic=periodic,
+                                      use_sliding_midpoint=use_sliding_midpoint)
 
 
 @MPITest(Nproc, periodic=(False, True), ndim=(2,3))

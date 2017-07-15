@@ -39,6 +39,36 @@ double* min_pts(double *pts, uint64_t n, uint32_t m)
   return min;
 }
 
+uint64_t argmax_pts_dim(double *pts, uint64_t *idx,
+			uint32_t m, uint32_t d,
+			uint64_t Lidx, uint64_t Ridx)
+{
+  double max = -DBL_MAX;
+  uint64_t idx_max = Lidx;
+  for (uint64_t i = Lidx; i <= Ridx; i++) {
+    if (pts[m*idx[i] + d] > max) {
+      max = pts[m*idx[i] + d];
+      idx_max = i;
+    }
+  }
+  return idx_max;
+}
+
+uint64_t argmin_pts_dim(double *pts, uint64_t *idx,
+			uint32_t m, uint32_t d,
+			uint64_t Lidx, uint64_t Ridx)
+{
+  double min = DBL_MAX;
+  uint64_t idx_min = Lidx;
+  for (uint64_t i = Lidx; i <= Ridx; i++) {
+    if (pts[m*idx[i] + d] < min) {
+      min = pts[m*idx[i] + d];
+      idx_min = i;
+    }
+  }
+  return idx_min;
+}
+
 // http://www.comp.dit.ie/rlawlor/Alg_DS/sorting/quickSort.c 
 void quickSort(double *pts, uint64_t *idx,
                uint32_t ndim, uint32_t d,
@@ -175,7 +205,8 @@ int64_t select(double *pts, uint64_t *idx,
 uint32_t split(double *all_pts, uint64_t *all_idx,
                uint64_t Lidx, uint64_t n, uint32_t ndim,
                double *mins, double *maxes,
-               int64_t &split_idx, double &split_val) {
+               int64_t &split_idx, double &split_val,
+	       bool use_sliding_midpoint) {
   // Return immediately if variables empty
   if ((n == 0) or (ndim == 0)) {
     split_idx = -1;
@@ -194,10 +225,30 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
     return ndim;
   }
 
-  // Find median along dimension
-  int64_t nsel = (n/2) + (n%2);
-  split_idx = select(all_pts, all_idx, ndim, dmax, Lidx, Lidx+n-1, nsel);
-  split_val = all_pts[ndim*all_idx[split_idx] + dmax];
+  if (use_sliding_midpoint) {
+    // Split at middle, then slide midpoint as necessary
+    split_val = (mins[dmax] + maxes[dmax])/2.0;
+    split_idx = partition_given_pivot(all_pts, all_idx, ndim, dmax,
+				      Lidx, Lidx+n-1, split_val);
+    if (split_idx == (int64_t)(Lidx-1)) {
+      uint64_t t;
+      split_idx = argmin_pts_dim(all_pts, all_idx, ndim, dmax, Lidx, Lidx+n-1);
+      t = all_idx[split_idx]; all_idx[split_idx] = all_idx[Lidx]; all_idx[Lidx] = t;
+      split_idx = Lidx;
+      split_val = all_pts[ndim*all_idx[split_idx] + dmax];
+    } else if (split_idx == (int64_t)(Lidx+n-1)) {
+      uint64_t t;
+      split_idx = argmax_pts_dim(all_pts, all_idx, ndim, dmax, Lidx, Lidx+n-1);
+      t = all_idx[split_idx]; all_idx[split_idx] = all_idx[Lidx+n-1]; all_idx[Lidx+n-1] = t;
+      split_idx = Lidx+n-2;
+      split_val = all_pts[ndim*all_idx[split_idx] + dmax];
+    }
+  } else {
+    // Find median along dimension
+    int64_t nsel = (n/2) + (n%2);
+    split_idx = select(all_pts, all_idx, ndim, dmax, Lidx, Lidx+n-1, nsel);
+    split_val = all_pts[ndim*all_idx[split_idx] + dmax];
+  }
 
   return dmax;
 }

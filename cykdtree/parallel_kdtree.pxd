@@ -28,6 +28,10 @@ cdef extern from "c_parallel_kdtree.hpp":
         ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
                        uint32_t leafsize, double *left_edge0,
                        double *right_edge0, bool *periodic0)
+        ParallelKDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
+                       uint32_t leafsize, double *left_edge0,
+                       double *right_edge0, bool *periodic0,
+                       bool use_sliding_midpoint)
         vector[uint32_t] get_neighbor_ids(double* pos)
         Node* search(double* pos)
         KDTree* consolidate_tree()
@@ -41,7 +45,6 @@ cdef class PyParallelKDTree:
     cdef ParallelKDTree *_ptree
     cdef readonly uint64_t npts
     cdef readonly uint32_t ndim
-    cdef readonly uint32_t num_leaves
     cdef readonly uint32_t total_num_leaves
     cdef readonly uint32_t local_num_leaves
     cdef readonly uint32_t leafsize
@@ -50,7 +53,7 @@ cdef class PyParallelKDTree:
     cdef bool *_periodic
     cdef readonly object leaves
     cdef readonly object _idx
-    cdef void _make_tree(self, double *pts)
+    cdef void _make_tree(self, double *pts, bool use_sliding_midpoint)
     cdef object _get_neighbor_ids(self, np.ndarray[double, ndim=1] pos)
     # cdef np.ndarray[np.uint32_t, ndim=1] _get_neighbor_ids_3(self, np.float64_t pos[3])
     cdef object _get(self, np.ndarray[double, ndim=1] pos)

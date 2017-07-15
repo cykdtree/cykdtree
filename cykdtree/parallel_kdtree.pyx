@@ -134,29 +134,90 @@ def parallel_worker(finput, foutput):
 
 
 cdef class PyParallelKDTree:
-    r"""Object for constructing a KDTree in parallel.
+    r"""Object for constructing a KDTree in parallel. All arguments are only
+    accepted and processed on rank 0 process.
+
+    Args:
+        pts (np.ndarray of double): (n,m) array of n coordinates in a
+            m-dimensional domain.
+        left_edge (np.ndarray of double, optional): (m,) domain minimum in each
+            dimension. If not provided, it is determined from the points.
+            Defaults to None.
+        right_edge (np.ndarray of double, optional): (m,) domain maximum in
+            each dimension. If not provided, it is determined from the points.
+            Defaults to None.
+        periodic (object, optional): Truth of the domain periodicity overall
+            (if bool), or in each dimension (if np.ndarray). Defaults to
+            `False`.            
+        leafsize (int, optional): The maximum number of points that should be in
+            a leaf. Defaults to 10000.  
+        nleaves (int, optional): The number of leaves that should be in the
+            resulting tree. If greater than 0, leafsize is adjusted to produce a
+            tree with 2**(ceil(log2(nleaves))) leaves. The leafsize keyword
+            argument is ignored if nleaves is greater zero. Defaults to 0. 
+        use_sliding_midpoint (bool, optional): If True, the sliding midpoint
+            rule is used to perform splits. Otherwise, the median is used.
+            Defaults to False.
+
+    Raises:
+        ValueError: If `leafsize < 2`. This currectly segfaults. 
+        AssertionError: If pts is not None on processes other than rank 0.
+
+    Attributes:
+        rank (int): MPI rank of the process.
+        size (int): Size of the MPI world.
+        npts (uint64): Number of points in the tree. Only set on rank 0.
+        local_npts (uint64): Number of points on this process.
+        inter_npts (uint64): Number of points on this process and all child
+            processes.
+        ndim (uint32): Number of dimensions points occupy.
+        total_num_leaves (uint32): Total number of leaves in the tree on all
+            processes.
+        local_num_leaves (uint32): Number of leaves on this process.
+        leafsize (uint32): Maximum number of points a leaf can have.
+        leaves (dict of `cykdtree.PyNode`): Local tree leaves on this process.
+        idx (np.ndarray of uint64): Indices sorting the local points on this
+            process by leaf.
+        inter_idx (np.ndarray of uint64): Indices sorting the points on this 
+            process and all child processes by leaf.
+        left_edge (np.ndarray of double): (m,) domain minimum in each dimension
+            for the portion of the tree on this process.
+        right_edge (np.ndarray of double): (m,) domain maximum in each dimension
+            for the portion of the tree on this process.
+        domain_width (np.ndarray of double): (m,) domain width in each dimension
+            for the portion of the tree on this process.
+        periodic_left (np.ndarray of bool): Truth of domain periodicity to the
+            left in each dimension for the portion of the tree on this process. 
+        periodic_right (np.ndarray of bool): Truth of domain periodicity to the
+            right in each dimension for the portion of the tree on this process. 
 
     """
 
-    def __cinit__(self, np.ndarray[double, ndim=2] pts = None,
-                  np.ndarray[double, ndim=1] left_edge = None,
-                  np.ndarray[double, ndim=1] right_edge = None,
-                  object periodic = False, int leafsize = 10000,
-                  int nleaves = 0):
-        cdef object comm = MPI.COMM_WORLD
-        self.size = comm.Get_size()
-        self.rank = comm.Get_rank()
+    def __cinit__(self):
+        # Initialize everthing to NULL/0/None to prevent seg fault 
+        self.size = 0
+        self.rank = 0
         self._ptree = NULL
         self.npts = 0
         self.ndim = 0
-        self.num_leaves = 0
         self.total_num_leaves = 0
         self.local_num_leaves = 0
-        self.leafsize = leafsize
+        self.leafsize = 0
         self._left_edge = NULL
         self._right_edge = NULL
         self._periodic = NULL
         self.leaves = None
+        self._idx = None
+
+    def __init__(self, np.ndarray[double, ndim=2] pts = None,
+                  np.ndarray[double, ndim=1] left_edge = None,
+                  np.ndarray[double, ndim=1] right_edge = None,
+                  object periodic = False, int leafsize = 10000,
+                  int nleaves = 0, pybool use_sliding_midpoint = False):
+        cdef object comm = MPI.COMM_WORLD
+        self.size = comm.Get_size()
+        self.rank = comm.Get_rank()
+        self.leafsize = leafsize
         cdef uint32_t i
         cdef object error = None
         cdef object error_flags = None
@@ -210,9 +271,9 @@ cdef class PyParallelKDTree:
                             (self.rank, sum(error_flags)))
         # Create c object
         if self.rank == 0:
-            self._make_tree(&pts[0,0])
+            self._make_tree(&pts[0,0], <cbool>use_sliding_midpoint)
         else:
-            self._make_tree(NULL)
+            self._make_tree(NULL, <cbool>use_sliding_midpoint)
         # Create list of Python leaves 
         self.total_num_leaves = self._ptree.total_num_leaves
         self.local_num_leaves = self._ptree.tree.num_leaves
@@ -237,7 +298,7 @@ cdef class PyParallelKDTree:
         if self._ptree != NULL:
             del self._ptree
 
-    cdef void _make_tree(self, double *ptr_pts):
+    cdef void _make_tree(self, double *ptr_pts, bool use_sliding_midpoint):
         cdef uint64_t[:] idx = np.arange(self.npts).astype('uint64')
         cdef uint64_t *ptr_idx
         if self.npts > 0:
@@ -248,7 +309,8 @@ cdef class PyParallelKDTree:
             self._ptree = new ParallelKDTree(ptr_pts, ptr_idx,
                                              self.npts, self.ndim,
                                              self.leafsize, self._left_edge,
-                                             self._right_edge, self._periodic)
+                                             self._right_edge, self._periodic,
+                                             use_sliding_midpoint)
         self._idx = idx  # Ensure that memory view freed
 
     @property
@@ -291,9 +353,6 @@ cdef class PyParallelKDTree:
         return np.asarray(view)
     @property
     def domain_width(self):
-        # cdef np.float64_t[:] view
-        # view = <np.float64_t[:self.ndim]> self._ptree.local_domain_width
-        # return np.asarray(view)
         return self.right_edge - self.left_edge
     @property
     def periodic_left(self):

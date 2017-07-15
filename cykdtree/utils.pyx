@@ -3,7 +3,7 @@ cimport numpy as np
 cimport cython
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
-from libcpp cimport bool
+from libcpp cimport bool as cbool
 from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
 import copy
@@ -28,6 +28,7 @@ def py_max_pts(np.ndarray[np.float64_t, ndim=2] pos):
     cdef np.ndarray[np.float64_t] out = np.zeros(m, 'float64')
     for i in range(m):
         out[i] = cout[i]
+    #free(cout)
     return out
 
 def py_min_pts(np.ndarray[np.float64_t, ndim=2] pos):
@@ -47,7 +48,84 @@ def py_min_pts(np.ndarray[np.float64_t, ndim=2] pos):
     cdef np.ndarray[np.float64_t] out = np.zeros(m, 'float64')
     for i in range(m):
         out[i] = cout[i]
+    #free(cout)
     return out
+
+def py_argmax_pts_dim(np.ndarray[np.float64_t, ndim=2] pos,
+                      np.ndarray[np.uint64_t, ndim=1] idx,
+                      np.uint32_t d, int Lidx0, int Ridx0):
+    r"""Get the maximum of points along one dimension for a subset of the
+    point indices. This is essentially max(pos[idx[Lidx:(Ridx+1)], d]).
+
+    Args: 
+        pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
+        idx (np.ndarray of uint64_t): (n,) array of indices for positions.
+        d (uint32_t): Dimension to compute maximum along.
+        Lidx (int): Index in idx that search should begin at.
+        Ridx (int): Index in idx that search should end at.
+
+    Returns: 
+        uint64_t: Index in idx that provides maximum position in the subset
+            indices along dimension d.
+
+    """
+    cdef int n = pos.shape[0]
+    cdef uint32_t m = <uint32_t>pos.shape[1]
+    cdef uint64_t Lidx = 0
+    cdef uint64_t Ridx = <uint64_t>(n-1)
+    if (Lidx0 < 0):
+        Lidx = <uint64_t>(n + Lidx0)
+    elif Lidx0 >= n:
+        raise Exception("Left index (%d) exceeds size of positions array (%d)." 
+                            % (Lidx0, n))
+    else:
+        Lidx = <uint64_t>Lidx0
+    if (Ridx0 < 0):
+        Ridx = <uint64_t>(n + Ridx0)
+    elif Ridx0 >= n:
+        raise Exception("Right index (%d) exceeds size of positions array (%d)."
+                            % (Ridx0, n))
+    else:
+        Ridx = <uint64_t>Ridx0
+    cdef np.uint64_t cout = Lidx
+    if (Ridx > Lidx):
+        cout = argmax_pts_dim(&pos[0,0], &idx[0], m, d, Lidx, Ridx)
+    return cout
+
+def py_argmin_pts_dim(np.ndarray[np.float64_t, ndim=2] pos,
+                      np.ndarray[np.uint64_t, ndim=1] idx,
+                      np.uint32_t d, int Lidx0, int Ridx0):
+    r"""Get the minimum of points along one dimension for a subset of the
+    point indices. This is essentially min(pos[idx[Lidx:(Ridx+1)], d]).
+
+    Args: 
+        pos (np.ndarray of float64): (n,m) array of n m-D coordinates. 
+        idx (np.ndarray of uint64_t): (n,) array of indices for positions.
+        d (uint32_t): Dimension to compute minimum along.
+        Lidx (int): Index in idx that search should begin at.
+        Ridx (int): Index in idx that search should end at.
+
+    Returns: 
+        uint64_t: Index in idx that provides minimum position in the subset
+            indices along dimension d.
+
+    """
+    cdef uint64_t n = <uint64_t>pos.shape[0]
+    cdef uint32_t m = <uint32_t>pos.shape[1]
+    cdef uint64_t Lidx = 0
+    cdef uint64_t Ridx = n
+    if (Lidx0 < 0):
+        Lidx = <uint64_t>(<int>n + Lidx0)
+    else:
+        Lidx = <uint64_t>Lidx0
+    if (Ridx0 < 0):
+        Ridx = <uint64_t>(<int>n + Ridx0)
+    else:
+        Ridx = <uint64_t>Ridx0
+    cdef np.uint64_t cout = Lidx
+    if (Ridx > Lidx):
+        cout = argmin_pts_dim(&pos[0,0], &idx[0], m, d, Lidx, Ridx)
+    return cout
 
 def py_quickSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
     r"""Get the indices required to sort coordinates along one dimension.
@@ -219,7 +297,8 @@ def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
 
 def py_split(np.ndarray[np.float64_t, ndim=2] pos, 
              np.ndarray[np.float64_t, ndim=1] mins = None,
-             np.ndarray[np.float64_t, ndim=1] maxs = None):
+             np.ndarray[np.float64_t, ndim=1] maxs = None,
+             bool use_sliding_midpoint = False):
     r"""Get the indices required to split the positions equally along the
     largest dimension.
 
@@ -229,6 +308,8 @@ def py_split(np.ndarray[np.float64_t, ndim=2] pos,
             to None and is set to mins of pos along each dimension.
         maxs (np.ndarray of float64, optional): (m,) array of maxs. Defaults
             to None and is set to maxs of pos along each dimension.
+        use_sliding_midpoint (bool, optional): If True, the sliding midpoint
+             rule is used to split the positions. Defaults to False.
 
     Returns:
         tuple(int64, uint32, np.ndarray of uint64): The index of the split in
@@ -256,6 +337,8 @@ def py_split(np.ndarray[np.float64_t, ndim=2] pos,
         ptr_maxs = &maxs[0]
     cdef int64_t q = 0
     cdef double split_val = 0.0
+    cdef cbool c_midpoint_flag = <cbool>use_sliding_midpoint
     cdef uint32_t dsplit = split(ptr_pos, ptr_idx, Lidx, npts, ndim,
-                                 ptr_mins, ptr_maxs, q, split_val)
+                                 ptr_mins, ptr_maxs, q, split_val,
+                                 c_midpoint_flag)
     return q, dsplit, idx
