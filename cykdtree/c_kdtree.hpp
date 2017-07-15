@@ -512,8 +512,8 @@ public:
   // KDTree() {}
   KDTree(double *pts, uint64_t *idx, uint64_t n, uint32_t m,
 	 uint32_t leafsize0, double *left_edge, double *right_edge,
-	 bool *periodic_left0, bool *periodic_right0, int64_t dversion,
-	 double *domain_mins0, double *domain_maxs0,
+	 bool *periodic_left0, bool *periodic_right0,
+	 double *domain_mins0, double *domain_maxs0, int64_t dversion,
 	 bool use_sliding_midpoint0 = false, bool dont_build = false)
   {
     is_partial = true;
