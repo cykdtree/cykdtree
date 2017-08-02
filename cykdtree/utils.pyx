@@ -52,7 +52,7 @@ def py_min_pts(np.ndarray[np.float64_t, ndim=2] pos):
     return out
 
 def py_argmax_pts_dim(np.ndarray[np.float64_t, ndim=2] pos,
-                      np.ndarray[np.uint64_t, ndim=1] idx,
+                      uint64_t[:] idx,
                       np.uint32_t d, int Lidx0, int Ridx0):
     r"""Get the maximum of points along one dimension for a subset of the
     point indices. This is essentially max(pos[idx[Lidx:(Ridx+1)], d]).
@@ -93,7 +93,7 @@ def py_argmax_pts_dim(np.ndarray[np.float64_t, ndim=2] pos,
     return cout
 
 def py_argmin_pts_dim(np.ndarray[np.float64_t, ndim=2] pos,
-                      np.ndarray[np.uint64_t, ndim=1] idx,
+                      uint64_t[:] idx,
                       np.uint32_t d, int Lidx0, int Ridx0):
     r"""Get the minimum of points along one dimension for a subset of the
     point indices. This is essentially min(pos[idx[Lidx:(Ridx+1)], d]).
