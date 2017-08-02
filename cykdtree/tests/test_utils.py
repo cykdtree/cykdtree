@@ -141,7 +141,6 @@ def test_split(N=10, ndim=2, use_sliding_midpoint=False):
         assert_equal(q, -1)
     else:
         if use_sliding_midpoint:
-            print N, ndim, use_sliding_midpoint
             # Midpoint
             med = 0.5*(np.min(pts[:,d]) + np.max(pts[:,d]))
             np.testing.assert_array_less(pts[idx[:q], d], med)
