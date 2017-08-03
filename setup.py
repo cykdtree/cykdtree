@@ -6,6 +6,7 @@ import copy
 import numpy
 import os
 import platform
+import sys
 
 # Set to false to enable tracking of Cython lines in profile
 release = True
@@ -20,8 +21,13 @@ try:
 except ImportError:
     raise ImportError('Cython is a required dependency of cykdtree')
 
+include_dirs = [numpy.get_include()]
+
+if platform.system() == "Windows" and sys.version_info[:2] == (2, 7):
+    include_dirs.append('cykdtree/windows')
+
 ext_options = dict(language="c++",
-                   include_dirs=[numpy.get_include()],
+                   include_dirs=include_dirs,
                    libraries=[],
                    extra_link_args=[],
                    extra_compile_args=["-std=c++03"])
