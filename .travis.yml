@@ -45,12 +45,14 @@ install:
   - |
     # setup environment
     ccache -s
+    # tell matplotlib to use the agg backend
+    echo "backend : Agg" > $HOME/.matplotlibrc
     # Upgrade pip and setuptools and wheel to get clean install
     pip install --upgrade pip
     pip install --upgrade wheel
     pip install --upgrade setuptools
     # Install dependencies
-    pip install mock $NUMPY $CYTHON $MATPLOTLIB nose
+    pip install $NUMPY $CYTHON $MATPLOTLIB nose
     # install cykdtree
     pip install -e .
 
