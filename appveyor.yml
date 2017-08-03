@@ -27,7 +27,8 @@ install:
     - "python --version"
 
     # Install specified version of numpy and dependencies
-    - "conda install --yes -c conda-forge numpy nose setuptools Cython matplotlib"
+    - "conda install --yes -c conda-forge numpy nose setuptools Cython
+    matplotlib msinttypes"
     - "pip install -e ."
 
 # Not a .NET project
