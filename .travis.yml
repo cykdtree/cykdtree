@@ -39,6 +39,7 @@ before_install:
       export PATH=/usr/lib/ccache:$PATH
     else
       brew update
+      brew install ccache
       export PATH=/usr/local/opt/ccache/libexec:$PATH
     fi
 
