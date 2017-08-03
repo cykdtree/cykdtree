@@ -8,9 +8,6 @@ from libc.stdint cimport uint32_t, uint64_t, int64_t, int32_t
 
 import copy
 
-import scipy
-from scipy.sparse import csr_matrix
-
 def py_max_pts(np.ndarray[np.float64_t, ndim=2] pos):
     r"""Get the maximum of points along each coordinate. 
 
