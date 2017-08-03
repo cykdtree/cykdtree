@@ -10,6 +10,7 @@ env:
     NUMPY=numpy
     CYTHON=cython
     MATPLOTLIB=matplotlib
+    MPLBACKEND=agg
 
 matrix:
   include:
@@ -45,9 +46,6 @@ install:
   - |
     # setup environment
     ccache -s
-    # tell matplotlib to use the agg backend
-    echo "backend : Agg" > $HOME/.matplotlibrc
-    cat $HOME/.matplotlibrc
     # Upgrade pip and setuptools and wheel to get clean install
     pip install --upgrade pip
     pip install --upgrade wheel
