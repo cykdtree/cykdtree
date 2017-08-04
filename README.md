@@ -15,7 +15,7 @@ cykdtree is released as open source software under a BSD license.
 1. Clone the cykdtree package using git:
 
 ```
-$ git clone https://bitbucket.org/cykdtree/cykdtree
+$ git clone https://github.com/cykdtree/cykdtree
 ``` 
 
 2. From the distribution directory, execute the install script. ```$ python setup.py install```
