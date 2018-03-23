@@ -208,7 +208,7 @@ uint32_t split(double *all_pts, uint64_t *all_idx,
                int64_t &split_idx, double &split_val,
 	       bool use_sliding_midpoint) {
   // Return immediately if variables empty
-  if ((n == 0) or (ndim == 0)) {
+  if ((n == 0) || (ndim == 0)) {
     split_idx = -1;
     split_val = 0.0;
     return 0;
