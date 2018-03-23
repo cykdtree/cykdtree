@@ -22,14 +22,14 @@ void serialize_scalar(std::ostream &os, const T &scalar) {
 }
 
 template <typename T>
-T* deserialize_pointer_array(std::istream &is, uint32_t len) {
+T* deserialize_pointer_array(std::istream &is, uint64_t len) {
   T* arr = (T*)malloc(len*sizeof(T));
   is.read((char*)&arr[0], len*sizeof(T));
   return arr;
 }
 
 template <typename T>
-void serialize_pointer_array(std::ostream &os, const T* array, uint32_t len) {
+void serialize_pointer_array(std::ostream &os, const T* array, uint64_t len) {
   os.write((char*)array, len*sizeof(T));
 }
 
@@ -370,7 +370,7 @@ public:
   }
 
   void select_unique_neighbors() {
-    if (not is_leaf)
+    if (!is_leaf)
       return;
 
     uint32_t d;
@@ -388,7 +388,7 @@ public:
   }
 
   void join_neighbors() {
-    if (not is_leaf)
+    if (!is_leaf)
       return;
 
     uint32_t d;
@@ -769,11 +769,11 @@ public:
     for (i = 0; i < num_leaves; i++) {
       leaf = leaves[i];
       for (d0 = 0; d0 < ndim; d0++) {
-	if (not leaf->periodic_left[d0])
+	if (!leaf->periodic_left[d0])
 	  continue;
 	for (j = i; j < num_leaves; j++) {
 	  prev = leaves[j];
-	  if (not prev->periodic_right[d0])
+	  if (!prev->periodic_right[d0])
 	    continue;
 	  add_neighbors_periodic(leaf, prev, d0);
 	}
@@ -784,9 +784,9 @@ public:
   void add_neighbors_periodic(Node *leaf, Node *prev, uint32_t d0) {
     uint32_t d, ndim_escape;
     bool match;
-    if (not leaf->periodic_left[d0])
+    if (!leaf->periodic_left[d0])
       return;
-    if (not prev->periodic_right[d0])
+    if (!prev->periodic_right[d0])
       return;
     match = true;
     ndim_escape = 0;
@@ -810,7 +810,7 @@ public:
 	}
       }
     }
-    if ((match) and (ndim_escape < (ndim-1))) {
+    if ((match) && (ndim_escape < (ndim-1))) {
       // printf("%d: %d, %d (%d)\n", d0, leaf->leafid, prev->leafid, ndim_escape);
       leaf->left_neighbors[d0].push_back(prev->leafid);
       prev->right_neighbors[d0].push_back(leaf->leafid);

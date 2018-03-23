@@ -5,6 +5,7 @@ from subprocess import Popen, PIPE
 import copy
 import numpy
 import os
+import platform
 
 # Set to false to enable tracking of Cython lines in profile
 release = True
@@ -55,6 +56,9 @@ if RTDFLAG:
     ext_options['libraries'] = []
     ext_options['extra_link_args'] = []
     ext_options['extra_compile_args'].append('-DREADTHEDOCS')
+    compile_parallel = False
+elif platform.system() == 'Windows':
+    # AFAICS MPI is not supported well on Windows.
     compile_parallel = False
 else:
     try:

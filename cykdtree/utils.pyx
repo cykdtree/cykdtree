@@ -66,7 +66,7 @@ def py_argmax_pts_dim(np.ndarray[np.float64_t, ndim=2] pos,
             indices along dimension d.
 
     """
-    cdef int n = pos.shape[0]
+    cdef np.intp_t n = pos.shape[0]
     cdef uint32_t m = <uint32_t>pos.shape[1]
     cdef uint64_t Lidx = 0
     cdef uint64_t Ridx = <uint64_t>(n-1)
@@ -135,7 +135,7 @@ def py_quickSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
         np.ndarray of uint64: Indices that sort pos along dimension d.
 
     """
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
@@ -159,7 +159,7 @@ def py_insertSort(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
         np.ndarray of uint64: Indices that sort pos along dimension d.
 
     """
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
@@ -187,7 +187,7 @@ def py_pivot(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d):
             be the median.
 
     """
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
@@ -217,7 +217,7 @@ def py_partition(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
             the pivot are larger.
 
     """
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
@@ -246,7 +246,7 @@ def py_partition_given_pivot(np.ndarray[np.float64_t, ndim=2] pos,
             are smaller and elements after the pivot are larger.
 
     """
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
@@ -278,7 +278,7 @@ def py_select(np.ndarray[np.float64_t, ndim=2] pos, np.uint32_t d,
             the pivot are larger.
 
     """
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef int64_t l = 0
     cdef int64_t r = pos.shape[0]-1
     cdef uint64_t[:] idx
@@ -314,8 +314,8 @@ def py_split(np.ndarray[np.float64_t, ndim=2] pos,
             required to partition the array.
 
     """
-    cdef uint64_t npts = pos.shape[0]
-    cdef uint32_t ndim = pos.shape[1]
+    cdef np.intp_t npts = pos.shape[0]
+    cdef np.intp_t ndim = pos.shape[1]
     cdef uint64_t Lidx = 0
     cdef uint64_t[:] idx
     idx = np.arange(pos.shape[0]).astype('uint64')
