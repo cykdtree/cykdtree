@@ -102,7 +102,7 @@ def test_save_load():
             pts, le, re, ls = make_points(100, ndim)
             tree = cykdtree.PyKDTree(pts, le, re, leafsize=ls,
                                      periodic=periodic, data_version=ndim+12)
-            with tempfile.NamedTemporaryFile() as tf:
+            with tempfile.NamedTemporaryFile(delete=False) as tf:
                 tree.save(tf.name)
                 restore_tree = cykdtree.PyKDTree.from_file(tf.name)
                 tree.assert_equal(restore_tree)
