@@ -2,6 +2,7 @@ include *.md
 include *.png
 include *.svg
 include *.txt
+include cykdtree/windows/*.h
 recursive-include cykdtree *.hpp
 recursive-include cykdtree *.pxd
 recursive-include cykdtree *.py
