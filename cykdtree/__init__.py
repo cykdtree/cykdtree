@@ -7,7 +7,7 @@ try:
     from cykdtree.parallel_kdtree import PyParallelKDTree, spawn_parallel, parallel_worker
 except ImportError:
     PyParallelKDTree = spawn_parallel = parallel_worker = None
-from cykdtree import tests, plot
+from cykdtree import plot
 
 
 def run_nose(verbose=False):
